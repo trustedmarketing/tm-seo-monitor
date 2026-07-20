@@ -119,15 +119,25 @@ export function visibilityScore(positions: (number | null)[]): number {
   return Math.round((earned / max) * 10000) / 100; // 2 decimals
 }
 
-// ── AI visibility (phase 2) ───────────────────────────────────────
-// DataForSEO's AI Optimization API (LLM mentions endpoints) covers
-// this. Stubbed so the schema and dashboard are ready when you wire it.
-export async function aiVisibility(_domain: string) {
-  return { aiVisibility: null as number | null, aiMentions: null as number | null };
+// ── AI answer visibility — one prompt through an LLM, check presence ─
+// Uses DataForSEO's AI Optimization LLM Responses endpoint (ChatGPT).
+export async function aiPromptCheck(
+  prompt: string, domain: string, brand: string
+): Promise<{ mentioned: boolean; cited: boolean }> {
+  const result = await post<unknown>("/ai_optimization/chat_gpt/llm_responses/live", [{
+    user_prompt: prompt,
+    model_name: "gpt-4o-mini",
+    max_output_tokens: 1024,
+  }]);
+  const blob = JSON.stringify(result ?? []).toLowerCase();
+  const bare = domain.replace(/^www\./, "").toLowerCase();
+  const brandLc = brand.trim().toLowerCase();
+  const cited = blob.includes(bare);
+  const mentioned = cited || (brandLc.length > 2 && blob.includes(brandLc));
+  return { mentioned, cited };
 }
 
 // ── Ranked keywords — suggestion source for tracked_keywords ─────
-// Returns keywords the domain already ranks top-30 for, best first.
 export async function rankedKeywords(
   domain: string, locationCode: number, languageCode: string, limit = 50
 ) {

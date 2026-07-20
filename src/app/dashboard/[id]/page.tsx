@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { METRIC_INFO } from "@/lib/metricInfo";
 import { Info, InfoStyles } from "@/components/Info";
+import { buildRecommendations, type Rec } from "@/lib/recommendations";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ type Snap = {
 type Ranking = { keyword_id: string; position: number | null; url: string | null; checked_at: string };
 type Kw = { id: string; keyword: string };
 type GscDay = { date: string; clicks: number; impressions: number; position: number | null };
+type TrackedPrompt = { id: string; prompt: string };
+type PromptResult = { prompt_id: string; mentioned: boolean; cited: boolean; checked_at: string };
 
 const RANGES: { key: string; label: string }[] = [
   { key: "30d", label: "Last 30" },
@@ -116,7 +119,7 @@ export default async function ClientDetail({
 
   const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
-  const [{ data: client }, { data: snaps }, { data: kws }, { data: ranks }, { data: gscCur }, { data: gscPrev }] = await Promise.all([
+  const [{ data: client }, { data: snaps }, { data: kws }, { data: ranks }, { data: gscCur }, { data: gscPrev }, { data: tprompts }, { data: presults }] = await Promise.all([
     db.from("clients").select("*").eq("id", params.id).single(),
     db.from("metric_snapshots").select("*").eq("client_id", params.id)
       .gte("captured_at", start.toISOString())
@@ -128,6 +131,9 @@ export default async function ClientDetail({
       .gte("date", iso(start)).lte("date", iso(end)),
     db.from("gsc_history").select("date, clicks, impressions, position").eq("client_id", params.id)
       .gte("date", iso(prevStart)).lte("date", iso(prevEnd)),
+    db.from("tracked_prompts").select("id, prompt").eq("client_id", params.id).eq("active", true).order("prompt"),
+    db.from("prompt_results").select("prompt_id, mentioned, cited, checked_at").eq("client_id", params.id)
+      .order("checked_at", { ascending: false }).limit(200),
   ]);
 
   if (!client) {
@@ -160,6 +166,27 @@ export default async function ClientDetail({
       rCur?.position != null && rPrev?.position != null ? rPrev.position - rCur.position : null;
     return { ...k, position: rCur?.position ?? null, url: rCur?.url ?? null, posDelta };
   }).sort((a, b) => (a.position ?? 999) - (b.position ?? 999));
+
+  const latestResult = new Map<string, PromptResult>();
+  for (const r of (presults ?? []) as PromptResult[]) {
+    if (!latestResult.has(r.prompt_id)) latestResult.set(r.prompt_id, r);
+  }
+  const promptRows = ((tprompts ?? []) as TrackedPrompt[]).map((tp) => {
+    const r = latestResult.get(tp.id);
+    return {
+      id: tp.id, prompt: tp.prompt,
+      mentioned: r ? r.mentioned : null,
+      cited: r ? r.cited : null,
+      checkedAt: r?.checked_at ?? null,
+    };
+  });
+
+  const recs: Rec[] = buildRecommendations(cur, prev, kwRows, promptRows);
+  const sevStyle: Record<Rec["severity"], React.CSSProperties> = {
+    high:   { background: "#FBE7E4", color: "#A33023" },
+    medium: { background: "#FFF6DB", color: "#8C6500" },
+    low:    { background: "#E5F4EA", color: "#2F8F4E" },
+  };
 
   const rangeHref = (key: string) => `/dashboard/${params.id}?range=${key}`;
 
@@ -261,6 +288,71 @@ export default async function ClientDetail({
             <Metric label="Backlinks" value={fmt(cur?.backlinks ?? null)} delta={d(cur?.backlinks ?? null, prev?.backlinks ?? null)} />
             <Metric label="AI visibility" value={cur?.ai_visibility != null ? `${cur.ai_visibility}%` : "–"} delta={null} />
           </div>
+        </section>
+
+        {recs.length > 0 && (
+          <section style={{ ...card, padding: "20px 24px 24px", marginBottom: 24 }}>
+            <div style={{ ...eyebrow, marginBottom: 14 }}>
+              Recommendations
+              <Info text="Generated from this client's current data: rankings, AI answer checks, site health, and link profile. Ordered by impact." />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {recs.map((r, i) => (
+                <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "3px 10px", borderRadius: 999, whiteSpace: "nowrap", ...sevStyle[r.severity] }}>
+                    {r.severity}
+                  </span>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>
+                      {r.title}
+                      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--fg3)", marginLeft: 10 }}>{r.category}</span>
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--fg2)", lineHeight: 1.5, marginTop: 2 }}>{r.detail}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section style={{ ...card, padding: "20px 24px 8px", marginBottom: 24 }}>
+          <div style={{ ...eyebrow, marginBottom: 8 }}>
+            AI answer visibility ({promptRows.length} prompts)
+            <Info text="Each prompt is asked to an AI assistant on the rank-tracking schedule. Cited = the client's site is linked as a source. Mentioned = the brand appears in the answer. Not found = invisible for that question." />
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={th}>Prompt</th>
+                <th style={th}>Result</th>
+                <th style={th}>Last checked</th>
+              </tr>
+            </thead>
+            <tbody>
+              {promptRows.map((p) => (
+                <tr key={p.id}>
+                  <td style={{ ...td, fontWeight: 600 }}>{p.prompt}</td>
+                  <td style={td}>
+                    {p.mentioned == null ? (
+                      <span style={{ fontSize: 12, color: "var(--fg3)" }}>Not checked yet</span>
+                    ) : p.cited ? (
+                      <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: "var(--tm-deep-charcoal)", color: "var(--tm-performance-green)" }}>Cited</span>
+                    ) : p.mentioned ? (
+                      <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: "#E5F4EA", color: "#2F8F4E" }}>Mentioned</span>
+                    ) : (
+                      <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: "#FBE7E4", color: "#A33023" }}>Not found</span>
+                    )}
+                  </td>
+                  <td style={{ ...td, fontSize: 13, color: "var(--fg3)" }}>
+                    {p.checkedAt ? dateShort(p.checkedAt) : "–"}
+                  </td>
+                </tr>
+              ))}
+              {promptRows.length === 0 && (
+                <tr><td style={td} colSpan={3}>No AI prompts tracked yet — add them in the admin to start measuring AI answer visibility.</td></tr>
+              )}
+            </tbody>
+          </table>
         </section>
 
         <section style={{ ...card, padding: "20px 24px 8px", marginBottom: 24 }}>

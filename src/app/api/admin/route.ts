@@ -19,7 +19,9 @@ export async function GET(req: Request) {
   const { data: clients } = await s.from("clients").select("*").order("name");
   const { data: keywords } = await s
     .from("tracked_keywords").select("id, client_id, keyword").eq("active", true);
-  return Response.json({ clients: clients ?? [], keywords: keywords ?? [] });
+  const { data: prompts } = await s
+    .from("tracked_prompts").select("id, client_id, prompt").eq("active", true);
+  return Response.json({ clients: clients ?? [], keywords: keywords ?? [], prompts: prompts ?? [] });
 }
 
 export async function POST(req: Request) {
@@ -60,6 +62,24 @@ export async function POST(req: Request) {
           .upsert(rows, { onConflict: "client_id,keyword" });
         if (error) throw error;
         return Response.json({ added: rows.length });
+      }
+
+      case "add_prompts": {
+        const rows = (body.prompts as string[])
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .map((prompt) => ({ client_id: body.client_id, prompt }));
+        const { error } = await s.from("tracked_prompts")
+          .upsert(rows, { onConflict: "client_id,prompt" });
+        if (error) throw error;
+        return Response.json({ added: rows.length });
+      }
+
+      case "remove_prompt": {
+        const { error } = await s.from("tracked_prompts")
+          .update({ active: false }).eq("id", body.prompt_id);
+        if (error) throw error;
+        return Response.json({ ok: true });
       }
 
       case "remove_keyword": {

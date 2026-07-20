@@ -11,6 +11,7 @@ type Client = {
   core_frequency: string; serp_frequency: string; crawl_frequency: string;
 };
 type Keyword = { id: string; client_id: string; keyword: string };
+type Prompt = { id: string; client_id: string; prompt: string };
 type Suggestion = { keyword: string; source: string; note: string };
 
 const FREQS = ["daily", "weekly", "biweekly", "monthly", "paused"];
@@ -47,9 +48,11 @@ export default function Admin() {
   const [authed, setAuthed] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [kwInput, setKwInput] = useState("");
+  const [promptInput, setPromptInput] = useState("");
   const [status, setStatus] = useState("");
   const [form, setForm] = useState<Partial<Client>>({});
 
@@ -66,8 +69,8 @@ export default function Admin() {
   }, [pw]);
 
   const load = useCallback(async () => {
-    const { clients, keywords } = await api();
-    setClients(clients); setKeywords(keywords); setAuthed(true);
+    const { clients, keywords, prompts } = await api();
+    setClients(clients); setKeywords(keywords); setPrompts(prompts ?? []); setAuthed(true);
   }, [api]);
 
   useEffect(() => { /* wait for password */ }, []);
@@ -96,6 +99,7 @@ export default function Admin() {
 
   const sel = clients.find((c) => c.id === selected) ?? null;
   const selKeywords = keywords.filter((k) => k.client_id === selected);
+  const selPrompts = prompts.filter((p) => p.client_id === selected);
 
   return (
     <main style={{ fontFamily: "var(--font-body)", background: "var(--bg)", minHeight: "100vh", padding: "48px 24px", color: "var(--fg1)" }}>
@@ -206,6 +210,36 @@ export default function Admin() {
                   await api({ action: "add_keywords", client_id: sel.id, keywords: kwInput.split("\n") });
                   setKwInput(""); await load();
                 })}>Add keywords</button>
+              </div>
+
+              <div style={S.card}>
+                <div style={S.label}>AI prompts ({selPrompts.length})</div>
+                <div style={{ fontSize: 13, color: "var(--fg3)", margin: "6px 0 10px", lineHeight: 1.5 }}>
+                  Questions a customer would ask an AI assistant. Each is run through an LLM on the
+                  same schedule as rank tracking; AI Visibility = share of prompts where this client appears.
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "0 0 16px" }}>
+                  {selPrompts.map((p) => (
+                    <span key={p.id} style={{
+                      display: "inline-flex", alignItems: "center", gap: 8,
+                      fontSize: 13, fontWeight: 600, padding: "5px 12px",
+                      borderRadius: 999, border: "1px solid var(--border-strong)",
+                    }}>
+                      {p.prompt}
+                      <button onClick={() => run("Remove", async () => {
+                        await api({ action: "remove_prompt", prompt_id: p.id }); await load();
+                      })} style={{ border: "none", background: "none", cursor: "pointer", color: "var(--fg3)", padding: 0 }}>×</button>
+                    </span>
+                  ))}
+                </div>
+                <label style={S.label}>Add prompts (one per line)</label>
+                <textarea style={{ ...S.input, minHeight: 90, resize: "vertical" }} value={promptInput}
+                  placeholder={"what's the best salt remover for boats\nhow do I stop salt corrosion on my boat trailer"}
+                  onChange={(e) => setPromptInput(e.target.value)} />
+                <button style={{ ...S.btn, marginTop: 10 }} onClick={() => run("Add prompts", async () => {
+                  await api({ action: "add_prompts", client_id: sel.id, prompts: promptInput.split("\n") });
+                  setPromptInput(""); await load();
+                })}>Add prompts</button>
               </div>
 
               {suggestions.length > 0 && (
