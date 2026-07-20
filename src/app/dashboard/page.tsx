@@ -3,21 +3,22 @@ import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
 
-type Row = {
-  id: string; name: string; domain: string; tier: string | null;
-  captured_at: string | null;
-  organic_traffic: number | null;  d_traffic: number | null;
-  organic_keywords: number | null; d_keywords: number | null;
-  backlinks: number | null;        d_backlinks: number | null;
-  site_health: number | null;      d_health: number | null;
-  visibility: number | null;       d_visibility: number | null;
-  ai_visibility: number | null;    ai_mentions: number | null;
+type Snap = {
+  client_id: string; captured_at: string;
+  organic_traffic: number | null; organic_keywords: number | null;
+  backlinks: number | null; site_health: number | null;
+  visibility: number | null; ai_visibility: number | null; ai_mentions: number | null;
 };
+type Client = { id: string; name: string; domain: string; tier: string | null };
 
 function fmt(n: number | null): string {
   if (n == null) return "–";
   if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
   return String(n);
+}
+function d(cur: number | null, prev: number | null): number | null {
+  if (cur == null || prev == null) return null;
+  return Math.round((cur - prev) * 100) / 100;
 }
 
 function Delta({ value, suffix = "" }: { value: number | null; suffix?: string }) {
@@ -44,8 +45,18 @@ function Metric({ label, value, delta, suffix = "" }: {
 
 export default async function Dashboard() {
   const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-  const { data, error } = await db.from("client_dashboard").select("*").order("name");
-  const rows = (data ?? []) as Row[];
+
+  const [{ data: clients, error: cErr }, { data: snaps, error: sErr }] = await Promise.all([
+    db.from("clients").select("id, name, domain, tier").eq("active", true).order("name"),
+    db.from("metric_snapshots").select("*").order("captured_at", { ascending: false }).limit(500),
+  ]);
+  const error = cErr ?? sErr;
+
+  const byClient = new Map<string, Snap[]>();
+  for (const s of (snaps ?? []) as Snap[]) {
+    const list = byClient.get(s.client_id) ?? [];
+    if (list.length < 2) { list.push(s); byClient.set(s.client_id, list); }
+  }
 
   return (
     <main style={{ fontFamily: "var(--font-body)", background: "var(--bg)", minHeight: "100vh", padding: "48px 24px", color: "var(--fg1)" }}>
@@ -60,35 +71,36 @@ export default async function Dashboard() {
 
         {error && (
           <div style={{ padding: 16, borderRadius: 8, background: "#FBE7E4", color: "var(--danger)", fontSize: 14, marginBottom: 24 }}>
-            Dashboard query failed: {error.message} (code: {error.code ?? "none"})
+            Dashboard query failed: {error.message}
           </div>
         )}
-        {!error && rows.length === 0 && (
-          <div style={{ fontSize: 14, color: "var(--fg3)" }}>
-            Query succeeded but returned no rows.
-          </div>
+        {!error && (clients ?? []).length === 0 && (
+          <div style={{ fontSize: 14, color: "var(--fg3)" }}>No active clients yet.</div>
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {rows.map((r) => (
-            <section key={r.id} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
-              <header style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 24px", borderBottom: "1px solid var(--border)" }}>
-                <span style={{ fontSize: 17, fontWeight: 600 }}>{r.name}</span>
-                <a href={`https://${r.domain}`} style={{ fontSize: 13, color: "var(--fg3)", textDecoration: "none" }}>{r.domain}</a>
-                {r.tier && (
-                  <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: "var(--radius-pill)", background: "var(--tm-deep-charcoal)", color: "var(--tm-performance-green)" }}>{r.tier}</span>
-                )}
-              </header>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 24, padding: "20px 24px 24px" }}>
-                <Metric label="Site health" value={r.site_health != null ? `${Math.round(r.site_health)}%` : "–"} delta={r.d_health} />
-                <Metric label="Visibility" value={r.visibility != null ? `${r.visibility}%` : "–"} delta={r.d_visibility} />
-                <Metric label="Organic traffic" value={fmt(r.organic_traffic)} delta={r.d_traffic} />
-                <Metric label="Organic keywords" value={fmt(r.organic_keywords)} delta={r.d_keywords} />
-                <Metric label="Backlinks" value={fmt(r.backlinks)} delta={r.d_backlinks} />
-                <Metric label="AI visibility" value={r.ai_visibility != null ? `${r.ai_visibility}%` : "–"} delta={null} />
-              </div>
-            </section>
-          ))}
+          {((clients ?? []) as Client[]).map((c) => {
+            const [cur, prev] = byClient.get(c.id) ?? [];
+            return (
+              <section key={c.id} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
+                <header style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 24px", borderBottom: "1px solid var(--border)" }}>
+                  <span style={{ fontSize: 17, fontWeight: 600 }}>{c.name}</span>
+                  <a href={`https://${c.domain}`} style={{ fontSize: 13, color: "var(--fg3)", textDecoration: "none" }}>{c.domain}</a>
+                  {c.tier && (
+                    <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: "var(--radius-pill)", background: "var(--tm-deep-charcoal)", color: "var(--tm-performance-green)" }}>{c.tier}</span>
+                  )}
+                </header>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 24, padding: "20px 24px 24px" }}>
+                  <Metric label="Site health" value={cur?.site_health != null ? `${Math.round(cur.site_health)}%` : "–"} delta={d(cur?.site_health ?? null, prev?.site_health ?? null)} />
+                  <Metric label="Visibility" value={cur?.visibility != null ? `${cur.visibility}%` : "–"} delta={d(cur?.visibility ?? null, prev?.visibility ?? null)} />
+                  <Metric label="Organic traffic" value={fmt(cur?.organic_traffic ?? null)} delta={d(cur?.organic_traffic ?? null, prev?.organic_traffic ?? null)} />
+                  <Metric label="Organic keywords" value={fmt(cur?.organic_keywords ?? null)} delta={d(cur?.organic_keywords ?? null, prev?.organic_keywords ?? null)} />
+                  <Metric label="Backlinks" value={fmt(cur?.backlinks ?? null)} delta={d(cur?.backlinks ?? null, prev?.backlinks ?? null)} />
+                  <Metric label="AI visibility" value={cur?.ai_visibility != null ? `${cur.ai_visibility}%` : "–"} delta={null} />
+                </div>
+              </section>
+            );
+          })}
         </div>
       </div>
     </main>
