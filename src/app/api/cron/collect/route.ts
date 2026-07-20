@@ -28,6 +28,9 @@ export async function GET(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  // ?force=1 on a manual trigger ignores frequency schedules and collects everything now.
+  const force = new URL(req.url).searchParams.get("force") === "1";
+
   const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
   const { data: clients, error } = await db.from("clients").select("*").eq("active", true);
   if (error) return Response.json({ error: error.message }, { status: 500 });
@@ -40,7 +43,7 @@ export async function GET(req: Request) {
     let hasData = false;
 
     // ── Core: traffic, keywords, backlinks ────────────────────────
-    if (isDue(c.core_frequency, c.last_core_at)) {
+    if (force || isDue(c.core_frequency, c.last_core_at)) {
       try {
         const [rank, links] = await Promise.all([
           domainRankOverview(c.domain, c.location_code, c.language_code),
@@ -59,7 +62,7 @@ export async function GET(req: Request) {
     }
 
     // ── SERP rankings + AI prompt checks (shared cadence) ─────────
-    if (isDue(c.serp_frequency, c.last_serp_at)) {
+    if (force || isDue(c.serp_frequency, c.last_serp_at)) {
       // Keyword rankings → visibility %
       try {
         const { data: kws } = await db
@@ -131,7 +134,7 @@ export async function GET(req: Request) {
         } else {
           done.push("crawl still running");
         }
-      } else if (isDue(c.crawl_frequency, c.last_crawl_at)) {
+      } else if (force || isDue(c.crawl_frequency, c.last_crawl_at)) {
         const taskId = await onPageTaskPost(c.domain);
         await db.from("clients").update({ onpage_task_id: taskId }).eq("id", c.id);
         done.push("crawl queued");
