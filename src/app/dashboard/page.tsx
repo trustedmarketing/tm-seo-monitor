@@ -1,4 +1,7 @@
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
+import { METRIC_INFO } from "@/lib/metricInfo";
+import { Info, InfoStyles } from "@/components/Info";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +39,10 @@ function Metric({ label, value, delta, suffix = "" }: {
 }) {
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--fg2)" }}>{label}</div>
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--fg2)", display: "flex", alignItems: "center" }}>
+        {label}
+        <Info text={METRIC_INFO[label] ?? ""} />
+      </div>
       <div style={{ fontFamily: "var(--font-display)", fontSize: 44, lineHeight: 1.1, letterSpacing: "-0.02em", margin: "6px 0 2px" }}>{value}</div>
       <Delta value={delta} suffix={suffix} />
     </div>
@@ -60,6 +66,7 @@ export default async function Dashboard() {
 
   return (
     <main style={{ fontFamily: "var(--font-body)", background: "var(--bg)", minHeight: "100vh", padding: "48px 24px", color: "var(--fg1)" }}>
+      <InfoStyles />
       <div style={{ maxWidth: 1180, margin: "0 auto" }}>
         <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg2)", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--tm-performance-green)" }} />
@@ -84,11 +91,18 @@ export default async function Dashboard() {
             return (
               <section key={c.id} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
                 <header style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 24px", borderBottom: "1px solid var(--border)" }}>
-                  <span style={{ fontSize: 17, fontWeight: 600 }}>{c.name}</span>
+                  <Link href={`/dashboard/${c.id}`} style={{ fontSize: 17, fontWeight: 600, color: "var(--fg1)", textDecoration: "none", borderBottom: "2px solid var(--tm-performance-green)" }}>
+                    {c.name}
+                  </Link>
                   <a href={`https://${c.domain}`} style={{ fontSize: 13, color: "var(--fg3)", textDecoration: "none" }}>{c.domain}</a>
-                  {c.tier && (
-                    <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: "var(--radius-pill)", background: "var(--tm-deep-charcoal)", color: "var(--tm-performance-green)" }}>{c.tier}</span>
-                  )}
+                  <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+                    {c.tier && (
+                      <span style={{ fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: "var(--radius-pill)", background: "var(--tm-deep-charcoal)", color: "var(--tm-performance-green)" }}>{c.tier}</span>
+                    )}
+                    <Link href={`/dashboard/${c.id}`} style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>
+                      Details →
+                    </Link>
+                  </div>
                 </header>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 24, padding: "20px 24px 24px" }}>
                   <Metric label="Site health" value={cur?.site_health != null ? `${Math.round(cur.site_health)}%` : "–"} delta={d(cur?.site_health ?? null, prev?.site_health ?? null)} />
