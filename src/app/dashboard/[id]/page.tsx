@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
 import { METRIC_INFO } from "@/lib/metricInfo";
+import { dbClient } from "@/lib/db";
 import { Info, InfoStyles } from "@/components/Info";
 import { buildRecommendations, type Rec } from "@/lib/recommendations";
 import "@/styles/tm-tokens.css";
@@ -117,7 +117,7 @@ export default async function ClientDetail({
   const prevStart = new Date(start); prevStart.setDate(prevStart.getDate() - periodDays);
   const prevEnd = new Date(start); prevEnd.setDate(prevEnd.getDate() - 1);
 
-  const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+  const db = dbClient();
 
   const [{ data: client }, { data: snaps }, { data: kws }, { data: ranks }, { data: gscCur }, { data: gscPrev }, { data: tprompts }, { data: presults }] = await Promise.all([
     db.from("clients").select("*").eq("id", params.id).single(),

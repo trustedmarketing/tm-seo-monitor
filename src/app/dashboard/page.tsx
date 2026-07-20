@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
 import { METRIC_INFO } from "@/lib/metricInfo";
+import { dbClient } from "@/lib/db";
 import { Info, InfoStyles } from "@/components/Info";
 import "@/styles/tm-tokens.css";
 
@@ -50,7 +50,7 @@ function Metric({ label, value, delta, suffix = "" }: {
 }
 
 export default async function Dashboard() {
-  const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+  const db = dbClient();
 
   const [{ data: clients, error: cErr }, { data: snaps, error: sErr }] = await Promise.all([
     db.from("clients").select("id, name, domain, tier").eq("active", true).order("name"),
