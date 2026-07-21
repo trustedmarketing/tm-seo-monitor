@@ -5,6 +5,7 @@ export async function middleware(req: NextRequest) {
   const role = await verifyToken(req.cookies.get("tm_auth")?.value, process.env.CRON_SECRET!);
   const path = req.nextUrl.pathname;
   const needsAdmin = path.startsWith("/admin") || path.startsWith("/research");
+  // /command is viewer-accessible, like /dashboard
 
   if (!role || (needsAdmin && role !== "admin")) {
     const url = req.nextUrl.clone();
@@ -17,5 +18,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*", "/research/:path*"],
+  matcher: ["/dashboard/:path*", "/command/:path*", "/admin/:path*", "/research/:path*"],
 };

@@ -74,12 +74,15 @@ export default async function Dashboard() {
         <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg2)", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--tm-performance-green)" }} />
           Client performance
-          {role === "admin" && (
-            <span style={{ marginLeft: "auto", display: "flex", gap: 18, textTransform: "none", letterSpacing: 0 }}>
-              <Link href="/research" style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>Research</Link>
-              <Link href="/admin" style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>Admin</Link>
-            </span>
-          )}
+          <span style={{ marginLeft: "auto", display: "flex", gap: 18, textTransform: "none", letterSpacing: 0 }}>
+            <Link href="/command" style={{ fontSize: 13, fontWeight: 600, color: "var(--tm-green-deep)", textDecoration: "none" }}>Command ↗</Link>
+            {role === "admin" && (
+              <>
+                <Link href="/research" style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>Research</Link>
+                <Link href="/admin" style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>Admin</Link>
+              </>
+            )}
+          </span>
         </div>
         <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 400, fontSize: 56, letterSpacing: "-0.01em", margin: "10px 0 40px" }}>
           Portfolio <em style={{ color: "var(--tm-green-deep)" }}>this week</em>
