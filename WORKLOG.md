@@ -4,6 +4,38 @@ Update channel for WO-001 execution. Newest entries on top.
 
 ---
 
+## 2026-07-21 · Session 1 · Wave landed — 3 draft PRs, migrations serialized to staging
+
+All three wave agents returned green. CTO review + serialization done:
+
+| Stream | PR | Migration | Applied to staging | Tests |
+|---|---|---|---|---|
+| 3 GA4 → conversions_daily | #3 | 005 | ✅ | 21/21 |
+| 2 secrets vault + expiry | #4 | 006 | ✅ (+ Vault RPC round-trip verified) | 23/23 |
+| 5 ClickUp sync | #2 | 007 | ✅ | 23/23 |
+
+- All PRs **draft**, based on `chore/enabling-layer` (clean stacked diffs), tests green,
+  `tsc` clean. No agent touched shared files (cron/admin routes, package.json, CLAUDE.md).
+- Migrations serialized in order 005 → 006 → 007; each is additive/independent.
+- Streams **4 (Meta)** and **6 (Microsoft)** are now unblocked (vault landed) — dispatch
+  next, needs Tom's platform tokens.
+
+### Integration pass (pending — best done after Tom merges PR #1)
+1. Wire `collectConversions` / `syncApprovedRecs` / `checkTokenExpiry` into the cron
+   route (single shared-file edit, once the module branches merge).
+2. Schema-spine adds: `clients.ga4_property_id` (GA4) — migration 008; seed staging
+   clients with `ga4_property_id` + `clickup_list_id` so their smoke passes.
+3. Decide invocation model for ClickUp sync (every cron tick vs on-approve) + wire
+   `markShippedFromClickup` to a ClickUp completion webhook/poll.
+4. Re-run combined staging smoke; flip PRs #2–#4 ready for merge.
+
+### Still pending on Tom (not blocking wave build)
+- Merge PR #1 (enabling layer) → then module PRs retarget to main automatically.
+- 👍 `docs/CLAUDE-monitor-draft.md`. `CLICKUP_TOKEN` + real Salty Dog list_id.
+  Meta + Microsoft tokens for streams 4/6.
+
+---
+
 ## 2026-07-21 · Session 1 · ACCEPTANCE PROVEN + wave dispatched
 
 - **Green preview against staging — PROVEN.** Tom set Preview-scoped env
