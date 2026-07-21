@@ -24,11 +24,30 @@ Update channel for WO-001 execution. Newest entries on top.
   `npx tsc --noEmit` clean; `next build` clean.
 - Slack webhook verified live earlier (test alert posted).
 
-**Remaining for full acceptance:** Vercel Preview deploy of the branch pointed at
-staging (env-var wiring) + Tom's merge. Then dispatch the parallel wave (streams
-3+5, then 2→4→6). Note: enabling layer + stream 1 co-landed on one branch (the
-first module must co-land with the harness that proves it); streams 2–6 will each
-be their own `module/*` branch, demonstrating the parallel-build pattern.
+**Shipped to review:** `chore/enabling-layer` pushed; **PR #1** opened
+(github.com/trustedmarketing/tm-seo-monitor/pull/1). CI (typecheck + unit + build,
+no creds) runs on the PR.
+
+**Remaining for full acceptance (1 external step + merge):**
+- **Vercel Preview env vars** — the Vercel MCP has no env-var tool, so this needs a
+  Vercel token (then I wire it via CLI) OR Tom sets them once in the dashboard for
+  project `trusted-marketing-seo` (`prj_RJqMzlFmBXphXhQD5F97VlskUfSh`),
+  **Preview** scope:
+  - `SUPABASE_URL` = https://wwgcpveakcyebfmtdwyt.supabase.co
+  - `SUPABASE_SERVICE_ROLE_KEY` = (staging secret key)
+  - `CRON_SECRET` = 68c8f8c79cca779b13a038ef2617660a
+  - `MOCK_APIS` = 1  (so previews never burn DataForSEO/GSC credits)
+  This is a **one-time** setup; every future module branch's preview inherits it —
+  that's what makes per-module previews zero-touch (acceptance §).
+- Tom's merge of PR #1.
+
+**Parallel wave — staged, dispatch after PR #1 merges (WO-001 §1–4 land):**
+streams 3 (GA4→conversions_daily) + 5 (ClickUp sync) start; then 2 (vault) →
+4 (Meta ads) + 6 (Microsoft ads). Each as its own `module/*` branch off merged
+main, inheriting the harness + conventions + staging previews.
+
+Enabling layer + stream 1 co-landed on one branch (the first module must co-land
+with the harness that proves it); streams 2–6 are each their own branch.
 
 ---
 
