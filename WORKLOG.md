@@ -89,7 +89,12 @@ staging run I can't verify.
    Vercel Preview env + prove the collector green against staging.
 2. Review/approve `docs/CLAUDE-monitor-draft.md` → then it replaces root CLAUDE.md.
 
-### Next action (unblocked, building now)
-vitest harness + `MOCK_APIS=1` + fixtures + CI action, then stream 1
-(`module/job-queue`: migration 004 jobs+collector_runs, queue lib, collector_runs
-integration, Slack alerts, tests). Vercel preview wiring resumes when the key lands.
+### Next action (checkpointed for 2 inputs, then one verified push)
+Read the full collector surface (DataForSEO Basic-auth fetch, GSC service-account
+JWT, recSync/measureChanges). The harness's "correct rows written" tests AND the
+preview deploy both need the staging **service-role key** to run green — so rather
+than write stream-1 code I can't prove, I'm checkpointing. Once the key + draft
+approval land, one coherent push: vitest harness + `MOCK_APIS=1` fixtures + CI →
+stream 1 (`module/job-queue`: migration 004 jobs+collector_runs, queue lib,
+collector_runs integration, Slack alerts, tests) → Vercel Preview env wired →
+collector green against staging → into merge review. Then dispatch the wave.
