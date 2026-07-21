@@ -141,6 +141,7 @@ supabase/005_conversions_daily.sql    conversion/revenue spine (WO-001 stream 3,
 supabase/006_secrets_registry.sql     platform_secrets vault registry (WO-001 stream 2)
 supabase/007_clickup_sync.sql      clickup_list_id + rec clickup_task_* columns (stream 5)
 supabase/008_client_ga4_property.sql  clients.ga4_property_id (integration pass)
+supabase/009_meta_ads.sql          ad_platform_accounts + ad_metrics_daily (stream 4)
 supabase/seed.sql                  staging demo data (1 local + 1 ecom client)
 ```
 
@@ -256,3 +257,42 @@ Closes the loop from approved recommendation to a ClickUp task to "shipped":
 
 New env var: `CLICKUP_TOKEN` (ClickUp API token — required only outside
 `MOCK_APIS=1`).
+
+### Stream 4 — Meta ads
+
+Paid-media spine (plan §4): ad-level Meta spend/conversions/revenue joins the
+same measurement loop as organic (`metric_snapshots`) and conversions
+(`conversions_daily`).
+
+```
+supabase/009_meta_ads.sql          ad_platform_accounts + ad_metrics_daily (awaits CTO serialize/apply)
+src/lib/meta.ts                    Meta Marketing (Graph) API client
+src/lib/metaAdsCollector.ts        collectMetaAds(db, client) — standalone collector
+tests/fixtures/meta/ad_insights.json  recorded ad-level insights fixture
+```
+
+- `src/lib/meta.ts` — `fetchAdInsights(accessToken, adAccountId, days = 28)` GETs
+  `https://graph.facebook.com/v21.0/{adAccountId}/insights` with `level=ad`,
+  `time_increment=1` (one row per ad per day), and a `time_range` covering
+  `days`, paginating via `paging.next` until exhausted. Maps Meta's `actions` /
+  `action_values` arrays into `conversions` / `revenue` — purchase and lead
+  action types (`purchase`, `omni_purchase`, `offsite_conversion.fb_pixel_purchase`,
+  `lead`, `onsite_conversion.lead_grouped`, ...) are summed by substring match.
+  Honors `MOCK_APIS=1` (reads raw insight rows from
+  `tests/fixtures/meta/ad_insights.json` and runs them through the same mapping,
+  so the conversions/revenue derivation is exercised in tests too). Never logs
+  the access token — it's only ever used as a query param on the outgoing request.
+- `src/lib/metaAdsCollector.ts` — standalone `collectMetaAds(db, client, days = 28)`.
+  Looks up the client's `meta` row in `ad_platform_accounts`; with none, records a
+  `skipped` `collector_runs` row and returns (no throw). Resolves the access
+  token via `readSecret(db, account.auth_ref)` (Vault, stream 2) or falls back to
+  `process.env.META_ACCESS_TOKEN`; with neither present and `MOCK_APIS` off, also
+  records `skipped`. Calls `fetchAdInsights` and upserts by hand (select →
+  update-or-insert, matching `lib/conversionsCollector.ts`'s pattern) into
+  `ad_metrics_daily` on `(client_id, platform, date, ad_id)`.
+- Migration `supabase/009_meta_ads.sql` awaits CTO serialize/apply to staging —
+  proposed only, not applied. Goes live once: 009 is merged, a row is seeded
+  in `ad_platform_accounts` per client (platform `'meta'`, their ad account id),
+  a Meta system-user access token is stored via `storeSecret(db, { clientId,
+  platform: 'meta', value, expiresAt })` (stream 2), and the CTO wires
+  `collectMetaAds` into `src/app/api/cron/collect/route.ts`.
