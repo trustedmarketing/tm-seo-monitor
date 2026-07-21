@@ -4,6 +4,29 @@ Update channel for WO-001 execution. Newest entries on top.
 
 ---
 
+## 2026-07-21 · Session 1 · Module A — command dashboard (visual surface)
+
+New `/command` route (viewer-accessible; added to middleware matcher). The whole
+portfolio in one screen:
+- **Attention rail** (account-manager morning page): collector failures, stale-data,
+  declined verdicts — or a healthy "All clear" state (charcoal band, green dot,
+  live counts). Currently healthy on staging.
+- **Per-client scorecards** with a **channel strip**: Organic (visibility) · AI
+  answers · Revenue·GA4 (from conversions_daily) · Site health — each headline +
+  delta. Plus a data-freshness dot per client and open/approved rec counts.
+  Paid·Social shown as "soon" until those modules land.
+- Extends the existing TM design system (Instrument Serif italic-green signature,
+  stone/charcoal/green tokens). Linked from the SEO dashboard; links back.
+
+**Verified:** booted the app against staging, logged in, rendered `/command` — both
+clients, all channels, healthy rail all present (28 KB SSR HTML, no client JS).
+`tsc` + `next build` clean. Committed + pushed on `chore/enabling-layer`.
+
+**To view:** add `ADMIN_PASSWORD` (or `DASHBOARD_PASSWORD`) on Vercel Preview →
+preview `/login` → `/command`. (Same env gap that blocked the SEO dashboard.)
+
+---
+
 ## 2026-07-21 · Session 1 · Wave 1 INTEGRATED + proven green against staging
 
 Streams 2/3/5 merged onto `chore/enabling-layer` (merge commits preserve agent
