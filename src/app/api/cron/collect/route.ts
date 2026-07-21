@@ -16,6 +16,9 @@ import {
 import { syncRecommendations, measureChanges } from "@/lib/recSync";
 import { recordRun } from "@/lib/collectorRuns";
 import { alertOnFailures, type CollectorFailure } from "@/lib/slack";
+import { collectConversions } from "@/lib/conversionsCollector";
+import { syncApprovedRecs } from "@/lib/clickupSync";
+import { checkTokenExpiry } from "@/lib/tokenExpiry";
 
 export const maxDuration = 300;
 
@@ -207,8 +210,23 @@ export async function GET(req: Request) {
       await recordRun(db, "recs", c.id, { status: "error", error: msg, duration_ms: Date.now() - tRecs });
     }
 
+    // ── Conversions (GA4 → conversions_daily) — only if configured ─
+    // Each collector below self-records its own collector_runs row and never
+    // throws (tracked()/try-catch inside), so they can't sink the batch.
+    if (c.ga4_property_id) {
+      const n = await collectConversions(db, c);
+      done.push(`conversions (${n})`);
+    }
+
+    // ── ClickUp sync: approved recs → tasks (skips if no list_id) ──
+    const synced = await syncApprovedRecs(db, c);
+    done.push(`clickup (${synced} synced)`);
+
     report[c.domain] = done;
   }
+
+  // ── Portfolio-wide: proactive token-expiry sweep (self-records) ──
+  await checkTokenExpiry(db);
 
   // measure any changes whose 28-day post window has completed
   let measured = 0;

@@ -139,7 +139,8 @@ supabase/003_prompt_results.sql    per-prompt AI visibility checks
 supabase/004_jobs_collector_runs.sql  job queue + collector_runs (Phase A.5)
 supabase/005_conversions_daily.sql    conversion/revenue spine (WO-001 stream 3, GA4/Shopify)
 supabase/006_secrets_registry.sql     platform_secrets vault registry (WO-001 stream 2)
-supabase/007_clickup_sync.sql      clickup_list_id + rec clickup_task_* columns (proposed, not yet applied)
+supabase/007_clickup_sync.sql      clickup_list_id + rec clickup_task_* columns (stream 5)
+supabase/008_client_ga4_property.sql  clients.ga4_property_id (integration pass)
 supabase/seed.sql                  staging demo data (1 local + 1 ecom client)
 ```
 

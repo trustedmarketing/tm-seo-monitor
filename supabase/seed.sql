@@ -11,16 +11,18 @@ delete from clients where domain in ('sharkey-air.example', 'salty-dog.example')
 -- ── Clients ──────────────────────────────────────────────────────────
 insert into clients (id, name, domain, tier, location_code, language_code,
   core_frequency, serp_frequency, crawl_frequency, active, gsc_property,
-  last_core_at, last_serp_at, last_crawl_at)
+  last_core_at, last_serp_at, last_crawl_at, ga4_property_id, clickup_list_id)
 values
   ('11111111-1111-1111-1111-111111111111',
    'Sharkey Air (Staging)', 'sharkey-air.example', 'Dominate', 2840, 'en',
    'weekly', 'daily', 'monthly', true, 'sc-domain:sharkey-air.example',
-   now() - interval '1 day', now() - interval '6 hours', now() - interval '10 days'),
+   now() - interval '1 day', now() - interval '6 hours', now() - interval '10 days',
+   'properties/451112233', 'staging-list-sharkey'),
   ('22222222-2222-2222-2222-222222222222',
    'Salty Dog Boat Care (Staging)', 'salty-dog.example', 'Momentum', 2840, 'en',
    'weekly', 'weekly', 'monthly', true, 'https://salty-dog.example/',
-   now() - interval '2 days', now() - interval '2 days', now() - interval '20 days');
+   now() - interval '2 days', now() - interval '2 days', now() - interval '20 days',
+   'properties/451445566', 'staging-list-salty');
 
 -- ── Keywords ─────────────────────────────────────────────────────────
 insert into tracked_keywords (client_id, keyword) values
@@ -109,7 +111,7 @@ values
    'gbp_review_velocity_low', 'medium', 'local',
    'Lift review velocity — under 2 new reviews/month',
    'Review velocity is a top-three local ranking signal. Set up a post-service review request flow.',
-   'open', null, null, now() - interval '5 days', now() - interval '5 days'),
+   'approved', null, null, now() - interval '5 days', now() - interval '5 days'),
   ('55555555-5555-5555-5555-555555555555', '22222222-2222-2222-2222-222222222222',
    'thin_product_copy', 'high', 'content',
    'Expand thin copy on the salt-wash product page',
