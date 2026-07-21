@@ -4,6 +4,37 @@ Update channel for WO-001 execution. Newest entries on top.
 
 ---
 
+## 2026-07-21 · Session 1 · Wave 1 INTEGRATED + proven green against staging
+
+Streams 2/3/5 merged onto `chore/enabling-layer` (merge commits preserve agent
+authorship). Integration pass wired all three collectors into the cron:
+- Migration **008** adds `clients.ga4_property_id`; migrations 001–008 all on staging.
+- Cron route now calls `collectConversions` (guarded on `ga4_property_id`),
+  `syncApprovedRecs` per client, and a portfolio-wide `checkTokenExpiry` sweep —
+  each self-records `collector_runs` and never throws.
+- Staging clients configured (GA4 property + ClickUp list); seed.sql updated to match.
+
+**Proven against staging (real data, not just "no error"):**
+- GA4 → `conversions_daily` **10 rows** (5/client).
+- ClickUp → an approved `striking_distance` rec **synced to a task**
+  (`clickup_task_id`/`url`/`synced_at` stamped; mock task under MOCK_APIS).
+- token_expiry → green sweep (0 expiring).
+- **37 unit tests + staging smoke 4/4 green; `tsc` clean.**
+
+`chore/enabling-layer` (PR #1) is now the full **wave-1 bundle** for Tom's merge;
+per-module PRs #2/#3/#4 are subsumed (their branches are ancestors) and can close.
+
+**⚠️ Observation (flagged, not changed):** `recSync.syncRecommendations`
+auto-resolves any `open`/`approved` rec whose rule stops firing — so a
+human-*approved* rec can be silently resolved before ClickUp sync sees it. Worth a
+design decision (approved recs probably shouldn't be auto-resolved).
+
+**Next:** Module A (command dashboard — the visual surface) · streams 4 (Meta) +
+6 (Microsoft) once Tom provides platform tokens · fix: worktree dirs were
+accidentally committed then removed + gitignored.
+
+---
+
 ## 2026-07-21 · Session 1 · Wave landed — 3 draft PRs, migrations serialized to staging
 
 All three wave agents returned green. CTO review + serialization done:
