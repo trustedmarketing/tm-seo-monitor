@@ -4,6 +4,22 @@ Update channel for WO-001 execution. Newest entries on top.
 
 ---
 
+## 2026-07-21 · Session 1 · Stream 4 (Meta ads) dispatched against fixtures
+
+Tom hit Meta's system-user token maze (app has no Marketing API product / needs
+Full-control app role / business requires 2nd-admin approval for token gen). To
+keep momentum, dispatched stream 4 to build against a recorded fixture now, with
+real token-wiring (vault `readSecret` on `ad_platform_accounts.auth_ref`, fallback
+`META_ACCESS_TOKEN`) in place — goes live with only a vault entry later.
+- Module: migration 009 (`ad_platform_accounts` + `ad_metrics_daily`), `src/lib/meta.ts`
+  (Marketing API insights client, MOCK_APIS-gated), `src/lib/metaAdsCollector.ts`
+  (standalone, collector_runs), fixtures + unit tests. Draft PR, base enabling-layer.
+- Pending Tom: Meta system-user token (add Marketing API product to the app +
+  Full-control app role + clear the 2nd-admin approval), then I store it via vault.
+- Stream 6 (Microsoft) still awaits its dev token + Azure OAuth app.
+
+---
+
 ## 2026-07-21 · Session 1 · Module A — command dashboard (visual surface)
 
 New `/command` route (viewer-accessible; added to middleware matcher). The whole
