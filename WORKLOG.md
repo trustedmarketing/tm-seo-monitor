@@ -4,6 +4,31 @@ Update channel for WO-001 execution. Newest entries on top.
 
 ---
 
+## 2026-07-21 · Session 1 · 🚢 SHIPPED TO PRODUCTION
+
+WO-001 complete and live.
+- Applied migrations 004–009 to **prod** (`xelweikfciqakagkerat`) as one atomic
+  additive migration (all `if not exists`; verified 6 new tables present).
+- Merged **PR #1** → main (`8dc554e`). Vercel prod deploy `dpl_41R6…` **READY**,
+  aliased to **seo.trustedmarketing.com**.
+- Prod smoke: `/login` 200, `/command` 307 (new route + auth middleware live).
+- Module PRs #2–#5 auto-marked merged (branches now in main).
+- **Safe by construction:** new modules self-skip for prod clients until configured
+  (no `ga4_property_id` / ad account / `clickup_list_id`), so the existing SEO
+  monitor is unchanged and nothing client-facing surfaces (accuracy gate intact).
+
+### Now live in prod (dormant until configured)
+Enabling layer · stream 1 (jobs + collector_runs + Slack) · vault · GA4 conversions
+· ClickUp sync · Meta ads · Module A `/command` dashboard.
+
+### Phase B (next — gated, per client)
+Wire real data one client at a time (Meta token → vault, GA4 service-account access,
+real ClickUp), two clean collection cycles before surfacing (accuracy gate §8).
+Pending Tom: Meta token (near), Microsoft dev token + Azure app (stream 6), 👍 the
+CLAUDE.md draft, decision on recSync auto-resolve-approved.
+
+---
+
 ## 2026-07-21 · Session 1 · Stream 4 INTEGRATED + Module A Paid channel live
 
 - Merged `module/meta-ads-collector` (PR #5) onto enabling layer (clean merge, 49 tests).
