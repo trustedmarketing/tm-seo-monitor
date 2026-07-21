@@ -138,6 +138,8 @@ supabase/002_recs_changes.sql      recommendations + change ledger
 supabase/003_prompt_results.sql    per-prompt AI visibility checks
 supabase/004_jobs_collector_runs.sql  job queue + collector_runs (Phase A.5)
 supabase/005_conversions_daily.sql    conversion/revenue spine (WO-001 stream 3, GA4/Shopify)
+supabase/006_secrets_registry.sql     platform_secrets vault registry (WO-001 stream 2)
+supabase/007_clickup_sync.sql      clickup_list_id + rec clickup_task_* columns (proposed, not yet applied)
 supabase/seed.sql                  staging demo data (1 local + 1 ecom client)
 ```
 
@@ -226,3 +228,30 @@ Registry-only logic (`upsertSecretRegistry`, `listExpiring`) is unit-tested via
 `createFakeDb` with no live Vault dependency; `storeSecret`/`readSecret` need a
 real Vault RPC (`vault.create_secret`, `vault.decrypted_secrets`) and are
 exercised against staging, not in `npm test`.
+### Stream 5 — ClickUp sync
+
+Closes the loop from approved recommendation to a ClickUp task to "shipped":
+
+- `supabase/007_clickup_sync.sql` (proposed, awaiting CTO serialize/apply) adds
+  `clients.clickup_list_id` and `recommendations.clickup_task_id` /
+  `clickup_task_url` / `clickup_synced_at`.
+- `src/lib/clickup.ts` — ClickUp REST client (`CLICKUP_TOKEN`). Resilient like
+  `src/lib/slack.ts`: no-ops + logs when the token is unset, try/catch around the
+  call. `MOCK_APIS=1` short-circuits to a deterministic fake task, same convention
+  as the DataForSEO fixtures. Every task it creates is prefixed
+  `[STAGING TEST] ` — required so staging syncs are never mistaken for a real,
+  client-authorized ClickUp task.
+- `src/lib/clickupSync.ts` — standalone, db-as-param (unit-testable):
+  `syncApprovedRecs(db, client)` creates a ClickUp task for each `approved` rec
+  with no `clickup_task_id` yet and records a `collector_runs` row (module
+  `clickup_sync`); `markShippedFromClickup(db, recId, changeTitle)` is the
+  completion path — mirrors the manual "mark shipped" flow in
+  `src/app/api/track/route.ts` but tags the `changes` ledger row
+  `source: 'clickup'`.
+- Not wired into the cron route or admin route yet. The real target is the Salty
+  Dog ClickUp space (workspace `90141342552`); the CTO still needs to resolve the
+  Salty Dog list id, provide `CLICKUP_TOKEN`, and decide where `syncApprovedRecs`
+  gets called from (cron tick vs. on-approve).
+
+New env var: `CLICKUP_TOKEN` (ClickUp API token — required only outside
+`MOCK_APIS=1`).
