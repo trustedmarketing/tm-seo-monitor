@@ -160,3 +160,54 @@ export async function rankedKeywords(
     position: i.ranked_serp_element?.serp_item?.rank_absolute ?? null,
   })).filter((k) => k.keyword);
 }
+
+// ── Competitors — domains sharing ranked keywords with the target ─
+export async function competitorsDomain(
+  domain: string, locationCode: number, languageCode: string, limit = 15
+) {
+  type Item = {
+    domain?: string; avg_position?: number; intersections?: number;
+    full_domain_metrics?: { organic?: { etv?: number; count?: number } };
+  };
+  const result = await post<{ items?: Item[] }>(
+    "/dataforseo_labs/google/competitors_domain/live",
+    [{ target: domain, location_code: locationCode, language_code: languageCode, limit, exclude_top_domains: true }]
+  );
+  const bare = domain.replace(/^www\./, "");
+  return (result?.[0]?.items ?? [])
+    .map((i) => ({
+      domain: i.domain ?? "",
+      sharedKeywords: i.intersections ?? 0,
+      avgPosition: i.avg_position != null ? Math.round(i.avg_position * 10) / 10 : null,
+      traffic: Math.round(i.full_domain_metrics?.organic?.etv ?? 0),
+      keywords: i.full_domain_metrics?.organic?.count ?? 0,
+    }))
+    .filter((c) => c.domain && c.domain.replace(/^www\./, "") !== bare);
+}
+
+// ── Keyword research — suggestions with volume, CPC, difficulty ──
+export async function keywordSuggestions(
+  seed: string, locationCode: number, languageCode: string, limit = 30
+) {
+  type Item = {
+    keyword?: string;
+    keyword_info?: { search_volume?: number; cpc?: number; competition_level?: string };
+    keyword_properties?: { keyword_difficulty?: number };
+    search_intent_info?: { main_intent?: string };
+  };
+  const result = await post<{ items?: Item[] }>(
+    "/dataforseo_labs/google/keyword_suggestions/live",
+    [{ keyword: seed, location_code: locationCode, language_code: languageCode, limit, include_seed_keyword: true }]
+  );
+  return (result?.[0]?.items ?? [])
+    .map((i) => ({
+      keyword: i.keyword ?? "",
+      volume: i.keyword_info?.search_volume ?? 0,
+      cpc: i.keyword_info?.cpc != null ? Math.round(i.keyword_info.cpc * 100) / 100 : null,
+      competition: i.keyword_info?.competition_level ?? null,
+      difficulty: i.keyword_properties?.keyword_difficulty ?? null,
+      intent: i.search_intent_info?.main_intent ?? null,
+    }))
+    .filter((k) => k.keyword)
+    .sort((a, b) => b.volume - a.volume);
+}

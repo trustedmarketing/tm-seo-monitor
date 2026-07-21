@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { METRIC_INFO } from "@/lib/metricInfo";
 import { dbClient } from "@/lib/db";
+import { cookies } from "next/headers";
+import { verifyToken } from "@/lib/authToken";
 import { Info, InfoStyles } from "@/components/Info";
 import "@/styles/tm-tokens.css";
 
@@ -50,6 +52,7 @@ function Metric({ label, value, delta, suffix = "" }: {
 }
 
 export default async function Dashboard() {
+  const role = await verifyToken(cookies().get("tm_auth")?.value, process.env.CRON_SECRET!);
   const db = dbClient();
 
   const [{ data: clients, error: cErr }, { data: snaps, error: sErr }] = await Promise.all([
@@ -71,6 +74,12 @@ export default async function Dashboard() {
         <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg2)", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--tm-performance-green)" }} />
           Client performance
+          {role === "admin" && (
+            <span style={{ marginLeft: "auto", display: "flex", gap: 18, textTransform: "none", letterSpacing: 0 }}>
+              <Link href="/research" style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>Research</Link>
+              <Link href="/admin" style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>Admin</Link>
+            </span>
+          )}
         </div>
         <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 400, fontSize: 56, letterSpacing: "-0.01em", margin: "10px 0 40px" }}>
           Portfolio <em style={{ color: "var(--tm-green-deep)" }}>this week</em>

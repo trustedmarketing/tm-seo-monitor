@@ -53,6 +53,7 @@ export default function Admin() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [kwInput, setKwInput] = useState("");
   const [promptInput, setPromptInput] = useState("");
+  const [gscInput, setGscInput] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [form, setForm] = useState<Partial<Client>>({});
 
@@ -134,7 +135,7 @@ export default function Admin() {
 
             <div style={{ ...S.card, padding: 12 }}>
               {clients.map((c) => (
-                <button key={c.id} onClick={() => { setSelected(c.id); setSuggestions([]); }}
+                <button key={c.id} onClick={() => { setSelected(c.id); setSuggestions([]); setGscInput(null); }}
                   style={{
                     display: "flex", width: "100%", alignItems: "center", gap: 8,
                     padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer",
@@ -173,6 +174,18 @@ export default function Admin() {
                       </select>
                     </div>
                   ))}
+                </div>
+                <div style={{ marginTop: 16 }}>
+                  <label style={S.label}>GSC property (exactly as shown in Search Console: sc-domain:client.com or https://client.com/)</label>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <input style={S.input} value={gscInput ?? sel.gsc_property ?? ""}
+                      placeholder="sc-domain:client.com"
+                      onChange={(e) => setGscInput(e.target.value)} />
+                    <button style={S.btnGhost} onClick={() => run("Save GSC property", async () => {
+                      await api({ action: "upsert_client", ...sel, gsc_property: (gscInput ?? sel.gsc_property ?? "").trim() });
+                      setGscInput(null); await load();
+                    })}>Save</button>
+                  </div>
                 </div>
                 <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
                   <button style={S.btnGhost} onClick={() => run("Suggest keywords", async () => {
