@@ -11,6 +11,7 @@ import {
   visibilityScore,
   aiPromptCheck,
 } from "@/lib/dataforseo";
+import { syncRecommendations, measureChanges } from "@/lib/recSync";
 
 export const maxDuration = 300;
 
@@ -144,8 +145,21 @@ export async function GET(req: Request) {
     }
 
     if (hasData) await db.from("metric_snapshots").insert(snapshot);
+
+    // persist/refresh recommendations from the newly collected data
+    try {
+      await syncRecommendations(db, c.id);
+      done.push("recs synced");
+    } catch (e) {
+      done.push(`recs FAILED: ${(e as Error).message}`);
+    }
+
     report[c.domain] = done;
   }
 
-  return Response.json({ ran_at: new Date().toISOString(), report });
+  // measure any changes whose 28-day post window has completed
+  let measured = 0;
+  try { measured = await measureChanges(db); } catch { /* non-fatal */ }
+
+  return Response.json({ ran_at: new Date().toISOString(), measured_changes: measured, report });
 }

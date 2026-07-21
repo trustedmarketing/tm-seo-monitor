@@ -2,7 +2,9 @@ import Link from "next/link";
 import { METRIC_INFO } from "@/lib/metricInfo";
 import { dbClient } from "@/lib/db";
 import { Info, InfoStyles } from "@/components/Info";
-import { buildRecommendations, type Rec } from "@/lib/recommendations";
+import { cookies } from "next/headers";
+import { verifyToken } from "@/lib/authToken";
+import { RecActions, ChangeLogger } from "@/components/Tracking";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
@@ -117,9 +119,11 @@ export default async function ClientDetail({
   const prevStart = new Date(start); prevStart.setDate(prevStart.getDate() - periodDays);
   const prevEnd = new Date(start); prevEnd.setDate(prevEnd.getDate() - 1);
 
+  const role = await verifyToken(cookies().get("tm_auth")?.value, process.env.CRON_SECRET!);
+  const isAdmin = role === "admin";
   const db = dbClient();
 
-  const [{ data: client }, { data: snaps }, { data: kws }, { data: ranks }, { data: gscCur }, { data: gscPrev }, { data: tprompts }, { data: presults }] = await Promise.all([
+  const [{ data: client }, { data: snaps }, { data: kws }, { data: ranks }, { data: gscCur }, { data: gscPrev }, { data: tprompts }, { data: presults }, { data: recRows }, { data: changeRows }] = await Promise.all([
     db.from("clients").select("*").eq("id", params.id).single(),
     db.from("metric_snapshots").select("*").eq("client_id", params.id)
       .gte("captured_at", start.toISOString())
@@ -134,6 +138,10 @@ export default async function ClientDetail({
     db.from("tracked_prompts").select("id, prompt").eq("client_id", params.id).eq("active", true).order("prompt"),
     db.from("prompt_results").select("prompt_id, mentioned, cited, checked_at").eq("client_id", params.id)
       .order("checked_at", { ascending: false }).limit(200),
+    db.from("recommendations").select("*").eq("client_id", params.id)
+      .not("status", "in", "(dismissed,resolved)").order("created_at"),
+    db.from("changes").select("*").eq("client_id", params.id)
+      .order("changed_at", { ascending: false }).limit(50),
   ]);
 
   if (!client) {
@@ -181,11 +189,27 @@ export default async function ClientDetail({
     };
   });
 
-  const recs: Rec[] = buildRecommendations(cur, prev, kwRows, promptRows);
-  const sevStyle: Record<Rec["severity"], React.CSSProperties> = {
+  const sevOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+  const recs = ((recRows ?? []) as any[]).sort((a, b) =>
+    (sevOrder[a.severity] ?? 3) - (sevOrder[b.severity] ?? 3)
+  );
+  const sevStyle: Record<string, React.CSSProperties> = {
     high:   { background: "#FBE7E4", color: "#A33023" },
     medium: { background: "#FFF6DB", color: "#8C6500" },
     low:    { background: "#E5F4EA", color: "#2F8F4E" },
+  };
+  const statusStyle: Record<string, { label: string; style: React.CSSProperties }> = {
+    approved:  { label: "Approved",  style: { background: "var(--tm-deep-charcoal)", color: "var(--tm-performance-green)" } },
+    measuring: { label: "Measuring", style: { background: "#E8F0FE", color: "#1A56DB" } },
+    validated: { label: "Validated ✓", style: { background: "#E5F4EA", color: "#2F8F4E" } },
+    no_effect: { label: "No effect", style: { background: "var(--tm-stone-200)", color: "var(--fg2)" } },
+  };
+  const changes = (changeRows ?? []) as any[];
+  const verdictStyle: Record<string, React.CSSProperties> = {
+    improved: { background: "#E5F4EA", color: "#2F8F4E" },
+    declined: { background: "#FBE7E4", color: "#A33023" },
+    flat: { background: "var(--tm-stone-200)", color: "var(--fg2)" },
+    inconclusive: { background: "#FFF6DB", color: "#8C6500" },
   };
 
   const rangeHref = (key: string) => `/dashboard/${params.id}?range=${key}`;
@@ -297,23 +321,84 @@ export default async function ClientDetail({
               <Info text="Generated from this client's current data: rankings, AI answer checks, site health, and link profile. Ordered by impact." />
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {recs.map((r, i) => (
-                <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+              {recs.map((r) => (
+                <div key={r.id} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
                   <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "3px 10px", borderRadius: 999, whiteSpace: "nowrap", ...sevStyle[r.severity] }}>
                     {r.severity}
                   </span>
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, fontWeight: 600 }}>
                       {r.title}
                       <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--fg3)", marginLeft: 10 }}>{r.category}</span>
+                      {statusStyle[r.status] && (
+                        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", padding: "3px 10px", borderRadius: 999, marginLeft: 10, ...statusStyle[r.status].style }}>
+                          {statusStyle[r.status].label}
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: 13, color: "var(--fg2)", lineHeight: 1.5, marginTop: 2 }}>{r.detail}</div>
+                    {isAdmin && (
+                      <RecActions recId={r.id} clientId={client.id} status={r.status}
+                        keywords={kwRows.filter((k) => k.position != null && k.position >= 4 && k.position <= 15).map((k) => k.keyword)} />
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           </section>
         )}
+
+        <section style={{ ...card, padding: "20px 24px 16px", marginBottom: 24 }}>
+          <div style={{ ...eyebrow, marginBottom: 8, alignItems: "center", gap: 12, display: "flex" }}>
+            Change log ({changes.length})
+            <Info text="Work shipped for this client, with impact measured automatically: 28 days of real search data before each change vs 28 days after. Verdicts appear once the post-change window completes." />
+            {isAdmin && <span style={{ marginLeft: "auto", textTransform: "none", letterSpacing: 0 }}><ChangeLogger clientId={client.id} /></span>}
+          </div>
+          {changes.length === 0 ? (
+            <div style={{ fontSize: 14, color: "var(--fg3)", padding: "6px 0 10px" }}>
+              No changes logged yet. Mark a recommendation shipped, or log work directly — every change starts a 28-day before/after measurement.
+            </div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead><tr>
+                <th style={th}>Date</th><th style={th}>Change</th><th style={th}>Impact</th><th style={th}>Detail</th>
+              </tr></thead>
+              <tbody>
+                {changes.map((ch) => {
+                  const daysLeft = Math.max(0, 28 - Math.floor((Date.now() - new Date(ch.changed_at).getTime()) / 86_400_000));
+                  const m = ch.metrics ?? {};
+                  return (
+                    <tr key={ch.id}>
+                      <td style={{ ...td, fontWeight: 600, whiteSpace: "nowrap" }}>{dateShort(ch.changed_at)}</td>
+                      <td style={td}>
+                        <div style={{ fontWeight: 600 }}>{ch.title}</div>
+                        {ch.description && <div style={{ fontSize: 12, color: "var(--fg3)" }}>{ch.description}</div>}
+                      </td>
+                      <td style={td}>
+                        {ch.verdict ? (
+                          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", padding: "3px 10px", borderRadius: 999, ...verdictStyle[ch.verdict] }}>
+                            {ch.verdict}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 12, color: "var(--fg3)" }}>Measuring — {daysLeft}d left</span>
+                        )}
+                      </td>
+                      <td style={{ ...td, fontSize: 12, color: "var(--fg2)" }}>
+                        {ch.verdict ? (
+                          <>
+                            {m.clicks_before != null && <>Clicks {m.clicks_before} → {m.clicks_after}{m.clicks_pct != null ? ` (${m.clicks_pct > 0 ? "+" : ""}${m.clicks_pct}%)` : ""}. </>}
+                            {m.avg_position_before != null && <>Avg position {m.avg_position_before} → {m.avg_position_after}.</>}
+                            {m.clicks_before == null && m.avg_position_before == null && "Not enough data in the window."}
+                          </>
+                        ) : "–"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </section>
 
         <section style={{ ...card, padding: "20px 24px 8px", marginBottom: 24 }}>
           <div style={{ ...eyebrow, marginBottom: 8 }}>
