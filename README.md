@@ -122,3 +122,55 @@ New dependency: `npm install google-auth-library`
 Note: /admin ships with password-gate auth, which is fine while it's
 internal-only. If the reports domain ever exposes client logins, move
 it behind real auth (Supabase Auth or Vercel's protection).
+
+## Growth OS enabling layer (WO-001)
+
+Parallel-build foundation so agent-built modules are self-verifying. See
+`docs/tm-growth-os-plan.md`, `docs/wo-001-parallel-build-enabling-layer.md`, and
+the agent operating brief (`docs/CLAUDE-monitor-draft.md`).
+
+### Migrations (authoritative set)
+
+```
+supabase/001_core.sql              clients, tracked_keywords, keyword_rankings,
+                                   metric_snapshots, gsc_history, tracked_prompts
+supabase/002_recs_changes.sql      recommendations + change ledger
+supabase/003_prompt_results.sql    per-prompt AI visibility checks
+supabase/004_jobs_collector_runs.sql  job queue + collector_runs (Phase A.5)
+supabase/seed.sql                  staging demo data (1 local + 1 ecom client)
+```
+
+Migrations are the serialized shared spine: agents propose files, the CTO merges
+them in order, and every migration lands in **staging first**. 001–002 were
+reconstructed from production (which had no tracked migration history).
+
+### Staging
+
+`tm-growth-staging` (Supabase project `wwgcpveakcyebfmtdwyt`) mirrors prod's
+schema and is seeded with two fake clients so every dashboard section renders.
+Preview deploys point here via Preview-scoped env vars.
+
+### Testing
+
+```
+npm test            unit tests (in-memory fakes + fixtures, no creds) — CI gate
+npm run test:staging  live collector run against staging (loads .env.staging.local)
+```
+
+- `MOCK_APIS=1` makes every collector read `tests/fixtures/` instead of live
+  DataForSEO/GSC — used by tests and by staging so no credits are spent proving
+  plumbing.
+- `tests/helpers/fakeDb.ts` is a reusable in-memory Supabase stand-in for module
+  unit tests.
+- CI (`.github/workflows/ci.yml`) runs typecheck + unit tests + build on every PR.
+
+### Job queue + collector_runs (stream 1)
+
+- `collector_runs` records one row per module execution (status, duration, error).
+  The collector records failures instead of throwing, so one module failing never
+  sinks the batch or hides behind a 200. Failures also push to Slack
+  (`SLACK_WEBHOOK_URL`, no-op if unset).
+- `src/lib/jobs.ts` is the durable work queue (retries + idempotency) so
+  collection fans out as units rather than depending on one 300s cron request.
+
+New env var: `SLACK_WEBHOOK_URL` (internal ops alerts — collector failures + staleness).

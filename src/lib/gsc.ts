@@ -5,6 +5,7 @@
 // client's Search Console property. No OAuth flow needed.
 
 import { JWT } from "google-auth-library";
+import { mockApis, readFixture } from "@/lib/apiMock";
 
 function client(): JWT {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -33,6 +34,7 @@ function iso(d: Date): string {
 
 // ── Daily totals, up to 16 months back (GSC's hard limit) ────────
 export async function dailyHistory(property: string, months = 16) {
+  if (mockApis()) return readFixture<{ date: string; clicks: number; impressions: number; ctr: number; position: number }[]>("gsc/daily_history.json");
   const end = new Date();
   end.setDate(end.getDate() - 2); // GSC data lags ~2 days
   const start = new Date(end);
@@ -56,6 +58,7 @@ export async function dailyHistory(property: string, months = 16) {
 
 // ── Top queries by impressions (keyword suggestion source) ───────
 export async function topQueries(property: string, limit = 50, days = 90) {
+  if (mockApis()) return readFixture<{ keyword: string; impressions: number; clicks: number; position: number }[]>("gsc/top_queries.json");
   const end = new Date();
   end.setDate(end.getDate() - 2);
   const start = new Date(end);

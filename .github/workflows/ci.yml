@@ -1,0 +1,33 @@
+name: CI
+
+# Build + tests on every PR and on pushes to main. Red CI blocks merge (WO-001 §3).
+# No live credentials: unit tests use in-memory fakes + fixtures; the build runs
+# with placeholder env (all data pages are dynamic, so nothing hits the DB at build).
+# The live staging smoke test (tests/staging) is intentionally NOT run here.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: https://placeholder.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: placeholder
+      CRON_SECRET: placeholder
+      AUTH_SECRET: placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Unit tests
+        run: npm test
+      - name: Build
+        run: npm run build

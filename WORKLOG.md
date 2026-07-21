@@ -4,6 +4,34 @@ Update channel for WO-001 execution. Newest entries on top.
 
 ---
 
+## 2026-07-21 · Session 1 · Stream 1 shipped + green against staging
+
+**Enabling layer + stream 1 built, verified, committed on `chore/enabling-layer`.**
+
+- **Harness (§3):** vitest added; `MOCK_APIS=1` fixture layer (`src/lib/apiMock.ts`
+  + `tests/fixtures/`) short-circuits DataForSEO/GSC; reusable in-memory Supabase
+  fake (`tests/helpers/fakeDb.ts`). **15 unit tests green.** CI at
+  `.github/workflows/ci.yml` (typecheck + unit + build, placeholder env, no creds).
+- **Migration 004** (`jobs` queue + `collector_runs`) applied to staging.
+- **Stream 1 code:** `src/lib/jobs.ts` (durable queue, retries + idempotency),
+  `src/lib/collectorRuns.ts` (records every run; failure path records, never
+  throws), `src/lib/slack.ts` (ops alerts, no-op if unset), and `collector_runs`
+  integration wired into `src/app/api/cron/collect/route.ts` per module.
+- **PROOF (§Acceptance):** `npm run test:staging` runs the real collector against
+  staging with `MOCK_APIS=1` → **4/4 green**, 0 failures, both seed clients
+  processed, and `collector_runs` populated (core/serp/ai/crawl/recs all
+  `success`, e.g. `traffic=1234`, `visibility=21.88`, `site_health=92.5`).
+  `npx tsc --noEmit` clean; `next build` clean.
+- Slack webhook verified live earlier (test alert posted).
+
+**Remaining for full acceptance:** Vercel Preview deploy of the branch pointed at
+staging (env-var wiring) + Tom's merge. Then dispatch the parallel wave (streams
+3+5, then 2→4→6). Note: enabling layer + stream 1 co-landed on one branch (the
+first module must co-land with the harness that proves it); streams 2–6 will each
+be their own `module/*` branch, demonstrating the parallel-build pattern.
+
+---
+
 ## 2026-07-21 · Session 1 · Reconciliation + blockers (CTO)
 
 **Task:** Execute WO-001 — build the enabling layer, prove it by shipping stream 1
@@ -76,6 +104,18 @@ staging run I can't verify.
   (Salty Dog) client, 30 days across every table — 180 rankings, 120 prompt
   results, 10 snapshots, 60 GSC rows, 3 recs, 1 measured/validated change.
 - Governance draft written: `docs/CLAUDE-monitor-draft.md` (from plan §8 + WO §4).
+
+### Input status (2026-07-21, cont.)
+- ✅ Slack webhook received + verified (`ok`, test alert posted). Channel wired for
+  failure/staleness alerts.
+- ✅ ClickUp target received — Salty Dog link (workspace 90141342552). NOTE: this is
+  a **real** client space; staging "Salty Dog" is fake, so stream-5 proof will use
+  clearly-labeled `[STAGING TEST]` tasks, cleaned up after.
+- 🚨 Service-role key pasted was **PRODUCTION's** (`sb_secret_...RWsZYhc4` reads real
+  data from `xelweikfciqakagkerat`). NOT stored, NOT used. Caught before any write.
+  Still need the **staging** secret key from project `wwgcpveakcyebfmtdwyt`.
+  (Recommend Tom rotate the prod key since it was pasted in chat.)
+- ⏳ CLAUDE.md draft approval still pending.
 
 ### Staging connection (for Vercel Preview env wiring)
 - `SUPABASE_URL` = https://wwgcpveakcyebfmtdwyt.supabase.co

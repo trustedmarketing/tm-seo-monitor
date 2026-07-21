@@ -1,0 +1,8 @@
+[
+  {
+    "items": [
+      { "type": "organic", "rank_absolute": 4, "domain": "sharkey-air.example", "url": "https://sharkey-air.example/lp" },
+      { "type": "organic", "rank_absolute": 6, "domain": "salty-dog.example", "url": "https://salty-dog.example/lp" }
+    ]
+  }
+]
