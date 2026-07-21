@@ -4,6 +4,26 @@ Update channel for WO-001 execution. Newest entries on top.
 
 ---
 
+## 2026-07-21 · Session 1 · ACCEPTANCE PROVEN + wave dispatched
+
+- **Green preview against staging — PROVEN.** Tom set Preview-scoped env
+  (staging URL/key + MOCK_APIS=1) and redeployed. Probed the deployed preview's
+  `/api/cron/collect?force=1` with the staging CRON_SECRET → **HTTP 200**, staging
+  clients in report (`sharkey-air.example`, `salty-dog.example`), **failures:0**,
+  all modules green. WO-001 acceptance path spawn → green-preview-against-staging
+  is met; only the human merge of PR #1 remains (by design, v1).
+- **Parallel wave dispatched** (3 agents, each own worktree/branch, based on
+  `origin/chore/enabling-layer`, mirroring the stream-1 template):
+  - Stream 3 — GA4 collector → `conversions_daily` (migration 005)
+  - Stream 5 — ClickUp sync (migration 007)
+  - Stream 2 — secrets vault + token expiry (migration 006; unblocks 4 & 6)
+  Each opens a DRAFT PR; CTO (me) serializes/applies their migrations to staging
+  and wires collectors into the cron on review. Streams 4 (Meta) + 6 (Microsoft)
+  follow stream 2's vault.
+- Migration numbers pre-assigned to avoid collision: 005 GA4, 006 vault, 007 clickup.
+
+---
+
 ## 2026-07-21 · Session 1 · Stream 1 shipped + green against staging
 
 **Enabling layer + stream 1 built, verified, committed on `chore/enabling-layer`.**
