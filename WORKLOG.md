@@ -4,6 +4,20 @@ Update channel for WO-001 execution. Newest entries on top.
 
 ---
 
+## 2026-07-21 · Session 1 · Stream 4 INTEGRATED + Module A Paid channel live
+
+- Merged `module/meta-ads-collector` (PR #5) onto enabling layer (clean merge, 49 tests).
+- Migration **009** applied to staging; seeded a mock Meta `ad_platform_accounts` per
+  client. Wired `collectMetaAds` into cron (self-skips if no account).
+- **Proven vs staging:** 10 `ad_metrics_daily` rows ($1,479.90 spend / $2,840 rev),
+  `meta_ads` collector_runs green; 49 unit + staging smoke pass; tsc clean.
+- **Module A** `/command`: Paid·Meta channel now shows spend + ROAS (was "soon").
+  Verified rendering on local server.
+- Meta app 967936846294439 now has Marketing API use cases enabled (Tom); token
+  generation is the last step → then real paid data replaces the mock via vault.
+
+---
+
 ## 2026-07-21 · Session 1 · Stream 4 (Meta ads) dispatched against fixtures
 
 Tom hit Meta's system-user token maze (app has no Marketing API product / needs
