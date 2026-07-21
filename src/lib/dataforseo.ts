@@ -1,6 +1,8 @@
 // lib/dataforseo.ts — thin client over the DataForSEO v3 endpoints we use.
 // Auth: Basic auth from env. Every function returns already-unwrapped data.
 
+import { mockApis, mockDataForSeo } from "@/lib/apiMock";
+
 const BASE = "https://api.dataforseo.com/v3";
 
 function authHeader(): string {
@@ -11,6 +13,7 @@ function authHeader(): string {
 }
 
 async function post<T>(path: string, payload: unknown[]): Promise<T[]> {
+  if (mockApis()) return mockDataForSeo<T>(path);
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
     headers: { Authorization: authHeader(), "Content-Type": "application/json" },
@@ -73,6 +76,7 @@ export async function serpPosition(
 
 // ── On-page crawl: post task, fetch score later ───────────────────
 export async function onPageTaskPost(domain: string, maxPages = 300): Promise<string> {
+  if (mockApis()) return "mock-task-000";
   const result = await post<never>("/on_page/task_post", [
     { target: domain, max_crawl_pages: maxPages, load_resources: false, enable_javascript: false },
   ]);

@@ -1,0 +1,7 @@
+[
+  {
+    "items": [
+      { "domain": "competitor-hvac.example", "avg_position": 7.2, "intersections": 34, "full_domain_metrics": { "organic": { "etv": 3400, "count": 512 } } }
+    ]
+  }
+]

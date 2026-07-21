@@ -122,3 +122,177 @@ New dependency: `npm install google-auth-library`
 Note: /admin ships with password-gate auth, which is fine while it's
 internal-only. If the reports domain ever exposes client logins, move
 it behind real auth (Supabase Auth or Vercel's protection).
+
+## Growth OS enabling layer (WO-001)
+
+Parallel-build foundation so agent-built modules are self-verifying. See
+`docs/tm-growth-os-plan.md`, `docs/wo-001-parallel-build-enabling-layer.md`, and
+the agent operating brief (`docs/CLAUDE-monitor-draft.md`).
+
+### Migrations (authoritative set)
+
+```
+supabase/001_core.sql              clients, tracked_keywords, keyword_rankings,
+                                   metric_snapshots, gsc_history, tracked_prompts
+supabase/002_recs_changes.sql      recommendations + change ledger
+supabase/003_prompt_results.sql    per-prompt AI visibility checks
+supabase/004_jobs_collector_runs.sql  job queue + collector_runs (Phase A.5)
+supabase/005_conversions_daily.sql    conversion/revenue spine (WO-001 stream 3, GA4/Shopify)
+supabase/006_secrets_registry.sql     platform_secrets vault registry (WO-001 stream 2)
+supabase/007_clickup_sync.sql      clickup_list_id + rec clickup_task_* columns (stream 5)
+supabase/008_client_ga4_property.sql  clients.ga4_property_id (integration pass)
+supabase/009_meta_ads.sql          ad_platform_accounts + ad_metrics_daily (stream 4)
+supabase/seed.sql                  staging demo data (1 local + 1 ecom client)
+```
+
+Migrations are the serialized shared spine: agents propose files, the CTO merges
+them in order, and every migration lands in **staging first**. 001–002 were
+reconstructed from production (which had no tracked migration history).
+
+### Staging
+
+`tm-growth-staging` (Supabase project `wwgcpveakcyebfmtdwyt`) mirrors prod's
+schema and is seeded with two fake clients so every dashboard section renders.
+Preview deploys point here via Preview-scoped env vars.
+
+### Testing
+
+```
+npm test            unit tests (in-memory fakes + fixtures, no creds) — CI gate
+npm run test:staging  live collector run against staging (loads .env.staging.local)
+```
+
+- `MOCK_APIS=1` makes every collector read `tests/fixtures/` instead of live
+  DataForSEO/GSC — used by tests and by staging so no credits are spent proving
+  plumbing.
+- `tests/helpers/fakeDb.ts` is a reusable in-memory Supabase stand-in for module
+  unit tests.
+- CI (`.github/workflows/ci.yml`) runs typecheck + unit tests + build on every PR.
+
+### Job queue + collector_runs (stream 1)
+
+- `collector_runs` records one row per module execution (status, duration, error).
+  The collector records failures instead of throwing, so one module failing never
+  sinks the batch or hides behind a 200. Failures also push to Slack
+  (`SLACK_WEBHOOK_URL`, no-op if unset).
+- `src/lib/jobs.ts` is the durable work queue (retries + idempotency) so
+  collection fans out as units rather than depending on one 300s cron request.
+
+New env var: `SLACK_WEBHOOK_URL` (internal ops alerts — collector failures + staleness).
+
+### Stream 3 — GA4 conversions
+
+- `src/lib/ga4.ts` — GA4 Data API client via the same service-account model as
+  `lib/gsc.ts` (env `GOOGLE_SERVICE_ACCOUNT_JSON`, scope
+  `analytics.readonly`). Grant the service account Viewer on each client's GA4
+  property (Admin → Property access management). Exports
+  `dailyConversions(propertyId, days = 28)`, which queries `runReport` for
+  date × channel sessions/conversions/revenue and honors `MOCK_APIS=1`
+  (reads `tests/fixtures/ga4/daily_conversions.json`).
+- `src/lib/conversionsCollector.ts` — standalone `collectConversions(db, client)`
+  that calls `dailyConversions`, upserts into `conversions_daily` (by hand —
+  select-then-update-or-insert, matching `lib/recSync.ts`'s pattern — on
+  `client_id, date, source`), and records a `collector_runs` row via
+  `tracked()`. Not wired into the cron route; the CTO adds a `ga4_property_id`
+  column to `clients` and calls it from `app/api/cron/collect/route.ts` once
+  migration 005 is merged and per-client GA4 access is granted.
+- Migration `supabase/005_conversions_daily.sql` awaits CTO serialize/apply to
+  staging — proposed only, not applied.
+### Stream 2 — Secrets vault + token expiry tracking
+
+Per-client platform tokens (Meta, Google Ads, Microsoft, ClickUp, etc.) move OUT
+of env vars into Supabase Vault (encrypted at rest). `platform_secrets` is the
+tracking registry only — the secret value itself lives in `vault.secrets` /
+`vault.decrypted_secrets`, referenced by `auth_ref`. Nothing client-facing, and
+no log line, ever surfaces a raw token (autonomy ladder #5, `docs/CLAUDE-monitor-draft.md`).
+
+```
+supabase/006_secrets_registry.sql   platform_secrets registry (awaits CTO serialize/apply)
+src/lib/vault.ts                    storeSecret / readSecret / listExpiring
+src/lib/tokenExpiry.ts              checkTokenExpiry() — Slack alert + collector_runs
+```
+
+- `storeSecret(db, { clientId, platform, value, expiresAt })` writes the value to
+  Supabase Vault via `vault.create_secret`, then upserts a `platform_secrets` row
+  keyed by `(client_id, platform)` with the resulting `auth_ref`.
+- `readSecret(db, authRef)` reads the plaintext back from `vault.decrypted_secrets`
+  — the only function in the module allowed to return a raw value.
+- `listExpiring(db, withinDays = 14)` returns active registry rows expiring
+  within the window (including already-expired ones a missed check would have
+  caught).
+- `checkTokenExpiry(db)` calls `listExpiring`, alerts Slack (reusing `slackAlert`)
+  when tokens are due, and always records a `collector_runs` row (module
+  `token_expiry`) — same never-throw contract as the rest of the collector.
+- Future `ad_platform_accounts` (streams 4 & 6) will reference a client's active
+  token via `platform_secrets.auth_ref` rather than holding it directly.
+
+Registry-only logic (`upsertSecretRegistry`, `listExpiring`) is unit-tested via
+`createFakeDb` with no live Vault dependency; `storeSecret`/`readSecret` need a
+real Vault RPC (`vault.create_secret`, `vault.decrypted_secrets`) and are
+exercised against staging, not in `npm test`.
+### Stream 5 — ClickUp sync
+
+Closes the loop from approved recommendation to a ClickUp task to "shipped":
+
+- `supabase/007_clickup_sync.sql` (proposed, awaiting CTO serialize/apply) adds
+  `clients.clickup_list_id` and `recommendations.clickup_task_id` /
+  `clickup_task_url` / `clickup_synced_at`.
+- `src/lib/clickup.ts` — ClickUp REST client (`CLICKUP_TOKEN`). Resilient like
+  `src/lib/slack.ts`: no-ops + logs when the token is unset, try/catch around the
+  call. `MOCK_APIS=1` short-circuits to a deterministic fake task, same convention
+  as the DataForSEO fixtures. Every task it creates is prefixed
+  `[STAGING TEST] ` — required so staging syncs are never mistaken for a real,
+  client-authorized ClickUp task.
+- `src/lib/clickupSync.ts` — standalone, db-as-param (unit-testable):
+  `syncApprovedRecs(db, client)` creates a ClickUp task for each `approved` rec
+  with no `clickup_task_id` yet and records a `collector_runs` row (module
+  `clickup_sync`); `markShippedFromClickup(db, recId, changeTitle)` is the
+  completion path — mirrors the manual "mark shipped" flow in
+  `src/app/api/track/route.ts` but tags the `changes` ledger row
+  `source: 'clickup'`.
+- Not wired into the cron route or admin route yet. The real target is the Salty
+  Dog ClickUp space (workspace `90141342552`); the CTO still needs to resolve the
+  Salty Dog list id, provide `CLICKUP_TOKEN`, and decide where `syncApprovedRecs`
+  gets called from (cron tick vs. on-approve).
+
+New env var: `CLICKUP_TOKEN` (ClickUp API token — required only outside
+`MOCK_APIS=1`).
+
+### Stream 4 — Meta ads
+
+Paid-media spine (plan §4): ad-level Meta spend/conversions/revenue joins the
+same measurement loop as organic (`metric_snapshots`) and conversions
+(`conversions_daily`).
+
+```
+supabase/009_meta_ads.sql          ad_platform_accounts + ad_metrics_daily (awaits CTO serialize/apply)
+src/lib/meta.ts                    Meta Marketing (Graph) API client
+src/lib/metaAdsCollector.ts        collectMetaAds(db, client) — standalone collector
+tests/fixtures/meta/ad_insights.json  recorded ad-level insights fixture
+```
+
+- `src/lib/meta.ts` — `fetchAdInsights(accessToken, adAccountId, days = 28)` GETs
+  `https://graph.facebook.com/v21.0/{adAccountId}/insights` with `level=ad`,
+  `time_increment=1` (one row per ad per day), and a `time_range` covering
+  `days`, paginating via `paging.next` until exhausted. Maps Meta's `actions` /
+  `action_values` arrays into `conversions` / `revenue` — purchase and lead
+  action types (`purchase`, `omni_purchase`, `offsite_conversion.fb_pixel_purchase`,
+  `lead`, `onsite_conversion.lead_grouped`, ...) are summed by substring match.
+  Honors `MOCK_APIS=1` (reads raw insight rows from
+  `tests/fixtures/meta/ad_insights.json` and runs them through the same mapping,
+  so the conversions/revenue derivation is exercised in tests too). Never logs
+  the access token — it's only ever used as a query param on the outgoing request.
+- `src/lib/metaAdsCollector.ts` — standalone `collectMetaAds(db, client, days = 28)`.
+  Looks up the client's `meta` row in `ad_platform_accounts`; with none, records a
+  `skipped` `collector_runs` row and returns (no throw). Resolves the access
+  token via `readSecret(db, account.auth_ref)` (Vault, stream 2) or falls back to
+  `process.env.META_ACCESS_TOKEN`; with neither present and `MOCK_APIS` off, also
+  records `skipped`. Calls `fetchAdInsights` and upserts by hand (select →
+  update-or-insert, matching `lib/conversionsCollector.ts`'s pattern) into
+  `ad_metrics_daily` on `(client_id, platform, date, ad_id)`.
+- Migration `supabase/009_meta_ads.sql` awaits CTO serialize/apply to staging —
+  proposed only, not applied. Goes live once: 009 is merged, a row is seeded
+  in `ad_platform_accounts` per client (platform `'meta'`, their ad account id),
+  a Meta system-user access token is stored via `storeSecret(db, { clientId,
+  platform: 'meta', value, expiresAt })` (stream 2), and the CTO wires
+  `collectMetaAds` into `src/app/api/cron/collect/route.ts`.

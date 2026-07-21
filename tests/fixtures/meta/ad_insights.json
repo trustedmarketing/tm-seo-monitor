@@ -1,0 +1,88 @@
+[
+  {
+    "date_start": "2026-06-22",
+    "campaign_id": "120210000000001",
+    "campaign_name": "Prospecting - Broad",
+    "adset_id": "120210000000011",
+    "ad_id": "120210000000111",
+    "impressions": "18420",
+    "clicks": "312",
+    "spend": "245.60",
+    "actions": [
+      { "action_type": "link_click", "value": "312" },
+      { "action_type": "landing_page_view", "value": "290" },
+      { "action_type": "omni_purchase", "value": "6" }
+    ],
+    "action_values": [
+      { "action_type": "omni_purchase", "value": "540.00" }
+    ]
+  },
+  {
+    "date_start": "2026-06-22",
+    "campaign_id": "120210000000001",
+    "campaign_name": "Prospecting - Broad",
+    "adset_id": "120210000000011",
+    "ad_id": "120210000000112",
+    "impressions": "9810",
+    "clicks": "145",
+    "spend": "98.20",
+    "actions": [
+      { "action_type": "link_click", "value": "145" },
+      { "action_type": "offsite_conversion.fb_pixel_purchase", "value": "2" }
+    ],
+    "action_values": [
+      { "action_type": "offsite_conversion.fb_pixel_purchase", "value": "160.00" }
+    ]
+  },
+  {
+    "date_start": "2026-06-23",
+    "campaign_id": "120210000000001",
+    "campaign_name": "Prospecting - Broad",
+    "adset_id": "120210000000011",
+    "ad_id": "120210000000111",
+    "impressions": "20015",
+    "clicks": "338",
+    "spend": "260.10",
+    "actions": [
+      { "action_type": "link_click", "value": "338" },
+      { "action_type": "omni_purchase", "value": "8" }
+    ],
+    "action_values": [
+      { "action_type": "omni_purchase", "value": "720.00" }
+    ]
+  },
+  {
+    "date_start": "2026-06-23",
+    "campaign_id": "120210000000002",
+    "campaign_name": "Lead Gen - Lookalike",
+    "adset_id": "120210000000021",
+    "ad_id": "120210000000211",
+    "impressions": "5230",
+    "clicks": "88",
+    "spend": "64.30",
+    "actions": [
+      { "action_type": "link_click", "value": "88" },
+      { "action_type": "onsite_conversion.lead_grouped", "value": "4" }
+    ],
+    "action_values": [
+      { "action_type": "onsite_conversion.lead_grouped", "value": "0" }
+    ]
+  },
+  {
+    "date_start": "2026-06-24",
+    "campaign_id": "120210000000002",
+    "campaign_name": "Lead Gen - Lookalike",
+    "adset_id": "120210000000021",
+    "ad_id": "120210000000211",
+    "impressions": "6110",
+    "clicks": "102",
+    "spend": "71.75",
+    "actions": [
+      { "action_type": "link_click", "value": "102" },
+      { "action_type": "lead", "value": "5" }
+    ],
+    "action_values": [
+      { "action_type": "lead", "value": "0" }
+    ]
+  }
+]
