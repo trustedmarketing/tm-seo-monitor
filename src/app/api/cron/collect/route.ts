@@ -17,6 +17,7 @@ import { syncRecommendations, measureChanges } from "@/lib/recSync";
 import { recordRun } from "@/lib/collectorRuns";
 import { alertOnFailures, type CollectorFailure } from "@/lib/slack";
 import { collectConversions } from "@/lib/conversionsCollector";
+import { collectMetaAds } from "@/lib/metaAdsCollector";
 import { syncApprovedRecs } from "@/lib/clickupSync";
 import { checkTokenExpiry } from "@/lib/tokenExpiry";
 
@@ -217,6 +218,10 @@ export async function GET(req: Request) {
       const n = await collectConversions(db, c);
       done.push(`conversions (${n})`);
     }
+
+    // ── Meta ads → ad_metrics_daily (skips if no connected account) ─
+    const metaN = await collectMetaAds(db, c);
+    done.push(`meta ads (${metaN})`);
 
     // ── ClickUp sync: approved recs → tasks (skips if no list_id) ──
     const synced = await syncApprovedRecs(db, c);

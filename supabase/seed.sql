@@ -40,6 +40,11 @@ insert into tracked_prompts (client_id, prompt) values
   ('22222222-2222-2222-2222-222222222222', 'best salt remover for boats'),
   ('22222222-2222-2222-2222-222222222222', 'how to remove salt from a boat after saltwater');
 
+-- ── Ad platform accounts (Meta) — MOCK: no token needed under MOCK_APIS=1 ─
+insert into ad_platform_accounts (client_id, platform, external_id) values
+  ('11111111-1111-1111-1111-111111111111', 'meta', 'act_1110001110001'),
+  ('22222222-2222-2222-2222-222222222222', 'meta', 'act_2220002220002');
+
 -- ── Keyword rankings: 30 days, positions improving toward the present ─
 insert into keyword_rankings (client_id, keyword_id, checked_at, position, url)
 select k.client_id, k.id,

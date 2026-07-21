@@ -19,6 +19,7 @@ type Snap = {
   site_health: number | null; organic_traffic: number | null;
 };
 type Conv = { client_id: string; date: string; revenue: number | null; conversions: number | null };
+type Ad = { client_id: string; spend: number | null; revenue: number | null };
 type Run = { client_id: string | null; module: string; status: string; detail: string | null; started_at: string };
 type Change = { client_id: string; title: string; verdict: string | null; measured_at: string | null };
 type Rec = { client_id: string; status: string };
@@ -67,13 +68,14 @@ export default async function Command() {
   const db = dbClient();
   const since48 = new Date(Date.now() - 48 * 3600000).toISOString();
 
-  const [cRes, sRes, convRes, runRes, chRes, recRes] = await Promise.all([
+  const [cRes, sRes, convRes, runRes, chRes, recRes, adRes] = await Promise.all([
     db.from("clients").select("id, name, domain, tier, ga4_property_id").eq("active", true).order("name"),
     db.from("metric_snapshots").select("client_id, captured_at, visibility, ai_visibility, site_health, organic_traffic").order("captured_at", { ascending: false }).limit(500),
     db.from("conversions_daily").select("client_id, date, revenue, conversions"),
     db.from("collector_runs").select("client_id, module, status, detail, started_at").gte("started_at", since48).order("started_at", { ascending: false }),
     db.from("changes").select("client_id, title, verdict, measured_at").not("verdict", "is", null),
     db.from("recommendations").select("client_id, status"),
+    db.from("ad_metrics_daily").select("client_id, spend, revenue"),
   ]);
   const error = cRes.error ?? sRes.error ?? convRes.error;
   const clients = (cRes.data ?? []) as Client[];
@@ -87,6 +89,11 @@ export default async function Command() {
   for (const c of (convRes.data ?? []) as Conv[]) {
     const r = revenue.get(c.client_id) ?? { total: 0, convs: 0 };
     r.total += c.revenue ?? 0; r.convs += c.conversions ?? 0; revenue.set(c.client_id, r);
+  }
+  const paid = new Map<string, { spend: number; revenue: number }>();
+  for (const a of (adRes.data ?? []) as Ad[]) {
+    const p = paid.get(a.client_id) ?? { spend: 0, revenue: 0 };
+    p.spend += a.spend ?? 0; p.revenue += a.revenue ?? 0; paid.set(a.client_id, p);
   }
   const runs = (runRes.data ?? []) as Run[];
   const freshest = new Map<string, string>();
@@ -158,6 +165,7 @@ export default async function Command() {
           {clients.map((c) => {
             const [cur, prev] = snaps.get(c.id) ?? [];
             const rev = revenue.get(c.id);
+            const pd = paid.get(c.id);
             const f = ago(freshest.get(c.id) ?? null);
             const rc = recCount.get(c.id) ?? { open: 0, approved: 0 };
             return (
@@ -183,7 +191,7 @@ export default async function Command() {
                   <Channel label="AI answers" value={pct(cur?.ai_visibility ?? null)} sub={<Delta value={delta(cur?.ai_visibility ?? null, prev?.ai_visibility ?? null)} unit="pt" />} />
                   <Channel label="Revenue · GA4" value={rev && rev.total > 0 ? money(rev.total) : "–"} sub={<span style={{ fontSize: 12, color: "var(--fg3)" }}>{rev ? `${rev.convs} conv` : c.ga4_property_id ? "collecting" : "not linked"}</span>} />
                   <Channel label="Site health" value={cur?.site_health != null ? `${Math.round(cur.site_health)}%` : "–"} sub={<Delta value={delta(cur?.site_health ?? null, prev?.site_health ?? null)} unit="pt" />} />
-                  <Channel label="Paid · Social" value="soon" sub={<span style={{ fontSize: 12, color: "var(--fg3)" }}>modules landing</span>} />
+                  <Channel label="Paid · Meta" value={pd && pd.spend > 0 ? money(pd.spend) : "–"} sub={pd && pd.spend > 0 ? <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg2)" }}>{(pd.revenue / pd.spend).toFixed(1)}× ROAS</span> : <span style={{ fontSize: 12, color: "var(--fg3)" }}>not linked</span>} />
                 </div>
               </section>
             );
