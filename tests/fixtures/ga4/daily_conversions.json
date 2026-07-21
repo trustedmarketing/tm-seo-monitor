@@ -1,0 +1,7 @@
+[
+  { "date": "2026-06-22", "source": "Organic Search", "sessions": 412, "conversions": 9, "revenue": 1180.50 },
+  { "date": "2026-06-22", "source": "Direct", "sessions": 96, "conversions": 2, "revenue": 260.00 },
+  { "date": "2026-06-23", "source": "Organic Search", "sessions": 438, "conversions": 11, "revenue": 1425.75 },
+  { "date": "2026-06-23", "source": "Paid Search", "sessions": 150, "conversions": 6, "revenue": 890.00 },
+  { "date": "2026-06-24", "source": "Organic Search", "sessions": 401, "conversions": 8, "revenue": 1050.25 }
+]

@@ -137,6 +137,7 @@ supabase/001_core.sql              clients, tracked_keywords, keyword_rankings,
 supabase/002_recs_changes.sql      recommendations + change ledger
 supabase/003_prompt_results.sql    per-prompt AI visibility checks
 supabase/004_jobs_collector_runs.sql  job queue + collector_runs (Phase A.5)
+supabase/005_conversions_daily.sql    conversion/revenue spine (WO-001 stream 3, GA4/Shopify)
 supabase/seed.sql                  staging demo data (1 local + 1 ecom client)
 ```
 
@@ -174,3 +175,22 @@ npm run test:staging  live collector run against staging (loads .env.staging.loc
   collection fans out as units rather than depending on one 300s cron request.
 
 New env var: `SLACK_WEBHOOK_URL` (internal ops alerts — collector failures + staleness).
+
+### Stream 3 — GA4 conversions
+
+- `src/lib/ga4.ts` — GA4 Data API client via the same service-account model as
+  `lib/gsc.ts` (env `GOOGLE_SERVICE_ACCOUNT_JSON`, scope
+  `analytics.readonly`). Grant the service account Viewer on each client's GA4
+  property (Admin → Property access management). Exports
+  `dailyConversions(propertyId, days = 28)`, which queries `runReport` for
+  date × channel sessions/conversions/revenue and honors `MOCK_APIS=1`
+  (reads `tests/fixtures/ga4/daily_conversions.json`).
+- `src/lib/conversionsCollector.ts` — standalone `collectConversions(db, client)`
+  that calls `dailyConversions`, upserts into `conversions_daily` (by hand —
+  select-then-update-or-insert, matching `lib/recSync.ts`'s pattern — on
+  `client_id, date, source`), and records a `collector_runs` row via
+  `tracked()`. Not wired into the cron route; the CTO adds a `ga4_property_id`
+  column to `clients` and calls it from `app/api/cron/collect/route.ts` once
+  migration 005 is merged and per-client GA4 access is granted.
+- Migration `supabase/005_conversions_daily.sql` awaits CTO serialize/apply to
+  staging — proposed only, not applied.
