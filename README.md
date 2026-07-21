@@ -174,3 +174,36 @@ npm run test:staging  live collector run against staging (loads .env.staging.loc
   collection fans out as units rather than depending on one 300s cron request.
 
 New env var: `SLACK_WEBHOOK_URL` (internal ops alerts — collector failures + staleness).
+
+### Stream 2 — Secrets vault + token expiry tracking
+
+Per-client platform tokens (Meta, Google Ads, Microsoft, ClickUp, etc.) move OUT
+of env vars into Supabase Vault (encrypted at rest). `platform_secrets` is the
+tracking registry only — the secret value itself lives in `vault.secrets` /
+`vault.decrypted_secrets`, referenced by `auth_ref`. Nothing client-facing, and
+no log line, ever surfaces a raw token (autonomy ladder #5, `docs/CLAUDE-monitor-draft.md`).
+
+```
+supabase/006_secrets_registry.sql   platform_secrets registry (awaits CTO serialize/apply)
+src/lib/vault.ts                    storeSecret / readSecret / listExpiring
+src/lib/tokenExpiry.ts              checkTokenExpiry() — Slack alert + collector_runs
+```
+
+- `storeSecret(db, { clientId, platform, value, expiresAt })` writes the value to
+  Supabase Vault via `vault.create_secret`, then upserts a `platform_secrets` row
+  keyed by `(client_id, platform)` with the resulting `auth_ref`.
+- `readSecret(db, authRef)` reads the plaintext back from `vault.decrypted_secrets`
+  — the only function in the module allowed to return a raw value.
+- `listExpiring(db, withinDays = 14)` returns active registry rows expiring
+  within the window (including already-expired ones a missed check would have
+  caught).
+- `checkTokenExpiry(db)` calls `listExpiring`, alerts Slack (reusing `slackAlert`)
+  when tokens are due, and always records a `collector_runs` row (module
+  `token_expiry`) — same never-throw contract as the rest of the collector.
+- Future `ad_platform_accounts` (streams 4 & 6) will reference a client's active
+  token via `platform_secrets.auth_ref` rather than holding it directly.
+
+Registry-only logic (`upsertSecretRegistry`, `listExpiring`) is unit-tested via
+`createFakeDb` with no live Vault dependency; `storeSecret`/`readSecret` need a
+real Vault RPC (`vault.create_secret`, `vault.decrypted_secrets`) and are
+exercised against staging, not in `npm test`.
