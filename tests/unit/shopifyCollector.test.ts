@@ -27,20 +27,12 @@ function seedDb(storeOverrides: Record<string, any> = {}) {
   }) as any;
 }
 
-// Stand in for Supabase Vault's `vault.decrypted_secrets` table, which fakeDb
-// (a plain PostgREST-subset stand-in) doesn't model.
+// Stand in for the vault_read_secret RPC — readSecret calls this rather than
+// reading the private vault schema directly (Supabase doesn't expose it).
 function withVaultSecret(db: any, secret: string | null) {
-  db.schema = (schemaName: string) => {
-    if (schemaName !== "vault") throw new Error(`unexpected schema ${schemaName}`);
-    return {
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            maybeSingle: async () => ({ data: secret ? { decrypted_secret: secret } : null, error: null }),
-          }),
-        }),
-      }),
-    };
+  db.rpc = async (fn: string, _params: { p_name?: string }) => {
+    if (fn === "vault_read_secret") return { data: secret, error: null };
+    return { data: null, error: null };
   };
   return db;
 }
