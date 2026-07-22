@@ -18,6 +18,8 @@ import { recordRun } from "@/lib/collectorRuns";
 import { alertOnFailures, type CollectorFailure } from "@/lib/slack";
 import { collectConversions } from "@/lib/conversionsCollector";
 import { collectMetaAds } from "@/lib/metaAdsCollector";
+import { collectGoogleAds } from "@/lib/googleAdsCollector";
+import { collectMicrosoftAds } from "@/lib/microsoftAdsCollector";
 import { collectShopify } from "@/lib/shopifyCollector";
 import { syncApprovedRecs } from "@/lib/clickupSync";
 import { checkTokenExpiry } from "@/lib/tokenExpiry";
@@ -223,6 +225,12 @@ export async function GET(req: Request) {
     // ── Meta ads → ad_metrics_daily (skips if no connected account) ─
     const metaN = await collectMetaAds(db, c);
     done.push(`meta ads (${metaN})`);
+
+    // ── Google + Microsoft ads → ad_metrics_daily (skip if no account) ─
+    const gN = await collectGoogleAds(db, c);
+    done.push(`google ads (${gN})`);
+    const msN = await collectMicrosoftAds(db, c);
+    done.push(`microsoft ads (${msN})`);
 
     // ── Shopify revenue (ground truth) → conversions_daily(source='shopify') ─
     const shopN = await collectShopify(db, c);
