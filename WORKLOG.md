@@ -4,6 +4,25 @@ Update channel for WO-001 execution. Newest entries on top.
 
 ---
 
+## 2026-07-22 · Session 1 · Bloom (trybloom.ai) Module D eval — kicked off
+
+Work order: evaluate Bloom as the *primary* generation engine for Module D volume ad
+creative (Figma → precision tier). Full eval in **`docs/bloom-eval.md`**; tracked in `STATUS.md`.
+
+- **Verified Bloom is real + a strong structural fit:** native **Claude Code MCP** + REST API,
+  learn-brand-from-URL/IG (no per-client template build), sizes 1:1/9:16/16:9 confirmed
+  (4:5 TBD), Scale $90/mo (500 credits, API/MCP in every plan), you retain asset ownership.
+- **Deliverables 3 (pricing), 4 (terms/privacy), 5 (architecture/zero-lock-in): drafted** from
+  verified sources. Key flags: ToS silent on **agency/client/resale** use; privacy silent on
+  **model-training** of brand assets (no opt-out); no indemnity (we bear IP risk); permanent
+  deletion / no export (lock-in — mitigated by re-hosting every asset into our `creatives` table).
+- **Deliverables 1 (generation spike) + 2 (brand fidelity): BLOCKED** — need a Bloom account +
+  **MCP connector authorized in this session**, Salty Dog + DAPS **design tokens**, and DAPS **URL**.
+- **Preliminary posture: adopt-for-subset**, pending the spike + Bloom's written answers on the
+  agency-use / no-training / DPA gaps. Decision due 2026-07-29.
+
+---
+
 ## 2026-07-22 · Session 1 · Shopify collector + MER proven; 2 bugs caught by the gate
 
 First real-client integration (Salty Dog / `d-vein-company` store).
