@@ -12,24 +12,33 @@ All facts below verified from trybloom.ai on 2026-07-22 (see Sources). Nothing h
 - Ships a **REST API and an MCP server built for Claude Code** (also Cursor/VS Code). MCP tools:
   `bloom_onboard_brand`, `bloom_generate_image`, `bloom_edit_image`, `bloom_resize_image`.
   Batch: "30 images in one message," parallel. API+MCP included in every plan.
-- Sizes confirmed: **9:16, 16:9, 1:1**; "recomposes the shot to fit the placement" (smart resize,
-  not crop). ⚠️ **4:5 not explicitly confirmed** — must verify in the spike (our required set is 1:1/4:5/9:16).
+- **Sizes confirmed via live API: 1:1, 4:5, 9:16** (4:5 delivered at 1632×2048), plus 16:9; smart-resize
+  recomposes rather than crops. Our required set (1:1/4:5/9:16) is fully supported.
 - MCP connector: `https://www.trybloom.ai/api/mcp` (Claude Settings → Connectors → add custom → Sign in with Bloom). Docs: `/docs/api`, `/docs/mcp/getting-started`.
 
-## 1. API/MCP integration spike — ⛔ BLOCKED (needs access)
-**Plan:** connect the Bloom MCP to this Claude Code session → `bloom_onboard_brand` for Salty Dog
-(`getsaltydog.com`) + DAPS (URL TBD) → `bloom_generate_image` ×10 per brand across 1:1/4:5/9:16 →
-land assets in our `creatives` table.
-**Blocked on (Tom):** (a) a Bloom account ($5/3-day trial or Scale $90/mo) with the **MCP connector
-authorized in this session**; (b) **DAPS brand URL / IG handle** (I have Salty Dog's).
+## 1. API/MCP integration spike — ✅ RUNNING (via REST — the production path)
+The Claude Code session couldn't see the MCP connector (session MCPs are fixed at startup), so the spike
+runs on Bloom's **REST API** (`x-api-key`) from Claude Code — which is also exactly what the production
+Module D cron will use (the automated pipeline can't call a session-bound connector). **Verified API shape:**
+- Onboard: `POST /api/v1/brands {"url": ...}` → brand `id` + auto-extracted profile.
+- Generate: `POST /api/v1/images/generations {"brandSessionId": <brand id>, "prompt", "aspectRatio"}` → image `id(s)`.
+- Retrieve: `GET /api/v1/images/<id>?wait=true` → `imageUrl`, `width`/`height`.
 
-## 2. Brand-fidelity review — ⛔ BLOCKED (needs tokens + spike output)
-**Method:** compare Bloom's URL-learned brand (palette, type, logo usage, composition) against each
-brand's **actual design tokens**; flag deviations; Tom does the final eye test.
-**Blocked on:** (a) spike output (§1); (b) **Salty Dog + DAPS true design-token files** — the plan puts
-these in the `tm-clients` workspace, which is not in this repo. Point me to them or paste them.
-**Note:** Bloom learns the brand from the URL/IG, so fidelity hinges on how faithfully the public site
-represents the brand system — exactly what the eye test must judge.
+Both brands **already onboarded + `ready`**: Salty Dog `75f3bffa…`, DAPS `55f569cd…` (DAPS.FIT). First image
+generated clean (Salty Dog, 4:5, 1632×2048). Full **10/brand × 1:1/4:5/9:16** generating → gallery URLs to Tom
+for the eye test; each record maps to the `creatives` shape (brand, prompt, format, `imageUrl`, source='bloom').
+API key stored git-ignored; to be vaulted as the portfolio-level Bloom credential for the prod pipeline.
+
+## 2. Brand-fidelity review — 🔄 IN PROGRESS
+**Bloom's auto-extracted Salty Dog profile** (the fidelity reference): colors `#0B1C39` (navy), `#D9531E`
+(orange), `#F5F3EC` (cream), `#1A1A1A`, `#FFFFFF`; fonts **Archivo, Manrope**; logo captured. (DAPS profile
+pulled alongside its gallery.)
+**Method:** compare Bloom's URL-learned palette/type/logo against each brand's *true* design tokens, flag
+deviations; **Tom does the final eye test** on the generated gallery.
+**Still needed:** Salty Dog + DAPS **official design tokens** to score against (the `tm-clients` files) — or I
+cross-check against the live site. Bloom learns from the URL, so fidelity hinges on how well the public site
+encodes the brand system; the navy/orange/cream + Archivo/Manrope extraction reads plausibly on-brand pending
+the token comparison + eye test.
 
 ## 3. Pricing at our volume — ✅ preliminary
 Verified tiers: **Plus $20/mo** (50 assets) · **Scale $90/mo** ($1,080/yr, ~28% off; 500 credits,
