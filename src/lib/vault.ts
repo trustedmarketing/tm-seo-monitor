@@ -70,9 +70,9 @@ export async function storeSecret(
 ): Promise<{ auth_ref: string }> {
   const authRef = buildAuthRef(input.platform, input.clientId);
 
-  const { error } = await db.schema("vault").rpc("create_secret", {
-    secret: input.value,
-    name: authRef,
+  const { error } = await db.rpc("vault_write_secret", {
+    p_secret: input.value,
+    p_name: authRef,
   });
   if (error) throw new Error(`vault.create_secret failed: ${error.message}`);
 
@@ -88,14 +88,9 @@ export async function storeSecret(
 // secret's name). Returns null if not found. This is the ONLY function in this
 // module allowed to return a raw secret value — callers must not log it either.
 export async function readSecret(db: SupabaseClient, authRef: string): Promise<string | null> {
-  const { data, error } = await db
-    .schema("vault")
-    .from("decrypted_secrets")
-    .select("decrypted_secret")
-    .eq("name", authRef)
-    .maybeSingle();
-  if (error || !data) return null;
-  return (data as { decrypted_secret: string | null }).decrypted_secret ?? null;
+  const { data, error } = await db.rpc("vault_read_secret", { p_name: authRef });
+  if (error || data == null) return null;
+  return data as string;
 }
 
 // Registry rows (active only) whose expires_at falls within `withinDays` from now

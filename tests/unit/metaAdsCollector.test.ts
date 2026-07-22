@@ -107,19 +107,13 @@ describe("collectMetaAds", () => {
     vi.stubEnv("MOCK_APIS", "1");
     const db = seedDb({ auth_ref: "meta:" + CLIENT_ID });
 
-    // Stand in for Supabase Vault's `vault.decrypted_secrets` table, which
-    // fakeDb (a plain PostgREST-subset stand-in) doesn't model.
-    (db as any).schema = (schemaName: string) => {
-      if (schemaName !== "vault") throw new Error(`unexpected schema ${schemaName}`);
-      return {
-        from: () => ({
-          select: () => ({
-            eq: () => ({
-              maybeSingle: async () => ({ data: { decrypted_secret: "vault-token" }, error: null }),
-            }),
-          }),
-        }),
-      };
+    // Stand in for the vault_read_secret RPC — readSecret now calls this instead
+    // of reading the private vault schema directly (Supabase doesn't expose it).
+    (db as any).rpc = async (fn: string, params: { p_name?: string }) => {
+      if (fn === "vault_read_secret" && params?.p_name === "meta:" + CLIENT_ID) {
+        return { data: "vault-token", error: null };
+      }
+      return { data: null, error: null };
     };
 
     const written = await collectMetaAds(db, { id: CLIENT_ID, domain: "example.com" });
