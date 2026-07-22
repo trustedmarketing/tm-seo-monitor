@@ -18,7 +18,7 @@ type Snap = {
   visibility: number | null; ai_visibility: number | null;
   site_health: number | null; organic_traffic: number | null;
 };
-type Conv = { client_id: string; date: string; revenue: number | null; conversions: number | null };
+type Conv = { client_id: string; source: string; revenue: number | null; conversions: number | null };
 type Ad = { client_id: string; spend: number | null; revenue: number | null };
 type Run = { client_id: string | null; module: string; status: string; detail: string | null; started_at: string };
 type Change = { client_id: string; title: string; verdict: string | null; measured_at: string | null };
@@ -63,6 +63,27 @@ function Channel({ label, value, sub }: { label: string; value: string; sub: Rea
   );
 }
 
+// The hero metric: blended MER = actual revenue ÷ total ad spend. Green display
+// number. When ad platforms claim >85% of actual revenue, an amber flag calls out
+// the over-attribution (platforms double-claim the same orders).
+function MerChannel({ mer, spend, claimedPct }: { mer: number | null; spend: number; claimedPct: number | null }) {
+  const over = claimedPct != null && claimedPct > 0.85;
+  return (
+    <div style={{ flex: 1, minWidth: 138, padding: "0 20px", borderLeft: "1px solid var(--border)" }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--fg3)" }}>MER · blended</div>
+      <div style={{ fontFamily: "var(--font-display)", fontSize: 40, lineHeight: 1.05, letterSpacing: "-0.02em", margin: "4px 0 3px", color: mer != null ? "var(--tm-green-deep)" : "var(--fg3)" }}>{mer != null ? mer.toFixed(2) + "×" : "–"}</div>
+      {mer != null ? (
+        <div style={{ fontSize: 12, color: "var(--fg3)" }}>
+          {money(spend)} spend
+          {over && <span style={{ color: "#B8860B", fontWeight: 600 }}> · ⚑ platforms claim {Math.round((claimedPct as number) * 100)}%</span>}
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: "var(--fg3)" }}>{spend > 0 ? "no revenue yet" : "no ad spend"}</div>
+      )}
+    </div>
+  );
+}
+
 export default async function Command() {
   const role = await verifyToken(cookies().get("tm_auth")?.value, process.env.CRON_SECRET!);
   const db = dbClient();
@@ -71,7 +92,7 @@ export default async function Command() {
   const [cRes, sRes, convRes, runRes, chRes, recRes, adRes] = await Promise.all([
     db.from("clients").select("id, name, domain, tier, ga4_property_id").eq("active", true).order("name"),
     db.from("metric_snapshots").select("client_id, captured_at, visibility, ai_visibility, site_health, organic_traffic").order("captured_at", { ascending: false }).limit(500),
-    db.from("conversions_daily").select("client_id, date, revenue, conversions"),
+    db.from("conversions_daily").select("client_id, source, revenue, conversions"),
     db.from("collector_runs").select("client_id, module, status, detail, started_at").gte("started_at", since48).order("started_at", { ascending: false }),
     db.from("changes").select("client_id, title, verdict, measured_at").not("verdict", "is", null),
     db.from("recommendations").select("client_id, status"),
@@ -85,10 +106,13 @@ export default async function Command() {
   for (const s of (sRes.data ?? []) as Snap[]) {
     const l = snaps.get(s.client_id) ?? []; if (l.length < 2) { l.push(s); snaps.set(s.client_id, l); }
   }
-  const revenue = new Map<string, { total: number; convs: number }>();
+  // revenue by source — Shopify (ground truth) preferred over GA4
+  const revBySrc = new Map<string, Record<string, { rev: number; orders: number }>>();
   for (const c of (convRes.data ?? []) as Conv[]) {
-    const r = revenue.get(c.client_id) ?? { total: 0, convs: 0 };
-    r.total += c.revenue ?? 0; r.convs += c.conversions ?? 0; revenue.set(c.client_id, r);
+    const m = revBySrc.get(c.client_id) ?? {};
+    const s = m[c.source] ?? { rev: 0, orders: 0 };
+    s.rev += c.revenue ?? 0; s.orders += c.conversions ?? 0;
+    m[c.source] = s; revBySrc.set(c.client_id, m);
   }
   const paid = new Map<string, { spend: number; revenue: number }>();
   for (const a of (adRes.data ?? []) as Ad[]) {
@@ -164,8 +188,16 @@ export default async function Command() {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {clients.map((c) => {
             const [cur, prev] = snaps.get(c.id) ?? [];
-            const rev = revenue.get(c.id);
+            const src = revBySrc.get(c.id) ?? {};
+            const shop = src["shopify"]; const ga4rev = src["ga4"];
+            const actualRev = (shop?.rev ?? 0) > 0 ? shop!.rev : (ga4rev?.rev ?? 0);
+            const revSrc = (shop?.rev ?? 0) > 0 ? "Shopify" : (ga4rev?.rev ?? 0) > 0 ? "GA4" : null;
+            const orders = (shop?.rev ?? 0) > 0 ? shop!.orders : (ga4rev?.orders ?? 0);
             const pd = paid.get(c.id);
+            const spend = pd?.spend ?? 0;
+            const claimed = pd?.revenue ?? 0;
+            const mer = spend > 0 && actualRev > 0 ? actualRev / spend : null;
+            const claimedPct = actualRev > 0 && claimed > 0 ? claimed / actualRev : null;
             const f = ago(freshest.get(c.id) ?? null);
             const rc = recCount.get(c.id) ?? { open: 0, approved: 0 };
             return (
@@ -189,9 +221,9 @@ export default async function Command() {
                 <div style={{ display: "flex", padding: "18px 4px 20px", flexWrap: "wrap", rowGap: 16 }}>
                   <Channel label="Organic" value={pct(cur?.visibility ?? null)} sub={<Delta value={delta(cur?.visibility ?? null, prev?.visibility ?? null)} unit="pt" />} />
                   <Channel label="AI answers" value={pct(cur?.ai_visibility ?? null)} sub={<Delta value={delta(cur?.ai_visibility ?? null, prev?.ai_visibility ?? null)} unit="pt" />} />
-                  <Channel label="Revenue · GA4" value={rev && rev.total > 0 ? money(rev.total) : "–"} sub={<span style={{ fontSize: 12, color: "var(--fg3)" }}>{rev ? `${rev.convs} conv` : c.ga4_property_id ? "collecting" : "not linked"}</span>} />
+                  <Channel label="Revenue" value={revSrc ? money(actualRev) : "–"} sub={revSrc ? <span style={{ fontSize: 12, color: "var(--fg3)" }}>{revSrc} · {orders} orders</span> : <span style={{ fontSize: 12, color: "var(--fg3)" }}>{c.ga4_property_id ? "collecting" : "not linked"}</span>} />
+                  <MerChannel mer={mer} spend={spend} claimedPct={claimedPct} />
                   <Channel label="Site health" value={cur?.site_health != null ? `${Math.round(cur.site_health)}%` : "–"} sub={<Delta value={delta(cur?.site_health ?? null, prev?.site_health ?? null)} unit="pt" />} />
-                  <Channel label="Paid · Meta" value={pd && pd.spend > 0 ? money(pd.spend) : "–"} sub={pd && pd.spend > 0 ? <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg2)" }}>{(pd.revenue / pd.spend).toFixed(1)}× ROAS</span> : <span style={{ fontSize: 12, color: "var(--fg3)" }}>not linked</span>} />
                 </div>
               </section>
             );
