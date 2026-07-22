@@ -397,3 +397,57 @@ tests/fixtures/shopify/daily_sales.json  aggregated daily sales fixture
   `storeSecret(db, { clientId, platform: 'shopify', value, expiresAt })`
   (stream 2), and the CTO wires `collectShopify` into
   `src/app/api/cron/collect/route.ts`.
+
+### Stream 6 — Microsoft/Bing ads
+
+Paid-media spine (plan §4), same shape as stream 4: ad-level Microsoft
+Advertising spend/conversions/revenue joins the same measurement loop as
+Meta, organic (`metric_snapshots`), and conversions (`conversions_daily`).
+**Reuses the existing `ad_platform_accounts` + `ad_metrics_daily` tables from
+`supabase/009_meta_ads.sql`** with `platform = 'microsoft'` — no new
+migration.
+
+```
+src/lib/microsoftAds.ts               Microsoft Advertising Reporting API client
+src/lib/microsoftAdsCollector.ts      collectMicrosoftAds(db, client) — standalone collector
+tests/fixtures/microsoft/ad_metrics.json  recorded ad-level report fixture
+```
+
+- `src/lib/microsoftAds.ts` — `fetchAdMetrics(auth, accountId, days = 28)`.
+  Microsoft Advertising auth is a three-part bundle — developer token + OAuth2
+  access token + customer id — so it's passed as a single `auth` object
+  (`{ developerToken, accessToken, customerId }`) rather than a bare token
+  string. Microsoft's real Reporting API is an async submit → poll →
+  download-CSV flow; this client models it as a single authenticated request
+  against Microsoft's REST reporting surface (`AdPerformanceReport`,
+  `Aggregation: "Daily"`), matching `lib/meta.ts`'s synchronous single-call
+  shape — sufficient for this collector's fixture-driven, unit-tested scope.
+  Maps report rows (`TimePeriod`, `CampaignId`, `CampaignName`, `AdGroupId`,
+  `AdId`, `Impressions`, `Clicks`, `Spend`, `Conversions`, `Revenue`) into
+  `ad_metrics_daily`-shaped rows — `AdGroupId` (Microsoft's ad group, the
+  closest analog to Meta's adset) maps onto the shared `adset_id` column.
+  Honors `MOCK_APIS=1` (reads raw report rows from
+  `tests/fixtures/microsoft/ad_metrics.json` and runs them through the same
+  mapping). Never logs the developer token or access token.
+- `src/lib/microsoftAdsCollector.ts` — standalone `collectMicrosoftAds(db,
+  client, days = 28)`, wrapped in `tracked()`. Looks up the client's
+  `microsoft` row in `ad_platform_accounts`; with none, records a
+  `collector_runs` row and returns 0 (no throw). Resolves the credential
+  bundle as a JSON string via `readSecret(db, account.auth_ref)` (Vault,
+  stream 2) or falls back to `process.env.MICROSOFT_ADS_CREDS`; with neither
+  present and `MOCK_APIS` off, also records and returns 0. Calls
+  `fetchAdMetrics` and upserts by hand (select → update-or-insert, matching
+  `lib/metaAdsCollector.ts`'s pattern) into `ad_metrics_daily` on
+  `(client_id, platform, date, ad_id)` with `platform = 'microsoft'`.
+- Goes live once: a row is seeded in `ad_platform_accounts` per client
+  (platform `'microsoft'`, their Microsoft Advertising account id as
+  `external_id`), the developer-token + OAuth bundle is stored as a JSON
+  string via `storeSecret(db, { clientId, platform: 'microsoft', value:
+  JSON.stringify({ developerToken, accessToken, customerId }), expiresAt })`
+  (stream 2), and the CTO wires `collectMicrosoftAds` into
+  `src/app/api/cron/collect/route.ts`.
+
+New env var: `MICROSOFT_ADS_CREDS` — JSON string
+`{ "developerToken": "...", "accessToken": "...", "customerId": "..." }`
+(env fallback used only outside `MOCK_APIS=1` when an account has no
+`auth_ref`; not required otherwise).

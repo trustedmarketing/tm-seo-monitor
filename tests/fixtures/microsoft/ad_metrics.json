@@ -1,0 +1,62 @@
+[
+  {
+    "TimePeriod": "2026-06-22",
+    "CampaignId": "300210000001",
+    "CampaignName": "Search - Brand",
+    "AdGroupId": "300210000011",
+    "AdId": "300210000111",
+    "Impressions": "6420",
+    "Clicks": "212",
+    "Spend": "115.60",
+    "Conversions": "9",
+    "Revenue": "810.00"
+  },
+  {
+    "TimePeriod": "2026-06-22",
+    "CampaignId": "300210000001",
+    "CampaignName": "Search - Brand",
+    "AdGroupId": "300210000011",
+    "AdId": "300210000112",
+    "Impressions": "3810",
+    "Clicks": "94",
+    "Spend": "58.20",
+    "Conversions": "3",
+    "Revenue": "240.00"
+  },
+  {
+    "TimePeriod": "2026-06-23",
+    "CampaignId": "300210000001",
+    "CampaignName": "Search - Brand",
+    "AdGroupId": "300210000011",
+    "AdId": "300210000111",
+    "Impressions": "7015",
+    "Clicks": "238",
+    "Spend": "128.10",
+    "Conversions": "11",
+    "Revenue": "990.00"
+  },
+  {
+    "TimePeriod": "2026-06-23",
+    "CampaignId": "300210000002",
+    "CampaignName": "PMax - Retail",
+    "AdGroupId": "300210000021",
+    "AdId": "300210000211",
+    "Impressions": "2230",
+    "Clicks": "38",
+    "Spend": "34.30",
+    "Conversions": "2",
+    "Revenue": "150.00"
+  },
+  {
+    "TimePeriod": "2026-06-24",
+    "CampaignId": "300210000002",
+    "CampaignName": "PMax - Retail",
+    "AdGroupId": "300210000021",
+    "AdId": "300210000211",
+    "Impressions": "2610",
+    "Clicks": "42",
+    "Spend": "39.75",
+    "Conversions": "3",
+    "Revenue": "225.00"
+  }
+]
