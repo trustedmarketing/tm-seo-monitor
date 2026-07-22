@@ -4,6 +4,26 @@ Update channel for WO-001 execution. Newest entries on top.
 
 ---
 
+## 2026-07-22 · Session 1 · Google + Microsoft ads collectors wired into cron (PR #12)
+
+Completes the paid-media spine — MER now reconciles across Meta, Google, Microsoft, Shopify.
+
+- **Merged** the parallel-built Google Ads (PR #10) and Microsoft Advertising (PR #11)
+  collectors into `feature/google-microsoft-cron`; no conflicts. Both reuse
+  `ad_platform_accounts` / `ad_metrics_daily` — **no new migration**.
+- **Wired** `collectGoogleAds` + `collectMicrosoftAds` into the per-client cron loop (after
+  Meta, before Shopify). Each self-records `collector_runs`, self-skips unconfigured clients,
+  never throws.
+- **Proved against staging:** seeded mock google_ads + microsoft accounts on the staging
+  Salty Dog client; extended the smoke to assert both collect >0 rows and land in
+  `ad_metrics_daily`. Google 5 rows/$2,468.75, Microsoft 5 rows/$375.95 — spend in dollars
+  (Google `cost_micros ÷ 1e6` confirmed).
+- **Green:** tsc clean · 92/92 unit · 5/5 staging smoke · build compiles. **PR #12 open.**
+- **Prod activation (pending Tom):** real per-client creds vaulted + `ad_platform_accounts`
+  rows; Google Ads also needs dev-token + Standard-access approval (application in progress).
+
+---
+
 ## 2026-07-22 · Session 1 · Bloom (trybloom.ai) Module D eval — kicked off
 
 Work order: evaluate Bloom as the *primary* generation engine for Module D volume ad
