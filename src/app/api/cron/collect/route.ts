@@ -18,6 +18,7 @@ import { recordRun } from "@/lib/collectorRuns";
 import { alertOnFailures, type CollectorFailure } from "@/lib/slack";
 import { collectConversions } from "@/lib/conversionsCollector";
 import { collectMetaAds } from "@/lib/metaAdsCollector";
+import { collectShopify } from "@/lib/shopifyCollector";
 import { syncApprovedRecs } from "@/lib/clickupSync";
 import { checkTokenExpiry } from "@/lib/tokenExpiry";
 
@@ -222,6 +223,10 @@ export async function GET(req: Request) {
     // ── Meta ads → ad_metrics_daily (skips if no connected account) ─
     const metaN = await collectMetaAds(db, c);
     done.push(`meta ads (${metaN})`);
+
+    // ── Shopify revenue (ground truth) → conversions_daily(source='shopify') ─
+    const shopN = await collectShopify(db, c);
+    done.push(`shopify (${shopN})`);
 
     // ── ClickUp sync: approved recs → tasks (skips if no list_id) ──
     const synced = await syncApprovedRecs(db, c);
