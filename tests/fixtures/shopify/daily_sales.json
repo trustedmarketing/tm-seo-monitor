@@ -1,0 +1,7 @@
+[
+  { "date": "2026-06-22", "orders": 14, "revenue": 2380.50 },
+  { "date": "2026-06-23", "orders": 9, "revenue": 1450.00 },
+  { "date": "2026-06-24", "orders": 21, "revenue": 3620.75 },
+  { "date": "2026-06-25", "orders": 11, "revenue": 1890.25 },
+  { "date": "2026-06-26", "orders": 17, "revenue": 2955.00 }
+]

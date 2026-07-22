@@ -142,6 +142,7 @@ supabase/006_secrets_registry.sql     platform_secrets vault registry (WO-001 st
 supabase/007_clickup_sync.sql      clickup_list_id + rec clickup_task_* columns (stream 5)
 supabase/008_client_ga4_property.sql  clients.ga4_property_id (integration pass)
 supabase/009_meta_ads.sql          ad_platform_accounts + ad_metrics_daily (stream 4)
+supabase/010_client_stores.sql     client_stores registry (Shopify revenue collector)
 supabase/seed.sql                  staging demo data (1 local + 1 ecom client)
 ```
 
@@ -296,3 +297,54 @@ tests/fixtures/meta/ad_insights.json  recorded ad-level insights fixture
   a Meta system-user access token is stored via `storeSecret(db, { clientId,
   platform: 'meta', value, expiresAt })` (stream 2), and the CTO wires
   `collectMetaAds` into `src/app/api/cron/collect/route.ts`.
+
+### Shopify revenue collector
+
+Revenue ground truth (plan §4, `docs/CLAUDE-monitor-draft.md`): ad platforms
+over-attribute — each claims the same orders — so this collector writes
+Shopify's actual orders/dollars into `conversions_daily(source='shopify')`,
+letting the platform compute honest blended MER (revenue ÷ ad spend) instead of
+trusting platform ROAS. Reuses `conversions_daily` (migration 005); no new
+revenue table.
+
+```
+supabase/010_client_stores.sql     client_stores registry (awaits CTO serialize/apply)
+src/lib/shopify.ts                 Shopify Admin API client (client-credentials + GraphQL)
+src/lib/shopifyCollector.ts        collectShopify(db, client) — standalone collector
+tests/fixtures/shopify/daily_sales.json  aggregated daily sales fixture
+```
+
+- **Auth** is the client-credentials grant, not the old `shpat_` install token.
+  A Shopify custom app gives a durable Client ID + `shpss_` client secret; every
+  run mints a fresh ~24h `shpat_` access token via
+  `POST https://{shopDomain}/admin/oauth/access_token` with
+  `{ client_id, client_secret, grant_type: "client_credentials" }`. There is no
+  long-lived token to store — only `client_id` + the vaulted secret are durable.
+- `src/lib/shopify.ts` — `mintToken(shopDomain, clientId, clientSecret)` mints
+  the access token (never logs the secret or the token); `fetchDailySales(shopDomain,
+  token, days = 28)` paginates the Admin GraphQL `orders` connection
+  (`https://{shopDomain}/admin/api/2025-01/graphql.json`, header
+  `X-Shopify-Access-Token`) via `pageInfo.hasNextPage`/`endCursor`, filtered to
+  `created_at:>=SINCE created_at:<=UNTIL`, and aggregates by calendar date from
+  `createdAt`: `revenue = sum(totalPriceSet.shopMoney.amount)`,
+  `orders = order count`. ShopifyQL's Admin GraphQL is deprecated and
+  deliberately not used. Both functions honor `MOCK_APIS=1`
+  (`fetchDailySales` reads `tests/fixtures/shopify/daily_sales.json`;
+  `mintToken` short-circuits to a fixed mock token with no network call).
+- `src/lib/shopifyCollector.ts` — standalone `collectShopify(db, client, days = 28)`,
+  wrapped in `tracked()`. Looks up the client's `shopify` row in
+  `client_stores`; with none, or with `api_client_id`/`auth_ref` missing, or
+  with no vault secret found at that `auth_ref`, records a `collector_runs`
+  row and returns 0 (no throw). Otherwise resolves the client secret via
+  `readSecret(db, auth_ref)` (Vault, stream 2), mints a token, fetches daily
+  sales, and upserts by hand (select → update-or-insert, matching
+  `lib/conversionsCollector.ts`'s pattern) into `conversions_daily` on
+  `(client_id, date, source)` with `source = 'shopify'`.
+- Migration `supabase/010_client_stores.sql` awaits CTO serialize/apply to
+  staging — proposed only, not applied. Goes live once: 010 is merged, a row
+  is seeded in `client_stores` per client (platform `'shopify'`, their
+  `{shop}.myshopify.com` domain, the custom app's Client ID as
+  `api_client_id`), the app's `shpss_` client secret is stored via
+  `storeSecret(db, { clientId, platform: 'shopify', value, expiresAt })`
+  (stream 2), and the CTO wires `collectShopify` into
+  `src/app/api/cron/collect/route.ts`.
