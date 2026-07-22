@@ -1,0 +1,67 @@
+[
+  {
+    "segments": { "date": "2026-06-22" },
+    "campaign": { "id": "17300000001", "name": "Search - Brand" },
+    "ad_group": { "id": "138500000011" },
+    "ad_group_ad": { "ad": { "id": "654100000111" } },
+    "metrics": {
+      "impressions": "9120",
+      "clicks": "410",
+      "cost_micros": "182300000",
+      "conversions": 12,
+      "conversions_value": 960.00
+    }
+  },
+  {
+    "segments": { "date": "2026-06-22" },
+    "campaign": { "id": "17300000002", "name": "Search - Non-Brand" },
+    "ad_group": { "id": "138500000021" },
+    "ad_group_ad": { "ad": { "id": "654100000211" } },
+    "metrics": {
+      "impressions": "24680",
+      "clicks": "533",
+      "cost_micros": "419750000",
+      "conversions": 9,
+      "conversions_value": 705.50
+    }
+  },
+  {
+    "segments": { "date": "2026-06-23" },
+    "campaign": { "id": "17300000001", "name": "Search - Brand" },
+    "ad_group": { "id": "138500000011" },
+    "ad_group_ad": { "ad": { "id": "654100000111" } },
+    "metrics": {
+      "impressions": "9560",
+      "clicks": "428",
+      "cost_micros": "190100000",
+      "conversions": 14,
+      "conversions_value": 1120.00
+    }
+  },
+  {
+    "segments": { "date": "2026-06-23" },
+    "campaign": { "id": "17300000003", "name": "Performance Max - Catalog" },
+    "ad_group": { "id": "138500000031" },
+    "ad_group_ad": { "ad": { "id": "654100000311" } },
+    "metrics": {
+      "impressions": "51200",
+      "clicks": "612",
+      "cost_micros": "875400000",
+      "conversions": 21,
+      "conversions_value": 2940.75
+    }
+  },
+  {
+    "segments": { "date": "2026-06-24" },
+    "campaign": { "id": "17300000003", "name": "Performance Max - Catalog" },
+    "ad_group": { "id": "138500000031" },
+    "ad_group_ad": { "ad": { "id": "654100000311" } },
+    "metrics": {
+      "impressions": "48950",
+      "clicks": "588",
+      "cost_micros": "801200000",
+      "conversions": 18,
+      "conversions_value": 2415.00
+    }
+  }
+]
