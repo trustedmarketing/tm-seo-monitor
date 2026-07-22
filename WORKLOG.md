@@ -4,6 +4,26 @@ Update channel for WO-001 execution. Newest entries on top.
 
 ---
 
+## 2026-07-22 · Session 1 · Google Ads API credentials provisioned + vaulted
+
+Cleared the whole Google Ads auth chain with Tom (browser-driven).
+
+- **Developer token** exists (Explorer Access tier) on MCC **711-022-5227**; vaulted as
+  `google_ads_developer_token` (staging).
+- **OAuth (Desktop app)** created in the `tm-seo-monitor` GCP project under the
+  trustedmarketing.com org → consent screen set **Internal** (no verification, non-expiring
+  refresh token). One-shot minter at `scripts/google-oauth.mjs` (zero-dep, reads secret from a
+  seeded 0600 file, loopback flow) captured client_id + client_secret + refresh_token.
+- All three **vaulted as `google_ads_oauth`** (JSON bundle); round-trip read verified; local
+  plaintext scrubbed. `.google-oauth.local.json` gitignored.
+- **Left before live Google data:** (a) wire the collector to the refresh-token flow — mint
+  access token per run from the vaulted OAuth bundle + set login-customer-id = MCC (code, CTO);
+  (b) link Salty Dog's Google Ads account under MCC 711-022-5227 and seed its real customer ID
+  into `ad_platform_accounts` (Tom, ~2 min); (c) upgrade Explorer → **Basic access** for
+  full-portfolio daily volume (application, async).
+
+---
+
 ## 2026-07-22 · Session 1 · Google + Microsoft ads collectors wired into cron (PR #12)
 
 Completes the paid-media spine — MER now reconciles across Meta, Google, Microsoft, Shopify.

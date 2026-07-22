@@ -131,6 +131,64 @@ describe("collectGoogleAds", () => {
     expect(JSON.stringify(run)).not.toContain("vault-dev-token");
   });
 
+  it("resolves the portfolio OAuth path: vaulted google_ads_oauth + developer token + MCC env", async () => {
+    vi.stubEnv("MOCK_APIS", "1"); // fixtures; mintAccessToken returns a placeholder without a network call
+    delete process.env.GOOGLE_ADS_CREDS;
+    vi.stubEnv("GOOGLE_ADS_LOGIN_CUSTOMER_ID", "711-022-5227");
+    const db = seedDb({ auth_ref: null });
+
+    // Vault stands up the portfolio refresh-token bundle + developer token.
+    (db as any).rpc = async (fn: string, params: { p_name?: string }) => {
+      if (fn !== "vault_read_secret") return { data: null, error: null };
+      if (params.p_name === "google_ads_oauth")
+        return {
+          data: JSON.stringify({
+            client_id: "cid.apps.googleusercontent.com",
+            client_secret: "GOCSPX-should-not-be-logged",
+            refresh_token: "refresh-should-not-be-logged",
+          }),
+          error: null,
+        };
+      if (params.p_name === "google_ads_developer_token") return { data: "DEVTOKEN123", error: null };
+      return { data: null, error: null };
+    };
+
+    const written = await collectGoogleAds(db, { id: CLIENT_ID, domain: "example.com" });
+
+    expect(written).toBe(5);
+    const run = db._rows("collector_runs")[0];
+    expect(run.status).toBe("success");
+    // no credential value ever surfaces in the recorded run
+    const serialized = JSON.stringify(run);
+    expect(serialized).not.toContain("GOCSPX-should-not-be-logged");
+    expect(serialized).not.toContain("refresh-should-not-be-logged");
+    expect(serialized).not.toContain("DEVTOKEN123");
+  });
+
+  it("skips (no error) when the OAuth bundle is vaulted but the MCC env is unset", async () => {
+    vi.stubEnv("MOCK_APIS", "0");
+    delete process.env.GOOGLE_ADS_CREDS;
+    delete process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
+    const db = seedDb({ auth_ref: null });
+    (db as any).rpc = async (fn: string, params: { p_name?: string }) => {
+      if (fn === "vault_read_secret" && params.p_name === "google_ads_oauth")
+        return {
+          data: JSON.stringify({ client_id: "c", client_secret: "GOCSPX-x", refresh_token: "r" }),
+          error: null,
+        };
+      if (fn === "vault_read_secret" && params.p_name === "google_ads_developer_token")
+        return { data: "DEV", error: null };
+      return { data: null, error: null };
+    };
+
+    const written = await collectGoogleAds(db, { id: CLIENT_ID, domain: "example.com" });
+
+    expect(written).toBe(0);
+    const run = db._rows("collector_runs")[0];
+    expect(run.status).toBe("success"); // graceful skip
+    expect(run.detail).toContain("no Google Ads creds bundle");
+  });
+
   it("records an error run instead of throwing when the account lookup fails", async () => {
     vi.stubEnv("MOCK_APIS", "1");
     const db = seedDb();

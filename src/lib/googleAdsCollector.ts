@@ -15,13 +15,20 @@
 // passed to fetchAdMetrics(); it's never logged or included in a
 // detail/error string recorded to collector_runs.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAdMetrics, type GoogleAdsAuth } from "@/lib/googleAds";
+import { fetchAdMetrics, mintAccessToken, type GoogleAdsAuth, type GoogleAdsOAuth } from "@/lib/googleAds";
 import { readSecret } from "@/lib/vault";
 import { tracked } from "@/lib/collectorRuns";
 import { mockApis } from "@/lib/apiMock";
 
 const MODULE = "google_ads";
 const PLATFORM = "google_ads";
+
+// Portfolio-level vault secret names (one Google account/MCC covers every
+// client account linked under it). The refresh-token bundle + developer token
+// are vaulted once; the per-client customer id is the ad_platform_accounts
+// external_id, and the manager-account id comes from the environment.
+const OAUTH_SECRET = "google_ads_oauth";
+const DEV_TOKEN_SECRET = "google_ads_developer_token";
 
 export interface GoogleAdsClient {
   id: string;
@@ -51,6 +58,56 @@ function parseAuth(raw: string | null): GoogleAdsAuth | null {
   }
 }
 
+// Parses the vaulted OAuth bundle (google_ads_oauth). Null on missing/invalid.
+function parseOAuth(raw: string | null): GoogleAdsOAuth | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<GoogleAdsOAuth>;
+    if (!parsed.client_id || !parsed.client_secret || !parsed.refresh_token) return null;
+    return parsed as GoogleAdsOAuth;
+  } catch {
+    return null;
+  }
+}
+
+// Resolves a fetch-ready GoogleAdsAuth for `row`, in priority order:
+//   1. An explicit ready-made bundle — per-account auth_ref secret, else the
+//      GOOGLE_ADS_CREDS env override — carrying {accessToken, developerToken,
+//      loginCustomerId}. (One-off overrides + the unit/staging test path.)
+//   2. The production portfolio path: the vaulted refresh-token bundle
+//      (google_ads_oauth) + vaulted developer token (google_ads_developer_token)
+//      + manager-account id (GOOGLE_ADS_LOGIN_CUSTOMER_ID), minting a
+//      short-lived access token per run.
+// Returns null (→ graceful skip) when neither source is configured. A genuine
+// refresh failure in path 2 throws, so it surfaces as an error run, not a skip.
+async function resolveAuth(db: SupabaseClient, row: AdPlatformAccountRow): Promise<GoogleAdsAuth | null> {
+  let rawBundle: string | null = null;
+  if (row.auth_ref) rawBundle = await readSecret(db, row.auth_ref);
+  else if (process.env.GOOGLE_ADS_CREDS) rawBundle = process.env.GOOGLE_ADS_CREDS;
+  const bundle = parseAuth(rawBundle);
+  if (bundle) return bundle;
+
+  // Portfolio OAuth path. Read failures (e.g. no vault RPC in unit fakeDb) fall
+  // through to a skip; a refresh failure below intentionally propagates.
+  let oauthRaw: string | null = null;
+  let devToken: string | null = null;
+  try {
+    [oauthRaw, devToken] = await Promise.all([
+      readSecret(db, OAUTH_SECRET),
+      readSecret(db, DEV_TOKEN_SECRET),
+    ]);
+  } catch {
+    return null;
+  }
+  const oauth = parseOAuth(oauthRaw);
+  const loginCustomerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
+  if (oauth && devToken && loginCustomerId) {
+    const accessToken = await mintAccessToken(oauth);
+    return { accessToken, developerToken: devToken, loginCustomerId: loginCustomerId.replace(/-/g, "") };
+  }
+  return null;
+}
+
 // Collects the last `days` days of Google Ads ad-level metrics for `client`
 // and upserts them into ad_metrics_daily by (client_id, platform, date, ad_id)
 // with platform='google_ads'. Never throws — every path (no account, no
@@ -74,25 +131,19 @@ export async function collectGoogleAds(
 
     const row = account as AdPlatformAccountRow;
 
-    let raw: string | null = null;
-    if (row.auth_ref) {
-      raw = await readSecret(db, row.auth_ref);
-    } else if (process.env.GOOGLE_ADS_CREDS) {
-      raw = process.env.GOOGLE_ADS_CREDS;
-    }
-
-    const auth = parseAuth(raw);
+    const auth = await resolveAuth(db, row);
 
     if (!auth && !mockApis()) {
       return {
         value: 0,
         rows: 0,
-        detail: `no Google Ads creds bundle available for ${client.domain} (no auth_ref/vault secret and GOOGLE_ADS_CREDS unset, or invalid JSON)`,
+        detail: `no Google Ads creds bundle available for ${client.domain} (no auth_ref/GOOGLE_ADS_CREDS override and no vaulted OAuth + developer token + GOOGLE_ADS_LOGIN_CUSTOMER_ID)`,
       };
     }
 
     const fallbackAuth: GoogleAdsAuth = { accessToken: "", developerToken: "", loginCustomerId: "" };
-    const metrics = await fetchAdMetrics(auth ?? fallbackAuth, row.external_id, days);
+    // customer id in the request path is digits-only (strip any dashes).
+    const metrics = await fetchAdMetrics(auth ?? fallbackAuth, row.external_id.replace(/-/g, ""), days);
 
     let written = 0;
     for (const m of metrics) {

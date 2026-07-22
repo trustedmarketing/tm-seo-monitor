@@ -52,12 +52,16 @@ d("collector · green against staging", () => {
     expect(Number(g!.match(/\((\d+)\)/)?.[1])).toBeGreaterThan(0);
     expect(Number(ms!.match(/\((\d+)\)/)?.[1])).toBeGreaterThan(0);
 
+    // Confirm the rows persist in ad_metrics_daily. The collector upserts
+    // idempotently (no updated_at column), so a re-run updates rather than
+    // inserts — the report-line counts above are what prove *this* run
+    // collected; here we just assert both platforms landed for this client.
     const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
     const { data } = await db
       .from("ad_metrics_daily")
       .select("platform")
-      .in("platform", ["google_ads", "microsoft"])
-      .gte("created_at", runStart);
+      .eq("client_id", "22222222-2222-2222-2222-222222222222")
+      .in("platform", ["google_ads", "microsoft"]);
     const platforms = new Set((data ?? []).map((r) => r.platform));
     expect(platforms.has("google_ads")).toBe(true);
     expect(platforms.has("microsoft")).toBe(true);

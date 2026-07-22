@@ -8,15 +8,46 @@ import { mockApis, readFixture } from "@/lib/apiMock";
 const API_VERSION = "v18";
 const API_BASE = "https://googleads.googleapis.com";
 
-// Auth bundle a caller must supply — see lib/googleAdsCollector.ts for how
-// it's resolved from the vault (JSON string at auth_ref) or
-// process.env.GOOGLE_ADS_CREDS. developerToken/loginCustomerId are the
-// manager-account credentials; accessToken is the already-minted OAuth token
-// (refresh-token → access-token exchange is out of scope here — see README).
+// Auth bundle fetchAdMetrics needs: a minted OAuth accessToken plus the
+// manager-account developerToken/loginCustomerId. lib/googleAdsCollector.ts
+// resolves this either from a ready-made vault/env bundle, or by minting the
+// accessToken from a durable refresh token (mintAccessToken below).
 export interface GoogleAdsAuth {
   accessToken: string;
   developerToken: string;
   loginCustomerId: string;
+}
+
+// Durable OAuth credentials (portfolio-level, vaulted as `google_ads_oauth`).
+// The refresh token does not expire (the OAuth app is "Internal"); it's
+// exchanged for a short-lived access token on every collection run.
+export interface GoogleAdsOAuth {
+  client_id: string;
+  client_secret: string;
+  refresh_token: string;
+}
+
+// Exchange a refresh token for a short-lived access token. Never logs a
+// credential. Under MOCK_APIS=1 it returns a placeholder without a network
+// call — fetchAdMetrics reads fixtures in that mode, so the token is unused.
+export async function mintAccessToken(oauth: GoogleAdsOAuth): Promise<string> {
+  if (mockApis()) return "mock-access-token";
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: oauth.client_id,
+      client_secret: oauth.client_secret,
+      refresh_token: oauth.refresh_token,
+      grant_type: "refresh_token",
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Google OAuth token refresh failed: ${res.status} ${res.statusText}`);
+  }
+  const json = (await res.json()) as { access_token?: string };
+  if (!json.access_token) throw new Error("Google OAuth token refresh returned no access_token");
+  return json.access_token;
 }
 
 // Raw shape of one GAQL result row, keyed by the resource/field paths

@@ -9,3 +9,6 @@ next-env.d.ts
 
 # agent worktrees (transient)
 .claude/worktrees/
+
+# Google Ads OAuth capture (transient — vaulted then deleted)
+.google-oauth.local.json
