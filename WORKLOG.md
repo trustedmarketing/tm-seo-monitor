@@ -4,6 +4,46 @@ Update channel for WO-001 execution. Newest entries on top.
 
 ---
 
+## 2026-07-22 · Session 1 · Shopify collector + MER proven; 2 bugs caught by the gate
+
+First real-client integration (Salty Dog / `d-vein-company` store).
+
+- **Shopify collector built** (PR #7): client-credentials grant → per-run token →
+  Admin orders API → `conversions_daily(source='shopify')`. Per-client vault creds
+  via migration 010 (`client_stores`). Validated against the real store through the
+  production auth path (not the session MCP).
+- **MER proven on real Salty Dog data:** Shopify actual **$42,758.45** (478 orders)
+  ÷ Meta spend **$23,022.65** = **1.86× blended MER**; Meta claims **93.7%** of
+  actual revenue — the over-attribution tell.
+- **Bug #1 (PR #6):** Meta collector summed 6 overlapping purchase action types →
+  6× revenue overcount (fake 10.4× ROAS). Fixed to canonical `omni_purchase` →
+  true 1.74×, matches Meta's own account-level number to the penny.
+- **Bug #2 (PR #8):** vault `readSecret`/`storeSecret` queried the `vault` schema
+  via the data API (Supabase doesn't expose it) → always null. Fixed with
+  SECURITY DEFINER RPC wrappers (migration 011). Caught wiring the Shopify secret;
+  also updated the meta collector test for the rpc change.
+- Memory saved: production pulls are per-client/dynamic from vaulted creds, never
+  the assistant's session MCPs (Tom's architecture call).
+
+### Open PRs — suggested merge order
+1. **PR #8** vault RPC fix — foundational (any vaulted secret needs it).
+2. **PR #6** Meta dedup fix.
+3. **PR #7** Shopify collector — depends on #8; its readSecret test needs the same
+   `.schema`→`.rpc` one-line update when it rebases on the vault fix (I'll do it at
+   integration).
+
+### Still to do after merges
+Apply migrations 010/011 to **prod** (prod is at 004–009); wire Salty Dog's real
+Shopify + Meta creds into the prod vault; wire `collectShopify` into cron; build
+the **MER reconciliation view** in Module A (Spend · actual revenue · MER ·
+per-platform ROAS with the over-attribution flag).
+
+### Staging state
+Salty Dog (staging) has real Meta `ad_metrics_daily` + real Shopify
+`conversions_daily(source='shopify')`; migrations 001–011 applied.
+
+---
+
 ## 2026-07-21 · Session 1 · 🚢 SHIPPED TO PRODUCTION
 
 WO-001 complete and live.
