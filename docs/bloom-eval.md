@@ -29,6 +29,12 @@ generated clean (Salty Dog, 4:5, 1632×2048). Full **10/brand × 1:1/4:5/9:16** 
 for the eye test; each record maps to the `creatives` shape (brand, prompt, format, `imageUrl`, source='bloom').
 API key stored git-ignored; to be vaulted as the portfolio-level Bloom credential for the prod pipeline.
 
+**Spike result (2026-07-22):** 6 Salty Dog creatives generated cleanly — 2 each at 1:1 (2048²), 4:5
+(1632×2048), 9:16 (1152×2048), all correct dimensions. Then **HTTP 402 Payment Required** — the account's
+credits were exhausted after ~7 generations, so the remaining Salty Dog briefs + the full DAPS set didn't run.
+Gallery URLs handed to Tom for the eye test. **To finish the set + DAPS: top up the Bloom account** (trial
+balance is nowhere near our volume — see §3). Pipeline itself: proven, zero failures on the generations that ran.
+
 ## 2. Brand-fidelity review — 🔄 IN PROGRESS
 **Bloom's auto-extracted Salty Dog profile** (the fidelity reference): colors `#0B1C39` (navy), `#D9531E`
 (orange), `#F5F3EC` (cream), `#1A1A1A`, `#FFFFFF`; fonts **Archivo, Manrope**; logo captured. (DAPS profile
@@ -51,6 +57,9 @@ Our volume (13 clients × weekly, 10 creatives/brand/wk × 3 sizes):
   ~1,680 assets ≈ **~$300/mo** before volume discount — trivial vs the platform's run-cost.
 - ⚠️ Refine after the spike: does one `bloom_generate_image` yield all sizes, or is each size a credit,
   and is `bloom_resize_image` free? That swings the number 2–3×.
+- **Data point from the spike:** each requested size is its own generation (its own credit), and the account
+  hit a hard **402 after ~7 images** — confirming the trial/low tier is unusable at our volume. Real usage is
+  clearly on the **Scale ($90/mo, 500 credits) or custom** tier; our ~1,680 assets/mo needs the volume quote.
 - **vs Figma:** the Figma pipeline needs a **master ad-template component set built per client** (13 sets ×
   sizes) — large upfront design+eng effort plus maintenance as brands drift. Bloom's learn-from-URL
   **removes the per-client template build entirely.** On *build effort* Bloom wins decisively; on *run cost*
