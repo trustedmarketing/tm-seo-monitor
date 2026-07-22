@@ -47,25 +47,37 @@ interface GraphInsightsResponse {
   paging?: { next?: string };
 }
 
-// Action types counted toward conversions/revenue. Meta reports purchase and
-// lead completions under several action_type strings depending on on/off-site
-// and pixel vs. Conversions API attribution — matching by substring catches
-// the family (purchase, omni_purchase, offsite_conversion.fb_pixel_purchase,
-// lead, onsite_conversion.lead_grouped, ...) without an exhaustive allowlist.
-function isConversionAction(actionType: string): boolean {
-  return actionType.includes("purchase") || actionType.includes("lead");
-}
+// Meta reports the SAME purchase under several overlapping action types
+// (purchase, omni_purchase, offsite_conversion.fb_pixel_purchase,
+// onsite_web_purchase, web_in_store_purchase, ...). Summing every substring
+// match multiplies the true value — ~6x on a typical ecom account — which
+// inflates ROAS. Take the single canonical cross-surface type instead:
+// omni_purchase (the deduplicated "Purchases" Ads Manager reports), falling back
+// to "purchase". Leads likewise resolve to one canonical type, not a sum.
+// Priority order: the first type present on a row wins. omni_purchase is Meta's
+// cross-surface umbrella and is present whenever purchases exist, so it's picked
+// over its duplicates; the rest are fallbacks for rows that only report one.
+const PURCHASE_ACTION_TYPES = [
+  "omni_purchase",
+  "purchase",
+  "offsite_conversion.fb_pixel_purchase",
+  "onsite_web_purchase",
+];
+const LEAD_ACTION_TYPES = ["onsite_conversion.lead_grouped", "lead"];
 
 function toNumber(v: string | number | undefined): number {
   const n = Number(v ?? 0);
   return Number.isFinite(n) ? n : 0;
 }
 
-function sumConversionActions(actions: MetaAction[] | undefined): number {
+// First matching canonical type wins — never sum overlapping duplicates.
+function pickCanonical(actions: MetaAction[] | undefined, types: string[]): number {
   if (!actions) return 0;
-  return actions
-    .filter((a) => isConversionAction(a.action_type))
-    .reduce((sum, a) => sum + toNumber(a.value), 0);
+  for (const type of types) {
+    const hit = actions.find((a) => a.action_type === type);
+    if (hit) return toNumber(hit.value);
+  }
+  return 0;
 }
 
 function mapRow(raw: MetaInsightRawRow): MetaInsightRow {
@@ -79,8 +91,8 @@ function mapRow(raw: MetaInsightRawRow): MetaInsightRow {
     impressions: toNumber(raw.impressions),
     clicks: toNumber(raw.clicks),
     spend: toNumber(raw.spend),
-    conversions: sumConversionActions(raw.actions),
-    revenue: sumConversionActions(raw.action_values),
+    conversions: pickCanonical(raw.actions, PURCHASE_ACTION_TYPES) + pickCanonical(raw.actions, LEAD_ACTION_TYPES),
+    revenue: pickCanonical(raw.action_values, PURCHASE_ACTION_TYPES),
   };
 }
 
