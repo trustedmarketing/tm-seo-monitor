@@ -298,6 +298,55 @@ tests/fixtures/meta/ad_insights.json  recorded ad-level insights fixture
   platform: 'meta', value, expiresAt })` (stream 2), and the CTO wires
   `collectMetaAds` into `src/app/api/cron/collect/route.ts`.
 
+### Google Ads collector
+
+Reuses the existing paid-media spine from Stream 4 — no new migration. Google
+ad data lands in the same `ad_metrics_daily` / `ad_platform_accounts` tables
+as Meta, just with `platform='google_ads'` (account `external_id` = the
+customer id, e.g. `1234567890`).
+
+```
+src/lib/googleAds.ts               Google Ads API (GAQL searchStream) client
+src/lib/googleAdsCollector.ts      collectGoogleAds(db, client) — standalone collector
+tests/fixtures/google/ad_metrics.json  recorded GAQL-shaped rows fixture
+```
+
+- `src/lib/googleAds.ts` — `fetchAdMetrics(auth, customerId, days = 28)` POSTs
+  `https://googleads.googleapis.com/v18/customers/{customerId}/googleAds:searchStream`
+  with headers `Authorization: Bearer {accessToken}`, `developer-token`,
+  `login-customer-id`, and a GAQL body selecting `segments.date`, `campaign.id`,
+  `campaign.name`, `ad_group.id`, `ad_group_ad.ad.id`, and the core metrics
+  over the last `days` days. Maps `metrics.cost_micros` → `spend` (÷1,000,000 —
+  Google Ads reports everything in micros of the account currency) and
+  `ad_group.id` → `adset_id`. `auth` is a creds bundle
+  `{ accessToken, developerToken, loginCustomerId }`. Honors `MOCK_APIS=1`
+  (reads raw GAQL-shaped rows from `tests/fixtures/google/ad_metrics.json` and
+  runs them through the same mapping, so the micros→spend conversion is
+  exercised in tests too). Never logs any credential — they're only ever used
+  as outgoing request headers.
+- `src/lib/googleAdsCollector.ts` — standalone `collectGoogleAds(db, client, days = 28)`,
+  wrapped in `tracked()`. Looks up the client's `google_ads` row in
+  `ad_platform_accounts`; with none, records a `collector_runs` row and
+  returns 0 (no throw). Resolves the creds bundle (a JSON string) via
+  `readSecret(db, account.auth_ref)` (Vault, stream 2) or falls back to
+  `process.env.GOOGLE_ADS_CREDS`; with neither present/valid and `MOCK_APIS`
+  off, also records a graceful 0-row run. Calls `fetchAdMetrics` and upserts
+  by hand (select → update-or-insert, matching `lib/metaAdsCollector.ts`'s
+  pattern) into `ad_metrics_daily` on `(client_id, platform, date, ad_id)`
+  with `platform = 'google_ads'`.
+- **No migration** — reuses `supabase/009_meta_ads.sql`'s tables as-is.
+- **The Google Ads developer token is still in application** (calendar-gated,
+  not an agent-doable task — see the escalation list in
+  `docs/CLAUDE-monitor-draft.md`). Goes live once: the dev token is approved,
+  an OAuth refresh token is exchanged for an access token (out of scope for
+  this collector — it consumes an already-minted `accessToken`), a row is
+  seeded in `ad_platform_accounts` per client (platform `'google_ads'`, their
+  customer id), the creds bundle
+  (`{accessToken, developerToken, loginCustomerId}`, JSON-stringified) is
+  stored via `storeSecret(db, { clientId, platform: 'google_ads', value, expiresAt })`
+  (stream 2), and the CTO wires `collectGoogleAds` into
+  `src/app/api/cron/collect/route.ts`.
+
 ### Shopify revenue collector
 
 Revenue ground truth (plan §4, `docs/CLAUDE-monitor-draft.md`): ad platforms
