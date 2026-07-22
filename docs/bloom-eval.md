@@ -1,6 +1,10 @@
 # Bloom (trybloom.ai) — Module D generation-engine evaluation
 
-**Status:** IN PROGRESS · started 2026-07-22 · decision due by 2026-07-29 · Owner: CTO
+**Status:** IN PROGRESS (paused on credits, per Tom) · started 2026-07-22 · decision due by 2026-07-29 · Owner: CTO
+**Where it's parked:** pipeline proven end-to-end via REST; 6 Salty Dog samples in hand (all 3 sizes);
+credits exhausted after ~7 gens (paid plan on hold). Remaining before the final call: (a) Tom's eye-test
+read on the 6 samples, (b) Bloom's written answers to the terms email (agency-use / no-training / DPA / IP),
+(c) optional — finish Salty Dog + full DAPS gallery once credits are topped up.
 **Mandate:** evaluate Bloom as the *primary* generation engine for Module D volume ad
 creative (demoting Figma to a precision tier). Recommendation at end: adopt / adopt-for-subset / pass.
 
