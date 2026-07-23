@@ -35,6 +35,23 @@ function isDue(freq: string, lastRun: string | null): boolean {
   return Date.now() - new Date(lastRun).getTime() >= days * 86_400_000 - 3_600_000;
 }
 
+// Run an async fn over items with bounded concurrency, preserving order.
+// Turns the SERP/AI per-item API latency from sequential into parallel batches,
+// keeping the whole run under Vercel's function limit (WO-002 v1.5).
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    for (;;) {
+      const i = next++;
+      if (i >= items.length) return;
+      out[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
 export async function GET(req: Request) {
   if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
     return new Response("Unauthorized", { status: 401 });
@@ -95,18 +112,20 @@ export async function GET(req: Request) {
 
         let wrote = 0;
         if (kws && kws.length > 0) {
-          const positions: (number | null)[] = [];
-          for (const kw of kws) {
-            const { position, url } = await serpPosition(
-              kw.keyword, c.domain, c.location_code, c.language_code
-            );
-            positions.push(position);
-            await db.from("keyword_rankings").insert({
-              client_id: c.id, keyword_id: kw.id, position, url,
-            });
-            wrote++;
+          // Parallel (cap 8), resilient per keyword — one transient SERP error
+          // (e.g. DataForSEO 40101) skips that keyword instead of failing the run.
+          const rows = await mapLimit(kws, 8, async (kw) => {
+            try {
+              const { position, url } = await serpPosition(kw.keyword, c.domain, c.location_code, c.language_code);
+              return { keyword_id: kw.id, position, url };
+            } catch { return null; }
+          });
+          const ok = rows.filter((r): r is { keyword_id: string; position: number | null; url: string | null } => r !== null);
+          if (ok.length > 0) {
+            await db.from("keyword_rankings").insert(ok.map((r) => ({ client_id: c.id, ...r })));
           }
-          snapshot.visibility = visibilityScore(positions);
+          snapshot.visibility = visibilityScore(ok.map((r) => r.position));
+          wrote = ok.length;
           hasData = true;
         }
         done.push(`serp (${kws?.length ?? 0} kw)`);
@@ -129,20 +148,18 @@ export async function GET(req: Request) {
           .eq("client_id", c.id).eq("active", true);
 
         if (prompts && prompts.length > 0) {
-          let mentionedCount = 0;
-          let wrote = 0;
-          for (const p of prompts) {
+          // Parallel (cap 6); one prompt failing shouldn't sink the batch.
+          const rows = await mapLimit(prompts, 6, async (p) => {
             try {
               const r = await aiPromptCheck(p.prompt, c.domain, c.name);
-              if (r.mentioned) mentionedCount++;
-              await db.from("prompt_results").insert({
-                client_id: c.id, prompt_id: p.id,
-                mentioned: r.mentioned, cited: r.cited,
-              });
-              wrote++;
-            } catch {
-              // one prompt failing shouldn't sink the batch
-            }
+              return { prompt_id: p.id, mentioned: r.mentioned, cited: r.cited };
+            } catch { return null; }
+          });
+          const ok = rows.filter((r): r is { prompt_id: string; mentioned: boolean; cited: boolean } => r !== null);
+          const mentionedCount = ok.filter((r) => r.mentioned).length;
+          const wrote = ok.length;
+          if (ok.length > 0) {
+            await db.from("prompt_results").insert(ok.map((r) => ({ client_id: c.id, ...r })));
           }
           snapshot.ai_visibility = Math.round((mentionedCount / prompts.length) * 10000) / 100;
           snapshot.ai_mentions = mentionedCount;
