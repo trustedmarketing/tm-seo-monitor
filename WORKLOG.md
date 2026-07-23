@@ -4,6 +4,59 @@ Update channel for WO-001 execution. Newest entries on top.
 
 ---
 
+## 2026-07-23 · Session 1 · WO-002 opened — Growth OS dashboard reorg (channel-oriented)
+
+Convened a 4-role consult (CTO / COO / Head of Performance / Head of Social) on the "SEO-shaped
+dashboard" problem; synthesized into **docs/wo-002-dashboard-reorg.md**.
+
+- **Locked decisions:** single-client deep-dive first (+ thin portfolio alarm strip); restructure
+  existing SEO+Paid+Revenue into channels now, Social fast-follow; paid-social surfaced under Paid
+  now (Meta data already flows), organic-social the net-new build. Split social by budget mechanic.
+- **Beyond a reorg:** revenue-first Overview that **absorbs `/command`**; a **Search view**
+  (organic + paid × query/landing page → cannibalization + gaps); over-attribution as reconciliation
+  math (not a boolean); alerts/deltas/sparklines + freshness badges; shared `channel_metrics` model.
+- **HARD GATE (v1.5):** refactor the 300s-bound daily cron to **fan-out per client×source** before
+  Social or more clients — it's already biting (blocked the live SEO-snapshot refresh today).
+- Stopgap: hand-patched Salty Dog's SEO snapshot to real values (7,696 traffic / 229 kw / 976
+  backlinks / 14.84% visibility) since the cron limit blocked a live refresh.
+- **Build starting: v1 restructure.**
+
+---
+
+## 2026-07-23 · Session 1 · PROD GO-LIVE — real data + MER live for Salty Dog
+
+Discovered the public dashboard (seo.trustedmarketing.com) was showing fake data, root-caused it,
+and took the platform fully live on real data.
+
+**Two root causes found:**
+1. Vercel `trusted-marketing-seo` prod env pointed at the **staging** Supabase — site showed the
+   `salty-dog.example` seed client; the real `getsaltydog.com` client (prod DB `tm-seo-monitor`)
+   was unwired.
+2. `MOCK_APIS=1` on the deployment — the **entire platform ran in demo mode** (every number a
+   fixture), independent of the DB.
+
+**Fixed (all live):**
+- Repointed Vercel prod env: `SUPABASE_URL` + `SERVICE_ROLE_KEY` → prod project (xelweikfciqakagkerat).
+- `MOCK_APIS` → `0`, redeployed. Platform out of demo mode.
+- Wired prod Salty Dog (65f0506d, getsaltydog.com): Meta account act_1485787419951582, Shopify store
+  d-vein-company.myshopify.com (secret already in prod vault), GA4 properties/451445566, tier Momentum.
+  Left its real SEO setup (23 keywords) untouched.
+- **Meta system-user token** (tmseoapp, ads_read, never-expire) generated with Tom via the Business
+  Settings wizard — earlier "No permissions available" was just the wrong app selected. Required a
+  2nd-admin approval (business security control); once approved, vaulted per-client as
+  `meta:65f0506d…` and wired to ad_platform_accounts.auth_ref (no redeploy — vault read at runtime).
+- Purged the mock rows a first (mock-mode) collection wrote to prod; cleaned 24 test-run mock
+  snapshots from staging (demo history preserved).
+
+**Live result (real data, 28-day):** SEO 7,696 traffic / 229 kw / 976 backlinks · Shopify revenue
+**$42,190.58** · Meta spend **$22,878.96** · **MER 1.84×**.
+
+**Follow-ups:** (a) SERP hit a transient DataForSEO `40101` — re-run to populate rankings; (b) the
+`force=1` full run brushes the 300s function limit (slow AI checks) — normal daily (non-force) runs
+finish fine, but worth optimizing; (c) Google/Microsoft ads still deferred (account-linking).
+
+---
+
 ## 2026-07-22 · Session 1 · Google Ads API credentials provisioned + vaulted
 
 Cleared the whole Google Ads auth chain with Tom (browser-driven).
