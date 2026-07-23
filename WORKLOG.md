@@ -21,6 +21,20 @@ dashboard" problem; synthesized into **docs/wo-002-dashboard-reorg.md**.
   backlinks / 14.84% visibility) since the cron limit blocked a live refresh.
 - **Build starting: v1 restructure.**
 
+### v1 + v1.5 shipped to `feature/dashboard-reorg` (preview live)
+- **Channel shell + revenue-first Overview** — `/dashboard/[id]` is now the Overview (MER hero +
+  revenue + spend + inline over-attribution reconciliation + channel summary tiles). SEO detail
+  moved intact to `/organic`. New `/paid` (spend + per-platform ROAS + reconciliation), `/revenue`
+  (Shopify ground truth, orders, AOV, by-source), `/search` (placeholder — needs the GSC-query ×
+  paid-search-term join). ChannelNav + ClientHeader shared components.
+- **Portfolio roll-up** — `/dashboard` rebuilt as the revenue-first roll-up (attention rail over
+  per-client scorecards led MER · Revenue · Spend · Organic · AI). **`/command` retired** → redirect.
+- **v1.5 cron fix** — parallelized SERP (cap 8) + AI (cap 6) with `mapLimit`; SERP resilient
+  per-keyword. Fixes the 300s timeout + the SEO-snapshot staleness; unblocks scale. 98 unit /
+  5-5 staging green, tsc + build clean.
+- **Remaining:** Search view build (needs the query-join data pipeline); per-client fan-out only
+  if parallelization proves insufficient at higher client counts. Production untouched — on branch.
+
 ---
 
 ## 2026-07-23 · Session 1 · PROD GO-LIVE — real data + MER live for Salty Dog
