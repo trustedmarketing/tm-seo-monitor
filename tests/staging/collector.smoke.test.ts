@@ -42,6 +42,31 @@ d("collector · green against staging", () => {
     expect(sharkey).toContain("recs synced");
   });
 
+  it("collected Google + Microsoft ads for the seeded Salty Dog account", async () => {
+    const salty = (json.report as any)["salty-dog.example"] as string[];
+    const g = salty.find((l) => l.startsWith("google ads ("));
+    const ms = salty.find((l) => l.startsWith("microsoft ads ("));
+    expect(g).toBeTruthy();
+    expect(ms).toBeTruthy();
+    // mock fixtures return >0 rows for a seeded account
+    expect(Number(g!.match(/\((\d+)\)/)?.[1])).toBeGreaterThan(0);
+    expect(Number(ms!.match(/\((\d+)\)/)?.[1])).toBeGreaterThan(0);
+
+    // Confirm the rows persist in ad_metrics_daily. The collector upserts
+    // idempotently (no updated_at column), so a re-run updates rather than
+    // inserts — the report-line counts above are what prove *this* run
+    // collected; here we just assert both platforms landed for this client.
+    const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+    const { data } = await db
+      .from("ad_metrics_daily")
+      .select("platform")
+      .eq("client_id", "22222222-2222-2222-2222-222222222222")
+      .in("platform", ["google_ads", "microsoft"]);
+    const platforms = new Set((data ?? []).map((r) => r.platform));
+    expect(platforms.has("google_ads")).toBe(true);
+    expect(platforms.has("microsoft")).toBe(true);
+  });
+
   it("wrote success rows to collector_runs for this run", async () => {
     const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
     const { data, error } = await db
