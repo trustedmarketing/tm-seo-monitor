@@ -1,6 +1,19 @@
-# WO-002 — Growth OS SaaS: Two-Sided Dashboard Specification
-**To:** TM CTO + COO (joint) · **From:** Tom · **Status:** spec for review, not yet scheduled
+# SPEC — Growth OS SaaS: Two-Sided Dashboard
+**To:** TM CTO + COO (joint) · **From:** Tom · **Status:** standing specification — implemented by WO-003
 **Supersedes nothing.** Extends docs/tm-growth-os-plan.md — this defines the *product surface* that plan's modules sit behind.
+
+> **Renumbering note (2026-07-27).** This document was written as "WO-002" but
+> that number was already taken by `docs/wo-002-dashboard-reorg.md`, which was
+> approved, built, and shipped to production on 2026-07-23 (PR #13) — its number
+> is fixed in git history and WORKLOG entries.
+>
+> This document is not a work order: it is self-described as "spec for review,
+> not yet scheduled" and it defines a product surface rather than a scheduled
+> unit of work. It has therefore been renamed out of the WO sequence and kept as
+> a **standing spec**. The work order that implements it is
+> **`docs/wo-003-design-implementation.md`**. Content below is unchanged.
+
+---
 
 ---
 

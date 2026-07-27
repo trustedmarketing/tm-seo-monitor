@@ -1,6 +1,88 @@
-# WORKLOG — WO-001 Parallel-Build Enabling Layer
+# WORKLOG — Growth OS
 
-Update channel for WO-001 execution. Newest entries on top.
+Update channel for all work orders on `tm-seo-monitor`. Newest entries on top.
+Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
+
+---
+
+## 2026-07-27 · Session 1 · Design inputs reconciled · housekeeping resolved · WO-003 drafted
+
+Read the new inputs (`docs/design/`, punch list, feasibility review), resolved the two housekeeping
+conflicts, reconciled the plan, and drafted WO-003. **No implementation started** — as instructed.
+
+### Housekeeping 1 — the WO-002 collision, resolved by renaming, not renumbering
+Two documents claimed WO-002:
+- `docs/wo-002-dashboard-reorg.md` — CTO's. Approved, built, **shipped to production 2026-07-23** (PR #13).
+- `docs/wo-002-growth-os-saas-spec.md` — Tom's. Self-described "spec for review, not yet scheduled."
+
+The shipped one **keeps the number**: it's fixed in git history (`WO-002 v1`, `WO-002 v1.5` commits) and
+in prior WORKLOG entries, and rewriting that is churn for no gain. Tom's document is not a work order —
+it defines a product surface rather than a scheduled unit of work — so it was renamed **out of** the WO
+sequence to `docs/spec-growth-os-two-sided.md` and marked a **standing spec**. Content unchanged; a
+renumbering note explains the move at the top. The work order that implements it is **WO-003**.
+Also marked the reorg doc ✅ SHIPPED, and recorded what did *not* ship from it (the Search view is still
+a placeholder; per-client cron fan-out was deferred once parallelization proved sufficient).
+
+### Housekeeping 2 — doc locations. The conflict was worse than described.
+The brief wasn't pointing at `docs/` — **root `CLAUDE.md` was still the WordPress-theme brief for a
+different project entirely**, and referenced `STATUS.md` / `WORKLOG.md` nowhere at all. The only doc
+naming their location was `docs/CLAUDE-monitor-draft.md`, which correctly said "repo root." So a fresh
+session read a WordPress brief and never found either file. That's the same failure that blocked
+WO-001 session 1 (blocker #4, 2026-07-21) — still unfixed six days later.
+
+Resolution: **files stay at the repo root** (zero churn, matches history and the draft). The monitor
+brief was **promoted from `docs/CLAUDE-monitor-draft.md` to root `CLAUDE.md`**; the WordPress brief is
+archived at `docs/archive/CLAUDE-wordpress-theme.md`. Added a "Where things live" table to `CLAUDE.md`
+stating root explicitly. **Tom: this promotes the draft you were asked to approve — content is
+unchanged from what you reviewed, so if you want edits, edit in place rather than reverting.**
+
+### Delivered
+- **`docs/design/README.md`** — map of the export so nobody parses 161 KB again. Documents the `x-dc`
+  format (bindings + `sc-if`/`sc-for`, state machine in the bottom script), all 16 screens by key and
+  nav label, the 11 workspace tabs, both components' variants and states, and the porting rule (take
+  tokens + state logic, don't port `support.js`).
+  - Two gaps found while mapping: a **`results` screen exists in `header()` but is in no nav** — the
+    client-language change log is specced and unreachable; and GBP/LinkedIn/Google panels render
+    **populated with sample data** for integrations we can't fill.
+- **`docs/tm-growth-os-plan.md` reconciled** — new §0 access-status table (Google Ads / GBP / LinkedIn
+  all ⛔ blocked-on-application, none submitted); Phase A.5 now carries **Supabase Auth + RLS**
+  (moved from Phase C — the design makes the portal a v1 surface), **screenshot service**, and
+  **audit log** as explicit infrastructure prerequisites; **call tracking added as open decision 0**
+  (the COO's single biggest gap); **PostFlow flagged as blocking Module E**; API inventory updated with
+  four new rows. Also fixed the §8 contradiction that still budgeted RLS for Phase C, and added the
+  multi-model AEO claim and the Automation module to the verify-before-promising list.
+- **`STATUS.md` rewritten** — design deliverables done, all 10 punch-list items as not-started with
+  their stream assignment, five external actions on Tom, and the housekeeping resolutions.
+- **`docs/wo-003-design-implementation.md` drafted** — six waves, 12 agent-parallel streams on WO-001
+  conventions (`module/<slug>`, reserved migration numbers 012/013 so parallel agents don't collide),
+  every punch-list item assigned to the stream it belongs to.
+
+---
+
+### Tom — what your five blockers actually cost
+
+You asked which streams each blocker gates. Short version: **three of the five gate only Wave 5, one
+gates one stream, and one is probably already done.** Waves 1–3 are not blocked by any of them.
+
+| Your blocker | Streams it gates | What the delay costs |
+|---|---|---|
+| **0.1 Google Ads — Explorer→Basic upgrade** (not submitted; an Explorer token + OAuth bundle *are* vaulted) | Wave 5 Google panels only | **Low.** The collector is built, wired into cron, and mints tokens per run. Nothing in Waves 1–4 waits on it. Cost is an incomplete cross-platform MER and a "connection pending" tile. **Note:** the two remaining steps for *first* real Google data aren't applications at all — link Salty Dog's account under the MCC and seed its customer ID (~2 min each). Worth doing before the upgrade clears. |
+| **0.2 GBP API access** (not submitted) | Wave 5 GBP module — workspace GBP tab + portal Google Business screen | **Medium, and it's the longest clock.** Weeks of lead time, so every week of delay is a week added to the *end* of the project, not absorbed. For local-service clients this is also a headline portal metric (calls). Submit first. |
+| **0.3 Meta system-user token** | Wave 3 Stream G (`module/paid-controls`) | **Probably zero — please just confirm.** WORKLOG 2026-07-23 records this generated with you via the Business Settings wizard, co-admin approved, vaulted as `meta:65f0506d…`, and Meta spend is flowing in prod today. The feasibility review lists it as outstanding. I believe the review is stale. |
+| **0.4 PostFlow API yes/no** | Module E / Social — the workspace Social tab and the portal Social screen | **Medium, and it's a scope question, not a plumbing one.** No API means "drafts land in PostFlow" becomes manual paste or PostFlow gets replaced. That changes what we build, so it can't be answered during the build. |
+| **0.5 Call-tracking decision** | Wave 4 Stream J (`module/portal-shell`) headline metrics — **for local-service clients only** | **Zero or total, depending on one other choice.** The portal leads with Calls · Cost per job · Jobs booked · Return per $1. For local clients we can't compute any of them today. **But if the portal pilot is an eCommerce client, this blocks nothing** — Shopify revenue is ground truth already. |
+
+**The one decision that removes the most risk: pick an eCommerce portal pilot (Salty Dog).** It takes
+0.5 off the critical path entirely and lets Wave 4 start the moment Auth + RLS lands.
+
+**Highest-value action today: submit 0.2 (GBP).** It has the longest approval clock and it's pure
+calendar time — every day it sits unsubmitted is a day added to the far end of the schedule.
+
+### Next action
+Awaiting approval on WO-003 before any implementation. Five open questions at the bottom of that doc
+(portal pilot client · punch-list #10 signed-link-or-cut · screenshot service self-host vs vendor ·
+portal tier entitlement · individual vs shared client logins). Bloom adopt/pass decision still due
+**2026-07-29**.
 
 ---
 

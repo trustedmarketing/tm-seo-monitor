@@ -1,6 +1,28 @@
 # Trusted Marketing Growth OS — Platform Plan
 ### From SEO monitor to full-funnel client growth engine
 **Prepared July 2026 · For: Trusted Marketing CTO · Status: planning**
+**Last reconciled 2026-07-27** against `docs/feasibility-review-stack.md` (CTO + COO review of the Growth OS design export). Blocked-on-application items and infrastructure prerequisites below reflect that review.
+
+---
+
+## 0. Access status — read before scheduling anything
+
+Three data sources in this plan are **blocked on external applications that have
+not been submitted**. Nothing that depends on them can be scheduled with a date;
+they are calendar time we do not control, and the clock has not started.
+
+| Capability | Application needed | Status (2026-07-27) | What it blocks |
+|---|---|---|---|
+| **Google Ads** data + controls | Developer token via MCC 711-022-5227, Explorer → Basic access | ⛔ **Not submitted.** Explorer-tier token exists and is vaulted; full-portfolio daily volume needs Basic | Paid tab's Google rows; cross-platform MER completeness |
+| **Google Business Profile** | Business Profile Performance API access | ⛔ **Not submitted.** Weeks of lead time | The entire GBP module, agency + portal. Calls, directions, views, review replies |
+| **LinkedIn** ads + organic | Marketing API / Community Management API app review | ⛔ **Not started.** Weeks | LinkedIn rows in Paid; B2B organic social |
+
+Two further prerequisites are **infrastructure we must build**, not approvals
+(see §7 Phase A.5), and one is an **unanswered vendor question** (PostFlow, §10).
+
+Design consequence: GBP, LinkedIn, and Google Ads panels ship as
+**"connection pending"** states, not populated with sample data. Do not demo a
+screen we cannot fill.
 
 ---
 
@@ -36,7 +58,7 @@ Every module behaves differently depending on client type, so this is a data-mod
 **Local clients (Sharkey Air, Group One, Alpha Zeta, etc.):**
 - Rank tracking runs per service-area location code, not national — a #3 in Martin County is the number that matters
 - Add **local pack / Maps rank tracking** (DataForSEO SERP API returns local pack results; a geo-grid of coordinate points per service area produces the Ahrefs/LocalFalcon-style heat map)
-- GBP metrics become first-class: calls, direction requests, profile views, review velocity and rating trend (Google Business Profile Performance API — access application has lead time, start now)
+- GBP metrics become first-class: calls, direction requests, profile views, review velocity and rating trend — ⛔ **blocked on application** (Google Business Profile Performance API, not yet submitted, weeks of lead time; see §0)
 - AEO prompts are geo-flavored ("best AC repair in Stuart FL") and checked accordingly
 
 **National eCommerce (Salty Dog, DAPS, arX, Briny Brim):**
@@ -63,7 +85,7 @@ Extensions, in priority order:
 One `ad_platform_accounts` table (client, platform, external account id, auth ref) and one normalized `ad_metrics_daily` table (date, platform, campaign, adset, ad, creative_id, impressions, clicks, spend, conversions, revenue) that every platform collector writes into. Platform order by effort-to-value:
 
 1. **Meta** — Marketing API via a system user token in the TM Business Portfolio (ID 1230345685227021, already used for client partner access). No approval wait. Campaign/adset/ad insights + creative assets. First to ship.
-2. **Google Ads** — requires a developer token from an MCC; application has days-to-weeks lead time. **Submit this week regardless of build order.** Once granted: campaign + asset-level performance, PMax channel splits, search terms.
+2. **Google Ads** — ⛔ **blocked on application.** Requires Basic-access developer token from MCC 711-022-5227; days-to-weeks lead time and **still not submitted** as of 2026-07-27. The collector is built, wired into cron, and proven against fixtures — it is the *token*, not the code, that gates live Google rows. **Submit regardless of build order.** Once granted: campaign + asset-level performance, PMax channel splits, search terms.
 3. **Microsoft (Bing) Ads** — straightforward API, developer token is near-instant, and Bing often over-delivers ROI for local service categories. Low effort.
 4. **Reddit Ads** — has a proper Ads API (OAuth); relevant for the ecom brands. Medium priority.
 5. **OpenAI / ChatGPT Ads** — live channel since February 2026; self-serve Ads Manager (beta) with CPC/CPM and, since May, a Conversions API and pixel. Programmatic reporting access is immature — start by running campaigns for one ecom client, track via the OpenAI pixel + UTMs into GA4, and integrate API reporting as it stabilizes. Being early here is a genuine agency differentiator; almost no local competitor will be running AI-channel ads this year.
@@ -80,7 +102,13 @@ Two halves:
 > **Under evaluation (2026-07):** [Bloom / trybloom.ai](https://www.trybloom.ai) as the *primary* volume-generation engine, with Figma demoted to a **precision tier**. Bloom offers a native Claude Code MCP + REST API and learns a brand from its URL/Instagram — removing the per-client Figma template build. Full evaluation and adopt/adopt-for-subset/pass recommendation in `docs/bloom-eval.md`; status in `STATUS.md`. Gating items before adoption: real brand fidelity vs tokens, 4:5 support, and written answers on agency/client-use rights, model-training opt-out + DPA, and IP risk. Either way, the generation engine sits behind our own `creatives` table + a thin `generateCreative(brief, brand, sizes)` interface so assets are re-hosted in our storage and the vendor stays swappable (zero lock-in).
 
 ### Module E — Organic social
-**Ingestion:** Meta Graph API covers IG + FB organic (posts, reach, saves, shares, comments, profile actions) through the same Business Portfolio auth as ads. LinkedIn Community Management API for the B2B clients. TikTok/YouTube as needed per client. PostFlow remains the publishing tool; this module is the *analysis* layer (check whether PostFlow exposes an API/export — if so, ingest scheduled-post metadata so analysis and publishing share IDs).
+**Ingestion:** Meta Graph API covers IG + FB organic (posts, reach, saves, shares, comments, profile actions) through the same Business Portfolio auth as ads. LinkedIn Community Management API for the B2B clients — ⛔ **blocked on app review, not started** (§0). TikTok/YouTube as needed per client. PostFlow remains the publishing tool; this module is the *analysis* layer.
+
+> ⛔ **Blocking question — PostFlow API.** Open since the original plan and still
+> unanswered: does PostFlow expose an API or export? The design's "drafts land in
+> PostFlow" handoff depends on it. If there is no API, that handoff degrades to
+> manual copy-paste, or we replace PostFlow. **Answer this before the Social
+> module is scheduled** — it changes the module's scope, not just its plumbing.
 
 **Analysis:** `social_posts` + `social_metrics_daily` tables; the same Claude tagging pass as creatives (format, hook, topic, CTA type, post length, native-vs-link). Recommendations engine rules: formats/hooks over- and under-indexing for this account, posting-time windows with highest engagement velocity, series-worthy outliers ("this post did 6x median — make it a recurring series"), link-post penalty detection, response-time gaps on comments.
 
@@ -130,9 +158,12 @@ Existing tables (recommendations, changes, metric_snapshots, gsc_history, keywor
 | Rankings, backlinks, site health, keyword research, AI answer checks, local pack | DataForSEO (in place) | Basic auth | none | ~$30–60/mo now; +local grids ~$1–3/client/mo |
 | Real search traffic | Google Search Console API (in place) | Service account | none | free |
 | Conversions / revenue spine | GA4 Data API (enabled) | Same service account, Viewer per property | grant per client | free |
-| GBP calls/views/reviews | Business Profile Performance API | Google access application | **weeks — apply now** | free |
+| GBP calls/views/reviews | Business Profile Performance API | Google access application | ⛔ **weeks — NOT SUBMITTED** | free |
 | Meta paid + IG/FB organic | Meta Marketing API + Graph API | System user token, Business Portfolio 1230345685227021 | none | free |
-| Google Ads | Google Ads API | Developer token via MCC | **days–weeks — apply now** | free |
+| Google Ads | Google Ads API | Basic-access developer token via MCC | ⛔ **days–weeks — NOT SUBMITTED** (Explorer token vaulted) | free |
+| LinkedIn ads + organic | LinkedIn Marketing / Community Management API | App review | ⛔ **weeks — NOT STARTED** | free |
+| Before/after screenshots | Playwright on a job runner, or Browserless / ScreenshotOne | Service account or self-hosted | none — build (~2–3 days) | small monthly |
+| Call tracking (local-service) | CallRail or equivalent — **not in stack, decision open (§10)** | per client | onboarding step | ~$45–70/client/mo |
 | Microsoft Ads | Bing Ads API | Developer token | ~instant | free |
 | Reddit Ads | Reddit Ads API | OAuth app | short | free |
 | ChatGPT ads | OpenAI Ads Manager (self-serve beta) + Conversions API/pixel | Ads account | none | media spend only |
@@ -191,6 +222,12 @@ Apply for Google Ads developer token + GBP API access (calendar time, zero build
 - **Secrets vault:** per-client platform tokens move from env vars into Supabase Vault (encrypted), tracked with expiry dates and proactive re-auth alerts. `auth_ref` points here.
 - **Observability:** `collector_runs` table (module, client, status, error, duration) + Slack webhook alerts on failure and on staleness (no fresh data for a client in >36h). Silent staleness is the worst client-facing failure mode; this closes it.
 
+**Infrastructure prerequisites** *(added 2026-07-27 per the feasibility review — these are not optional, and the whole design rests on them):*
+
+- **Supabase Auth + per-client RLS — the hard gate.** Per-user accounts, `organization → clients → users`, agency users see all clients, client users see exactly one. ~1 week, touches **every query** in the app. **Nothing client-facing merges before this lands**, and it cannot be retrofitted once client access exists. Previously budgeted at Phase C (§8); the design's client portal moves it to a Phase A.5 prerequisite.
+- **Screenshot service.** Before/after visuals are load-bearing in the Approval Card — "the work is already done before the human sees it" is a *visual* claim. Needs a headless browser: Playwright on a job runner, or Browserless/ScreenshotOne. **Not in the stack today.** ~2–3 days plus a small monthly cost. Every site-change approval card depends on it.
+- **Audit log.** Immutable row per approve/decline/publish/pause: actor, action, target, before/after, timestamp. This is what makes automated changes defensible if a client disputes one.
+
 **Phase B (+2 → +6 weeks): paid media v1 + smarter SEO + delivery integration**
 Meta ads collector + paid dashboard tab + paid recommendations rules. Microsoft Ads collector. Per-URL GSC + conversion-weighted keyword scoring. Local pack tracking for local clients. ChatGPT ads pilot on one ecom client (Salty Dog or DAPS) with pixel/CAPI tracking. **ClickUp sync** *(promoted per COO review)*: approved recommendations auto-create ClickUp tasks in the client's list; task completion flows back to mark shipped — the pods work in ClickUp, so this is what makes the platform part of delivery instead of a parallel queue.
 
@@ -206,7 +243,9 @@ Learnings view + quarterly "what works" intelligence report across the portfolio
 ---
 
 ## 8. Governance & guardrails
-- Roles: current viewer/admin ships; **hard gate (CTO): Supabase Auth + per-client RLS policies must land before any client receives a login** — it's a ~1-week refactor touching every query, and it cannot be retrofitted after client access exists. Budget it explicitly, likely Phase C.
+- Roles: current viewer/admin ships; **hard gate (CTO): Supabase Auth + per-client RLS policies must land before any client receives a login** — it's a ~1-week refactor touching every query, and it cannot be retrofitted after client access exists. **Moved from Phase C to a Phase A.5 prerequisite (2026-07-27)**: the design makes the client portal a v1 surface, so the gate has to clear first. See §7 Phase A.5.
+- **Verify before promising (2026-07-27):** the design tells clients we check AI prompts against "ChatGPT, Gemini and Google AI Overviews." **We check ChatGPT only.** Confirm DataForSEO's AI Optimization coverage for the other two before that copy goes client-facing — it is a claim on a client screen, which makes it an accuracy-gate item, not a copy detail.
+- **Automation module honesty:** the design shows missed-call text-back, post-job review requests, renewal reminders and quote follow-up as *Running* with volume counts. Confirm per client which of these actually exist. If they don't, the module is a roadmap and cannot appear in a client portal until it's true. (Separately: an excellent upsell menu.)
 - **Accuracy gate (COO):** no module becomes client-visible until it has run two full collection cycles parallel-checked against the platform's own UI; measurement verdicts stay internal until the account manager approves surfacing them per client. One wrong ROAS in front of a client costs more than the dashboard has earned.
 - **Staging requirement (CTO):** every execution adapter (git, WP, Shopify) ships with a dry-run mode and is rehearsed against a staging site before touching a live client property. No exceptions in Phase D.
 - Client consent: retainer language must cover automated changes (even human-approved PRs) and ad-platform write access before Phase D touches a client property — CLO dependency, natural fit as a Dominate-tier feature.
@@ -221,8 +260,33 @@ Learnings view + quarterly "what works" intelligence report across the portfolio
 DataForSEO ~$50–120/mo (with local grids + AI checks) · Claude API ~$20–80/mo (tagging/briefs) + ~$0.10–1.00 per executed PR · everything else is free APIs + existing subscriptions (Figma, PostFlow, ClickUp) + media spend. Total platform run-cost well under one Semrush seat, replacing Semrush + Ahrefs-style research + a creative-analytics tool + a social-analytics tool.
 
 ## 10. Open decisions
+
+> **Decision 0 is the biggest gap in the plan.** It was surfaced by the COO in
+> the 2026-07-27 feasibility review and it has no owner yet.
+
+**0. Call tracking — the data spine for local-service clients.** ⛔ **Blocking the client portal for every local client.**
+
+The portal's headline row is *Calls · Cost per job · Jobs booked · Return per $1
+spent.* Those are the right numbers, and **for local-service clients we cannot
+compute a single one of them today.** They need (a) **call tracking** — CallRail
+or equivalent, not in our confirmed stack — and (b) a **job/revenue signal** from
+the client's CRM or field-service software. GA4 gives us form conversions; it
+does not give us booked jobs or revenue per lead.
+
+eCommerce clients are unaffected — Shopify/GA4 gives revenue directly. This is
+purely a local-service gap, and it is most of the portfolio.
+
+Options, in the COO's order of preference:
+1. **Standardize call tracking across local-service clients as an onboarding line item** (~$45–70/client/mo, arguably billable to the client)
+2. Failing that, local portal headline metrics **fall back to GBP calls + form conversions**, and cost-per-job disappears from the design
+3. Decide per client — worst option; it makes the portal inconsistent between accounts
+
+Answer this before portal work is scheduled: it determines whether the portal's
+lead metrics exist at all for local clients, and option 2 is a design change, not
+a config change.
+
 1. Motion integration vs in-house creative tagging (recommendation: in-house, Motion as reference)
-2. PostFlow API surface — can scheduled posts be ingested/pushed?
+2. **PostFlow API surface — can scheduled posts be ingested/pushed?** ⛔ **Blocks the Social module** (Module E). Unanswered since the original plan. No API ⇒ the "drafts land in PostFlow" handoff becomes manual paste, or PostFlow gets replaced.
 3. Domain: keep seo.* or move to growth.* as scope expands
 4. Which two clients pilot the execution layer (need git-based or WP Engine sites + Dominate-tier trust)
 5. TikTok/YouTube organic: which clients justify the extra ingestion work

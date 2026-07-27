@@ -1,8 +1,17 @@
 # WO-002 — Growth OS Dashboard Reorg (channel-oriented, revenue-first)
 
-**Status:** APPROVED — build in progress · opened 2026-07-23 · Owner: CTO
+**Status:** ✅ SHIPPED — v1 + v1.5 merged via PR #13, live in production 2026-07-23 · Owner: CTO
 **Source:** synthesized from a 4-role consult (CTO, COO, Head of Performance, Head of Social) on 2026-07-23.
-**Update channel:** WORKLOG.md.
+**Update channel:** `WORKLOG.md` (repo root).
+
+> **This is the only WO-002.** A second document was also drafted as "WO-002"
+> (the two-sided SaaS spec); since this one was already built and shipped, that
+> one was renamed to `docs/spec-growth-os-two-sided.md` and is implemented by
+> `docs/wo-003-design-implementation.md`. Resolved 2026-07-27.
+>
+> **Not shipped from the list below:** the Search view (needs the GSC-query ×
+> paid-search-term join) is a placeholder route; per-client cron fan-out was
+> deferred after parallelization proved sufficient at current client count.
 
 ---
 

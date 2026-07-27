@@ -127,7 +127,7 @@ it behind real auth (Supabase Auth or Vercel's protection).
 
 Parallel-build foundation so agent-built modules are self-verifying. See
 `docs/tm-growth-os-plan.md`, `docs/wo-001-parallel-build-enabling-layer.md`, and
-the agent operating brief (`docs/CLAUDE-monitor-draft.md`).
+the agent operating brief (`CLAUDE.md`).
 
 ### Migrations (authoritative set)
 
@@ -205,7 +205,7 @@ Per-client platform tokens (Meta, Google Ads, Microsoft, ClickUp, etc.) move OUT
 of env vars into Supabase Vault (encrypted at rest). `platform_secrets` is the
 tracking registry only — the secret value itself lives in `vault.secrets` /
 `vault.decrypted_secrets`, referenced by `auth_ref`. Nothing client-facing, and
-no log line, ever surfaces a raw token (autonomy ladder #5, `docs/CLAUDE-monitor-draft.md`).
+no log line, ever surfaces a raw token (autonomy ladder #5, `CLAUDE.md`).
 
 ```
 supabase/006_secrets_registry.sql   platform_secrets registry (awaits CTO serialize/apply)
@@ -337,7 +337,7 @@ tests/fixtures/google/ad_metrics.json  recorded GAQL-shaped rows fixture
 - **No migration** — reuses `supabase/009_meta_ads.sql`'s tables as-is.
 - **The Google Ads developer token is still in application** (calendar-gated,
   not an agent-doable task — see the escalation list in
-  `docs/CLAUDE-monitor-draft.md`). Goes live once: the dev token is approved,
+  `CLAUDE.md`). Goes live once: the dev token is approved,
   an OAuth refresh token is exchanged for an access token (out of scope for
   this collector — it consumes an already-minted `accessToken`), a row is
   seeded in `ad_platform_accounts` per client (platform `'google_ads'`, their
@@ -349,7 +349,7 @@ tests/fixtures/google/ad_metrics.json  recorded GAQL-shaped rows fixture
 
 ### Shopify revenue collector
 
-Revenue ground truth (plan §4, `docs/CLAUDE-monitor-draft.md`): ad platforms
+Revenue ground truth (plan §4, `CLAUDE.md`): ad platforms
 over-attribute — each claims the same orders — so this collector writes
 Shopify's actual orders/dollars into `conversions_daily(source='shopify')`,
 letting the platform compute honest blended MER (revenue ÷ ad spend) instead of
