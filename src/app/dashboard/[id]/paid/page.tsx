@@ -2,9 +2,7 @@
 // Total spend + per-platform ROAS, reconciled against actual revenue. Paid-social
 // (Meta/IG ads) is a slice of Meta here — never relocated, so MER never double-counts.
 import Link from "next/link";
-import { dbClient } from "@/lib/db";
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/authToken";
+import { userClient } from "@/lib/supabaseServer";
 import { ClientHeader } from "@/components/ClientHeader";
 import "@/styles/tm-tokens.css";
 
@@ -27,8 +25,7 @@ const PLATFORMS = [
 ];
 
 export default async function Paid({ params }: { params: { id: string } }) {
-  await verifyToken(cookies().get("tm_auth")?.value, process.env.CRON_SECRET!);
-  const db = dbClient();
+  const db = userClient();
   const [{ data: client }, { data: ads }, { data: convs }] = await Promise.all([
     db.from("clients").select("id, name, domain, tier").eq("id", params.id).single(),
     db.from("ad_metrics_daily").select("spend, revenue, platform, conversions").eq("client_id", params.id),

@@ -2,9 +2,7 @@
 // Shopify is the ground truth every channel is measured against. Orders, AOV,
 // and revenue by source (Shopify actual vs GA4 modeled).
 import Link from "next/link";
-import { dbClient } from "@/lib/db";
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/authToken";
+import { userClient } from "@/lib/supabaseServer";
 import { ClientHeader } from "@/components/ClientHeader";
 import "@/styles/tm-tokens.css";
 
@@ -23,8 +21,7 @@ const eyebrow: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, letterSp
 const SOURCE_LABEL: Record<string, string> = { shopify: "Shopify", ga4: "GA4" };
 
 export default async function Revenue({ params }: { params: { id: string } }) {
-  await verifyToken(cookies().get("tm_auth")?.value, process.env.CRON_SECRET!);
-  const db = dbClient();
+  const db = userClient();
   const [{ data: client }, { data: convs }] = await Promise.all([
     db.from("clients").select("id, name, domain, tier, ga4_property_id").eq("id", params.id).single(),
     db.from("conversions_daily").select("source, revenue, conversions").eq("client_id", params.id),

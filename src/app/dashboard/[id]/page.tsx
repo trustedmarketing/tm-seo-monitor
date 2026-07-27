@@ -4,9 +4,7 @@
 // vs actual. Below, one summary tile per channel that links into its tab.
 // Absorbs the old /command per-client scorecard logic; SEO detail moved to /organic.
 import Link from "next/link";
-import { dbClient } from "@/lib/db";
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/authToken";
+import { userClient } from "@/lib/supabaseServer";
 import { ChannelNav } from "@/components/ChannelNav";
 import "@/styles/tm-tokens.css";
 
@@ -44,8 +42,7 @@ const PLATFORM_LABEL: Record<string, string> = {
 };
 
 export default async function Overview({ params }: { params: { id: string } }) {
-  await verifyToken(cookies().get("tm_auth")?.value, process.env.CRON_SECRET!);
-  const db = dbClient();
+  const db = userClient();
 
   const [{ data: client }, { data: snaps }, { data: convs }, { data: ads }] = await Promise.all([
     db.from("clients").select("*").eq("id", params.id).single(),

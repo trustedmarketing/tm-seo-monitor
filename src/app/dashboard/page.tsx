@@ -3,9 +3,8 @@
 // scorecard per client, led by MER · Revenue · Spend. Routes into each client's
 // Overview. Absorbs the old /command surface (which now redirects here).
 import Link from "next/link";
-import { dbClient } from "@/lib/db";
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/authToken";
+import { userClient } from "@/lib/supabaseServer";
+import { getProfile, isAgency } from "@/lib/supabaseServer";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
@@ -57,8 +56,8 @@ function Channel({ label, value, sub, accent }: { label: string; value: string; 
 }
 
 export default async function Portfolio() {
-  const role = await verifyToken(cookies().get("tm_auth")?.value, process.env.CRON_SECRET!);
-  const db = dbClient();
+  const profile = await getProfile();
+  const db = userClient();
   const since48 = new Date(Date.now() - 48 * 3600000).toISOString();
 
   const [cRes, sRes, convRes, runRes, chRes, adRes] = await Promise.all([
@@ -111,8 +110,8 @@ export default async function Portfolio() {
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--tm-performance-green)" }} />
           Portfolio · {today}
           <span style={{ marginLeft: "auto", display: "flex", gap: 18, textTransform: "none", letterSpacing: 0 }}>
-            {role === "admin" && <Link href="/research" style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>Research</Link>}
-            {role === "admin" && <Link href="/admin" style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>Admin</Link>}
+            {isAgency(profile) && <Link href="/research" style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>Research</Link>}
+            {profile?.role === "owner" && <Link href="/admin" style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>Admin</Link>}
           </span>
         </div>
         <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 400, fontSize: 56, letterSpacing: "-0.01em", margin: "10px 0 32px" }}>

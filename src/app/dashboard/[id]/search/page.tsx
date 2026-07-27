@@ -3,9 +3,7 @@
 // catcher (Head of Performance's top pick). Placeholder until the query×paid join
 // lands (needs GSC query data + paid search-term data on a shared key).
 import Link from "next/link";
-import { dbClient } from "@/lib/db";
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/authToken";
+import { userClient } from "@/lib/supabaseServer";
 import { ClientHeader } from "@/components/ClientHeader";
 import "@/styles/tm-tokens.css";
 
@@ -14,8 +12,7 @@ export const dynamic = "force-dynamic";
 const card: React.CSSProperties = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)" };
 
 export default async function Search({ params }: { params: { id: string } }) {
-  await verifyToken(cookies().get("tm_auth")?.value, process.env.CRON_SECRET!);
-  const db = dbClient();
+  const db = userClient();
   const { data: client } = await db.from("clients").select("id, name, domain, tier").eq("id", params.id).single();
   if (!client) return <main style={{ padding: 48 }}>Client not found. <Link href="/dashboard">Back</Link></main>;
 
