@@ -5,6 +5,81 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-07-27 · Session 1 · WO-003 Wave 1 — Stream A shipped, Stream M shell built
+
+### Stream A · Supabase Auth + per-client RLS — SHIPPED TO PRODUCTION
+The hard gate is closed. Client isolation is enforced by Postgres, not by application code.
+
+- Migration 012 applied to staging **and production**: `organization → clients → users`,
+  `user_profiles` (owner/pod_lead/specialist/client), `client_users`, and RLS on every table.
+  Every policy routes through one function, `has_client_access(uuid)`.
+- App moved off the two shared passwords onto per-user Supabase Auth. All six dashboard pages read
+  through `userClient()` so RLS applies; `dbClient()` (service role) remains only for cron,
+  collectors and agency writes. `lib/authToken.ts` deleted.
+- Role mapping deliberately not one-to-one: the old `admin` password covered both client config and
+  everyday pod work. `/admin` is now owner-only; research and change-logging accept any agency role,
+  so a pod lead can work without holding the keys to client credentials.
+- `platform_secrets`: RLS on, **no policy at all** — deny-all for every signed-in user including
+  owners. Service role only, via the 011 vault RPCs.
+- **Verified on real production data before merge:** owner sees DAPS.FIT + Salty Dog / 300 rankings;
+  the Salty Dog client user sees 1 client / 201 rankings; asking explicitly for DAPS.FIT's UUID
+  returns **zero rows**. Both accounts confirmed working in a browser.
+- 🔒 **Security defect found and fixed same-day.** Push review caught an **open redirect** in the
+  login `next` parameter: the check asked whether `next` pointed at `/portal` but never whether it
+  pointed at this site, so `/login?next=https://evil.com` would sign a user in legitimately and then
+  hand them to an attacker — credible phishing precisely because the sign-in is genuine. Fixed in
+  `lib/safeNext.ts`, 19 regression tests, deployed. Live ~10 minutes on a private dashboard.
+- `/portal` placeholder added so client logins land on an honest holding page rather than a 404.
+
+### Stream M · agency shell — NEW, and it was missing from WO-003
+Tom flagged that the built UI still looked nothing like the design. He was right, and WO-003 as
+drafted had no stream for it: streams existed for the new components and the portal, none for
+restyling the existing agency surfaces. Added as Stream M and built.
+
+**The bigger finding underneath it.** Tom's point that "only our ecommerce brands would have that"
+could not be expressed at all: **`client_type` was specced in plan §2 as 'a data-model concern, not
+a UI afterthought' and never built.** Every client was treated identically. Migration 013 adds it
+plus `service_areas`, `gbp_location_ids`, `store_platform`. It classifies only what it can prove —
+a linked store *and* real Shopify rows — so Salty Dog self-classified and DAPS.FIT correctly stayed
+NULL rather than being guessed.
+
+- Tabs derive from client type, both directions: Revenue is eCommerce-only (and folded into
+  Overview per Tom), GBP and Automation are local-only, Search kept despite the design omitting it.
+- Sidebar ported from the design export. **Departure:** the export's Agency/Portal toggle is a
+  demo device; in production the side is decided by role and enforced by RLS, so a toggle would
+  mislead. Omitted.
+- Eight holding pages that say what they wait on. **None renders a zero** — a zero is a claim that
+  we measured and found none, which is usually false.
+- Attention rail deduped: the cron fires per client, so one broken collector read as
+  "NEEDS ATTENTION · 2" for a single failure.
+
+### Findings surfaced today that nobody was looking for
+1. **GA4 collector failing every run for 5 days** — service account never granted Viewer on Salty
+   Dog property `451445566`. Fixed by Tom; verifies on the next cron run. Correction to an earlier
+   claim: the attention rail *did* show it. Nobody looked. That is a different problem from a blind
+   spot, and a better one.
+2. **Open redirect in my own code**, above.
+3. **AEO shows 0% and it is real data, not a display bug** — 121 prompt checks for Salty Dog with
+   zero mentions and zero citations. Either genuine absence (an opportunity) or a false-negative in
+   detection. **Spot-check before it is client-visible** — accuracy gate.
+4. **DAPS.FIT looks onboarded but is not** — Dominate tier, no store, no ad accounts, nothing
+   collected since 24 Jul, and now unclassified.
+5. Attention-rail double count, fixed above.
+
+### Follow-ups (none blocking)
+- Preview env vars missing (Vercel CLI 54.10.2 rejects its own suggested command) → branch previews
+  for Streams B/C will fail to build until added.
+- `DASHBOARD_PASSWORD` now unused, safe to delete. `ADMIN_PASSWORD` stays (machine bearer token).
+- Old Revenue tab's AOV / order count / revenue-by-source needs merging into the Overview block.
+- Accounts needed for any other staff who used the shared password.
+- **Call tracking surfaced three times today** (portal headline, local Overview, Automation tab).
+  It is the one open decision with no deadline on it.
+
+### Next
+Stream B (screenshot service, vendor decided) and Stream C (audit log, migration now 014).
+
+---
+
 ## 2026-07-27 · Session 1 · Design inputs reconciled · housekeeping resolved · WO-003 drafted
 
 Read the new inputs (`docs/design/`, punch list, feasibility review), resolved the two housekeeping
