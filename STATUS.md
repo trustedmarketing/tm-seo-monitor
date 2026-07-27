@@ -48,10 +48,25 @@ Each is assigned to a WO-003 stream (see that doc); none is unowned.
 | 10 | "Share this page" — signed expiring link, or cut from v1 | J · `module/portal-shell` (decision) |
 
 ## In flight
-- **Bloom (trybloom.ai) evaluation for Module D generation** — `docs/bloom-eval.md`. Deliverables 3/4/5
-  drafted; 1 (generation spike) partially done — 6 Salty Dog creatives across 3 sizes, then credits
-  exhausted (402). **Preliminary posture: adopt-for-subset**, pending written agency-use/no-training/DPA
-  answers from Bloom. **Decision due 2026-07-29 — two days out.**
+- **Bloom (trybloom.ai) — vendor answers received 2026-07-27, RECOMMENDATION: ADOPT FOR SUBSET.**
+  Full written answers from Ray (founder), two days ahead of the deadline. Every blocking gate
+  cleared: **agency/client/resale use explicitly permitted** (the largest flag — the ToS was silent),
+  **no model training** (they run on Google/OpenAI/Anthropic commercial APIs and do not opt into
+  sharing), ownership retained, workspace isolation confirmed, **4:5 supported** plus seven more
+  ratios, export via API at any time.
+  **Two conditions before client data is onboarded:** (1) request the **DPA + subprocessor list** —
+  none exist today but Ray offered to put them in place; (2) start **month-to-month at $340/mo**, not
+  the annual $3,672, until the fidelity spike is finished.
+  **Accepted risks, explicitly:** no IP/trademark indemnity (mitigated structurally — every creative
+  passes a human approval card before it can run, and ad launches are always human-approved), no
+  uptime SLA (generation is batch, not real-time), no fixed post-deletion export window (neutralised
+  by re-hosting every asset into our own `creatives` table).
+  ⚠️ **Pricing detail that changes the model: each aspect ratio is a separate billed asset.** One
+  concept in 1:1/4:5/9:16 costs 3 credits, so 2,000 credits ≈ **660 three-ratio concepts/month**, not
+  2,000. Budget in assets, not concepts.
+  **Still open (not blocking):** deliverable 2, brand fidelity — 6 samples exist, credits ran out
+  mid-spike. Finish on the paid plan against Salty Dog + one other before scaling past a subset.
+  Also accept Ray's offer of a shared Slack channel.
 
 ## Pending Tom — five external actions (Wave 0 of WO-003)
 **All calendar time, all currently blocking design surfaces, and three have never been started.**

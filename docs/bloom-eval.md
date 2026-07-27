@@ -100,7 +100,71 @@ storage, approval, ledger, and all IP/history are ours. Canonical design tokens 
 workspace (Bloom's URL-learned profile is a convenience, re-derivable). Figma remains the **precision tier**
 behind the *same* interface.
 
+## 6. Vendor answers received — 2026-07-27 (Ray, founder) ✅
+
+Full written answers received, two days ahead of the decision deadline. Scored against the four
+gates set in the preliminary posture:
+
+| Gate | Answer | Verdict |
+|---|---|---|
+| **(c) Agency / client / resale use** | "Yes. You can use Bloom for client brands, run the assets as paid ads, and deliver them to those clients. No restrictions." | ✅ **CLEARED** — this was the largest flag; the ToS was silent |
+| **(c) Ownership** | Retained by us; usable in paid ads and deliverable to clients with no further licence | ✅ CLEARED |
+| **(c) Model training** | Bloom does not train on customer brand assets, prompts or outputs. Production runs on Google / OpenAI / Anthropic **commercial APIs**, which do not train on API data by default, and Bloom does not opt into sharing. No separate opt-out needed. | ✅ **CLEARED** — the privacy policy's silence was the flag; this answers it at the subprocessor level |
+| **(c) DPA + subprocessors** | **None today.** "If these are required, we would need to put them in place before onboarding your client data." | ⚠️ **OPEN — negotiable, and they offered** |
+| **Account isolation** | Workspace-isolated; not surfaced or reused across users. The "similar outputs" clause is only about generative systems independently producing similar results. | ✅ CLEARED |
+| **(d) IP indemnification** | **None.** Assets provided as-is. | ⚠️ **OPEN — we carry the risk** |
+| **Portability** | Export via API at any time; cancelling does not delete the account or data. **No fixed export window after deletion** — export before deleting. | ✅ CLEARED with a procedural caveat |
+| **(b) 4:5 support** | Confirmed, plus 2:3, 3:2, 3:4, 4:3, 5:4, 16:9, 21:9 | ✅ **CLEARED** — was the last technical unknown |
+| Limits / SLA | 120 req/min per key · 5 assets per generation batch · 10 files per upload · 100 records per page. **No contractual uptime SLA.** | ✅ Adequate — generation is not in a real-time path |
+
+### Pricing — corrected, and one detail that changes the model
+
+Scale at our volume: **2,000 credits/month · $340 month-to-month · $306/month billed annually**
+($3,672/yr). Unit price ≈ **$0.17/credit**, unchanged from the earlier estimate.
+
+⚠️ **The detail that matters: each aspect ratio is a separate billed asset.** One creative delivered
+in 1:1, 4:5 and 9:16 costs **3 credits**, not 1. `bloom_resize_image` is priced the same. So the
+planning unit is *assets*, not *concepts* — 2,000 credits is roughly **660 three-ratio concepts per
+month**, not 2,000. That is still ample across the portfolio, but it is a 3× difference from the
+naive read and it is how the plan should be budgeted.
+
+### Recommendation — **ADOPT FOR SUBSET**, with two conditions
+
+The posture holds and is now materially better supported: every technical and rights gate cleared,
+including the two that were genuinely blocking (agency use, model training).
+
+**Conditions before client data is onboarded:**
+
+1. **Request the DPA + subprocessor list now.** Ray explicitly offered to put them in place. We are a
+   processor acting for client brands, so this should be in hand before client assets are uploaded at
+   volume — not after. It costs a request; the answer was pre-offered.
+2. **Start month-to-month at $340, not the annual $3,672.** The annual saves $408/yr (~10%), which is
+   not worth committing to before the generation spike (§1–2) is finished on a paid plan. Revisit at
+   renewal once fidelity is proven on two real brands.
+
+**Accepted risks, explicitly:**
+
+- **No IP indemnity.** We carry trademark/IP exposure on generated assets. Mitigated structurally
+  rather than contractually: every creative passes a human approval card before it can run as a paid
+  ad (autonomy ladder — ad launches are *always* human-approved), and briefs should avoid referencing
+  third-party marks. This is a real risk, not a cleared one, and it should be visible to whoever
+  signs off on client contracts.
+- **No uptime SLA.** Acceptable: creative generation is batch work with no real-time dependency, and
+  a failed generation delays a card rather than breaking a client surface.
+- **No fixed post-deletion export window.** Neutralised by the zero-lock-in architecture already in
+  the plan: every asset is re-hosted into our own `creatives` table on generation, so our library
+  never depends on Bloom retaining anything.
+
+**Also take:** the offered shared Slack channel with their founder. Direct vendor access during
+integration is worth more than an SLA at this stage.
+
+**Still outstanding for a final adopt (not blocking the decision):** deliverable 2, brand fidelity —
+6 sample creatives exist but credits ran out mid-spike. Finish it on the paid plan against Salty Dog
+and one other brand before scaling beyond a subset.
+
 ## Preliminary posture (pre-spike) — leaning ADOPT-FOR-SUBSET
+> **Superseded by §6 above (2026-07-27).** Kept for the record.
+
 Strong structural fit (Claude Code MCP; learn-from-URL kills the per-client Figma template build; cheap;
 you own outputs; lock-in solvable). **Gating unknowns before a final call:** (a) real brand fidelity vs tokens
 (eye test), (b) 4:5 support, (c) **written** agency-use + no-training + DPA answers from Bloom, (d) IP-risk gate.
