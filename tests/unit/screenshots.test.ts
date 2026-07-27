@@ -47,3 +47,21 @@ describe("screenshots · mock path", () => {
     })).rejects.toThrow(/SCREENSHOT_API_KEY/);
   });
 });
+
+describe("screenshots · host refusal (verified against getsaltydog.com, 2026-07-27)", () => {
+  it("exports a distinct error for the target site refusing", async () => {
+    const { HostRefusedError } = await import("@/lib/screenshots");
+    const e = new HostRefusedError(429, "https://getsaltydog.com");
+    // The message has to name the site, not the vendor. "Screenshot failed" sends
+    // someone to debug ScreenshotOne when the client's Shopify store is the cause.
+    expect(e.message).toContain("getsaltydog.com");
+    expect(e.message).toContain("429");
+    expect(e.message).toMatch(/rate limited|blocking automated traffic/);
+    expect(e.name).toBe("HostRefusedError");
+  });
+
+  it("does not claim a rate limit for other refusal codes", async () => {
+    const { HostRefusedError } = await import("@/lib/screenshots");
+    expect(new HostRefusedError(403, "https://x.test").message).not.toMatch(/rate limited/);
+  });
+});
