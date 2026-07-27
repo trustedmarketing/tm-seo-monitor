@@ -1,6 +1,6 @@
 # WO-003 — Growth OS Design Implementation
 
-**Status:** DRAFT — awaiting Tom's approval. **No implementation has started.**
+**Status:** ✅ APPROVED by Tom 2026-07-27. Wave 1 in progress on `module/auth-rls`.
 **Opened:** 2026-07-27 · **Owner:** CTO
 **Update channel:** `WORKLOG.md` (repo root).
 
