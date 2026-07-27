@@ -2,6 +2,7 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { browserClient } from "@/lib/supabaseBrowser";
+import { safeNext } from "@/lib/safeNext";
 import "@/styles/tm-tokens.css";
 
 // WO-003 Stream A. Per-user email + password via Supabase Auth, replacing the
@@ -46,14 +47,8 @@ function LoginForm() {
     }
 
     const isAgency = ["owner", "pod_lead", "specialist"].includes(profile.role);
-    const next = params.get("next");
     const fallback = isAgency ? "/dashboard" : "/portal";
-    // Never honor a `next` that points at the other side of the product.
-    const target = next && (isAgency ? !next.startsWith("/portal") : next.startsWith("/portal"))
-      ? next
-      : fallback;
-
-    window.location.href = target;
+    window.location.href = safeNext(params.get("next"), isAgency) ?? fallback;
   }
 
   return (
