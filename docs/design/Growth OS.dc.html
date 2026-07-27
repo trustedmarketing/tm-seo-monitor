@@ -1,0 +1,1932 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/trusted-marketing-design-system-019dd5c1-2c87-73f4-bd45-a6ebc29aa4fc/colors_and_type.css">
+<script src="_ds/trusted-marketing-design-system-019dd5c1-2c87-73f4-bd45-a6ebc29aa4fc/_ds_bundle.js"></script>
+<style>
+  body { margin: 0; background: #F4F2EE; }
+  a { color: #080808; text-decoration-color: #C9CCC1; }
+  a:hover { text-decoration-color: #8FCC2E; }
+  @keyframes tmRise { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+  @keyframes tmSkel { 0% { opacity: 0.45 } 50% { opacity: 0.8 } 100% { opacity: 0.45 } }
+</style>
+</helmet>
+
+<div style="display: flex; align-items: stretch; min-height: 100vh; background: #F4F2EE; font-family: 'Inter', sans-serif; color: #080808">
+
+  <div style="width: 248px; flex: none; background: #FFFFFF; border-right: 1px solid #E8E5DD; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; box-sizing: border-box">
+    <div style="padding: 22px 20px 16px; border-bottom: 1px solid #E8E5DD">
+      <div style="font-family: 'Instrument Serif', serif; font-size: 26px; line-height: 1; color: #080808">Growth<span style="color: #8FCC2E"> OS</span></div>
+      <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #7A7F86; margin-top: 7px">Trusted Marketing</div>
+    </div>
+
+    <div style="padding: 14px 16px 6px">
+      <div style="display: flex; background: #F4F2EE; border-radius: 999px; padding: 3px">
+        <button onClick="{{ goAgency }}" style="flex: 1; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; border: none; border-radius: 999px; padding: 8px 0; background: {{ agencyTabBg }}; color: {{ agencyTabFg }}">Agency</button>
+        <button onClick="{{ goPortal }}" style="flex: 1; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; border: none; border-radius: 999px; padding: 8px 0; background: {{ portalTabBg }}; color: {{ portalTabFg }}">Portal</button>
+      </div>
+      <div style="font-size: 11px; color: #7A7F86; margin-top: 9px; padding: 0 4px">{{ modeHint }}</div>
+    </div>
+
+    <div style="padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; flex: 1">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="7">
+        <button onClick="{{ n.go }}" style="display: flex; align-items: center; gap: 10px; text-align: left; font-family: inherit; font-size: 13.5px; font-weight: {{ n.weight }}; cursor: pointer; border: none; border-radius: 8px; padding: 9px 12px; background: {{ n.bg }}; color: {{ n.fg }}">
+          <span style="width: 4px; height: 4px; border-radius: 999px; background: {{ n.dot }}; flex: none"></span>
+          <span style="flex: 1">{{ n.label }}</span>
+          <span style="font-size: 11px; font-weight: 600; color: {{ n.badgeFg }}; background: {{ n.badgeBg }}; border-radius: 999px; padding: 2px 7px">{{ n.badge }}</span>
+        </button>
+      </sc-for>
+    </div>
+
+    <div style="padding: 14px 16px; border-top: 1px solid #E8E5DD; display: flex; align-items: center; gap: 10px">
+      <div style="width: 30px; height: 30px; border-radius: 999px; background: #080808; color: #C7FF6A; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center">{{ userInitials }}</div>
+      <div style="min-width: 0">
+        <div style="font-size: 13px; font-weight: 600">{{ userName }}</div>
+        <div style="font-size: 11px; color: #7A7F86">{{ userRole }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+    <div style="padding: 34px 40px 22px; display: flex; align-items: flex-end; gap: 24px; border-bottom: 1px solid #E8E5DD; background: #F4F2EE; flex-wrap: wrap">
+      <div style="flex: 1; min-width: 320px">
+        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">{{ eyebrow }}</div>
+        <div style="font-family: 'Instrument Serif', serif; font-size: 44px; line-height: 1.02; margin-top: 8px; letter-spacing: -0.01em">{{ pageTitle }}</div>
+        <div style="font-size: 14.5px; color: #4A4F55; margin-top: 8px; max-width: 62ch; text-wrap: pretty">{{ pageSub }}</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; padding-bottom: 4px">
+        <span style="font-size: 12px; color: #7A7F86">{{ headerMeta }}</span>
+        <button onClick="{{ headerAction }}" style="font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; padding: 11px 20px; border-radius: 999px; border: 1px solid #C7FF6A; background: #C7FF6A; color: #080808">{{ headerCta }}</button>
+      </div>
+    </div>
+
+    <div style="padding: 26px 40px 64px; flex: 1">
+
+      <sc-if value="{{ isPortfolio }}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: 22px">
+          <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 4px">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr)">
+              <sc-for list="{{ attention }}" as="a" hint-placeholder-count="4">
+                <button onClick="{{ a.go }}" style="text-align: left; font-family: inherit; cursor: pointer; background: none; border: none; border-left: 1px solid #E8E5DD; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px">
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">{{ a.label }}</div>
+                  <div style="display: flex; align-items: baseline; gap: 9px">
+                    <span style="font-family: 'Instrument Serif', serif; font-size: 38px; line-height: 1; color: {{ a.color }}">{{ a.n }}</span>
+                    <span style="font-size: 12.5px; color: #4A4F55">{{ a.note }}</span>
+                  </div>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+            <div style="display: grid; grid-template-columns: 232px repeat(5, 1fr) 96px; padding: 12px 20px; border-bottom: 1px solid #E8E5DD; background: #F4F2EE">
+              <sc-for list="{{ portfolioHead }}" as="h" hint-placeholder-count="7">
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: {{ h.align }}">{{ h.label }}</div>
+              </sc-for>
+            </div>
+            <sc-for list="{{ clients }}" as="c" hint-placeholder-count="13">
+              <button onClick="{{ c.go }}" style="width: 100%; box-sizing: border-box; text-align: left; font-family: inherit; cursor: pointer; background: {{ c.rowBg }}; border: none; border-bottom: 1px solid #E8E5DD; display: grid; grid-template-columns: 232px repeat(5, 1fr) 96px; align-items: center; padding: 15px 20px; gap: 8px">
+                <div style="display: flex; align-items: center; gap: 10px; min-width: 0">
+                  <div>
+                    <div style="font-size: 14.5px; font-weight: 600; color: #080808">{{ c.name }}</div>
+                    <div style="font-size: 11.5px; color: #7A7F86; margin-top: 2px">{{ c.industry }}</div>
+                  </div>
+                  <span style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; padding: 3px 8px; border-radius: 999px; background: {{ c.tierBg }}; color: {{ c.tierFg }}; border: 1px solid {{ c.tierEdge }}">{{ c.tier }}</span>
+                </div>
+                <sc-for list="{{ c.channels }}" as="ch" hint-placeholder-count="5">
+                  <div style="text-align: center">
+                    <div style="font-family: 'Instrument Serif', serif; font-size: 22px; line-height: 1; color: #080808">{{ ch.v }}</div>
+                    <div style="font-size: 11px; font-weight: 600; color: {{ ch.color }}; margin-top: 3px">{{ ch.d }}</div>
+                  </div>
+                </sc-for>
+                <div style="text-align: right; display: flex; justify-content: flex-end; align-items: center; gap: 6px">
+                  <sc-if value="{{ c.flagged }}" hint-placeholder-val="{{ false }}">
+                    <span style="width: 6px; height: 6px; border-radius: 999px; background: #C0392B"></span>
+                  </sc-if>
+                  <span style="font-size: 12px; color: #4A4F55">{{ c.pending }}</span>
+                </div>
+              </button>
+            </sc-for>
+            <div style="padding: 13px 20px; display: flex; justify-content: space-between; font-size: 12px; color: #7A7F86">
+              <span>13 clients · 5 tiers · updated 6 min ago</span>
+              <span>Channel numbers are 28-day, vs prior 28</span>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isApprovals }}" hint-placeholder-val="{{ false }}">
+        <div style="display: grid; grid-template-columns: 1fr 296px; gap: 24px; align-items: start">
+          <div style="display: flex; flex-direction: column; gap: 14px; min-width: 0">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+              <sc-for list="{{ filters }}" as="f" hint-placeholder-count="6">
+                <button onClick="{{ f.go }}" style="font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 8px 14px; border-radius: 999px; border: 1px solid {{ f.edge }}; background: {{ f.bg }}; color: {{ f.fg }}">{{ f.label }}</button>
+              </sc-for>
+              <div style="flex: 1"></div>
+              <span style="font-size: 12px; color: #7A7F86">Sorted by severity, then age</span>
+            </div>
+
+            <sc-if value="{{ hasQueue }}" hint-placeholder-val="{{ true }}">
+              <div style="display: flex; align-items: center; gap: 12px; border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 12px 16px">
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Bulk · low risk only</span>
+                <span style="font-size: 13px; color: #080808">{{ bulkCount }} alt-text and internal-link fixes are QC-clean</span>
+                <div style="flex: 1"></div>
+                <button onClick="{{ bulkApprove }}" style="font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 9px 16px; border-radius: 999px; border: 1px solid #080808; background: #FFFFFF; color: #080808">Approve all {{ bulkCount }}</button>
+              </div>
+              <sc-for list="{{ queue }}" as="q" hint-placeholder-count="3">
+                <dc-import name="ApprovalCard" card="{{ q }}" on-action="{{ onCardAction }}" hint-size="100%,420px"></dc-import>
+              </sc-for>
+            </sc-if>
+
+            <sc-if value="{{ queueEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 54px 40px; text-align: center">
+                <div style="font-family: 'Instrument Serif', serif; font-size: 40px; line-height: 1.05">Queue clear.</div>
+                <div style="font-size: 14.5px; color: #4A4F55; margin-top: 10px">You decided 14 changes today. Median decision time 38 seconds.</div>
+                <div style="display: flex; justify-content: center; gap: 32px; margin-top: 26px">
+                  <sc-for list="{{ emptyStats }}" as="e" hint-placeholder-count="3">
+                    <div>
+                      <div style="font-family: 'Instrument Serif', serif; font-size: 32px; line-height: 1">{{ e.v }}</div>
+                      <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; margin-top: 4px">{{ e.k }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="font-size: 12.5px; color: #7A7F86; margin-top: 26px">Next batch of staged work lands around 4:00 PM.</div>
+              </div>
+            </sc-if>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 14px; position: sticky; top: 20px">
+            <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 18px">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Today</div>
+              <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 14px">
+                <sc-for list="{{ queueStats }}" as="s" hint-placeholder-count="4">
+                  <div style="display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid #E8E5DD; padding-bottom: 9px">
+                    <span style="font-size: 13px; color: #4A4F55">{{ s.k }}</span>
+                    <span style="font-family: 'Instrument Serif', serif; font-size: 26px; line-height: 1; color: {{ s.color }}">{{ s.v }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="border: 1px solid #1E1E26; background: #080808; border-radius: 12px; padding: 18px; color: #FFFFFF">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #C7FF6A">SLA watch</div>
+              <div style="font-size: 14px; line-height: 1.5; color: #FFFFFF; margin-top: 10px">4 cards are past their 24-hour window. Oldest is 3d 4h — Harbor Dental creative.</div>
+              <button onClick="{{ filterStale }}" style="font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; margin-top: 14px; padding: 9px 16px; border-radius: 999px; border: 1px solid #C7FF6A; background: #C7FF6A; color: #080808">Show stale first</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isCardLab }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 30px">
+          <div>
+            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; margin-bottom: 14px">Four variants</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(560px, 1fr)); gap: 18px">
+              <sc-for list="{{ variantCards }}" as="v" hint-placeholder-count="4">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 9px">
+                    <span style="font-size: 12px; font-weight: 600; color: #080808">{{ v.labName }}</span>
+                    <span style="font-size: 12px; color: #7A7F86">{{ v.labNote }}</span>
+                  </div>
+                  <dc-import name="ApprovalCard" card="{{ v }}" hint-size="100%,420px"></dc-import>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; margin-bottom: 14px">Seven states</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(560px, 1fr)); gap: 18px">
+              <sc-for list="{{ stateCards }}" as="s" hint-placeholder-count="7">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 9px">
+                    <span style="font-size: 12px; font-weight: 600; color: #080808">{{ s.labName }}</span>
+                    <span style="font-size: 12px; color: #7A7F86">{{ s.labNote }}</span>
+                  </div>
+                  <dc-import name="ApprovalCard" card="{{ s }}" hint-size="100%,380px"></dc-import>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isWorkspace }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 20px">
+          <div style="display: flex; gap: 2px; border-bottom: 1px solid #E8E5DD; overflow-x: auto">
+            <sc-for list="{{ wsTabs }}" as="t" hint-placeholder-count="11">
+              <button onClick="{{ t.go }}" style="font-family: inherit; font-size: 13px; font-weight: {{ t.weight }}; color: {{ t.fg }}; cursor: pointer; background: none; border: none; border-bottom: 2px solid {{ t.edge }}; padding: 10px 14px; white-space: nowrap">{{ t.label }}</button>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ wsOverview }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; flex-direction: column; gap: 20px">
+              <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: #E8E5DD; border: 1px solid #E8E5DD; border-radius: 12px; overflow: hidden">
+                <sc-for list="{{ wsMetrics }}" as="m" hint-placeholder-count="6">
+                  <div style="background: #FFFFFF; padding: 16px 18px">
+                    <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">{{ m.k }}</div>
+                    <div style="font-family: 'Instrument Serif', serif; font-size: 40px; line-height: 1; margin-top: 8px">{{ m.v }}</div>
+                    <div style="font-size: 12px; color: {{ m.color }}; margin-top: 6px; font-weight: 500">{{ m.d }}</div>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start">
+                <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+                  <div style="padding: 15px 20px; border-bottom: 1px solid #E8E5DD; display: flex; align-items: center; justify-content: space-between">
+                    <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Changes · last 7 days</span>
+                    <a href="#" style="font-size: 12px; font-weight: 600; text-decoration: none; border-bottom: 1px solid #C9CCC1">Full log</a>
+                  </div>
+                  <sc-for list="{{ wsChanges }}" as="c" hint-placeholder-count="6">
+                    <div style="display: grid; grid-template-columns: 104px 78px 1fr auto; gap: 12px; align-items: center; padding: 13px 20px; border-bottom: 1px solid #E8E5DD">
+                      <span style="font-size: 12px; color: #7A7F86">{{ c.when }}</span>
+                      <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: #4A4F55">{{ c.kind }}</span>
+                      <span style="font-size: 13.5px; color: #080808">{{ c.what }}</span>
+                      <span style="font-size: 12px; font-weight: 600; color: {{ c.color }}">{{ c.status }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 20px">
+                  <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 18px">
+                    <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">July playbook</div>
+                    <div style="display: flex; flex-direction: column; gap: 13px; margin-top: 14px">
+                      <sc-for list="{{ wsPlaybook }}" as="p" hint-placeholder-count="6">
+                        <div>
+                          <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px"><span style="font-weight: 500">{{ p.k }}</span><span style="color: #7A7F86">{{ p.done }}/{{ p.total }}</span></div>
+                          <div style="height: 4px; background: #F4F2EE; border-radius: 999px; overflow: hidden"><div style="height: 100%; width: {{ p.pct }}; background: #080808; border-radius: 999px"></div></div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                  <div style="border: 1px solid #EFE0BB; background: #FDFBF4; border-radius: 12px; padding: 18px">
+                    <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #8C6500">Negative verdict</div>
+                    <div style="font-size: 14px; line-height: 1.5; margin-top: 9px">The LinkedIn commercial-contract test lost: $840 spent, 1 lead. Recommend stopping it and telling Dana on Friday's call.</div>
+                    <button style="font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; margin-top: 13px; padding: 9px 16px; border-radius: 999px; border: 1px solid #080808; background: #FFFFFF; color: #080808">Draft the note</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ wsOrganic }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 20px">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: #E8E5DD; border: 1px solid #E8E5DD; border-radius: 12px; overflow: hidden">
+              <sc-for list="{{ organicMetrics }}" as="m" hint-placeholder-count="4">
+                <div style="background: #FFFFFF; padding: 16px 18px">
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">{{ m.k }}</div>
+                  <div style="font-family: 'Instrument Serif', serif; font-size: 40px; line-height: 1; margin-top: 8px">{{ m.v }}</div>
+                  <div style="font-size: 12px; font-weight: 500; color: {{ m.color }}; margin-top: 6px">{{ m.d }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start">
+              <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+                <div style="display: grid; grid-template-columns: 1fr 64px 64px 56px 92px 96px; gap: 10px; padding: 12px 20px; background: #F4F2EE; border-bottom: 1px solid #E8E5DD">
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Conversion keyword</div>
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: center">Was</div>
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: center">Now</div>
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: center">Δ</div>
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">Volume</div>
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">Trend</div>
+                </div>
+                <sc-for list="{{ keywords }}" as="k" hint-placeholder-count="6">
+                  <div style="display: grid; grid-template-columns: 1fr 64px 64px 56px 92px 96px; gap: 10px; align-items: center; padding: 13px 20px; border-bottom: 1px solid #E8E5DD">
+                    <span style="font-size: 13.5px; color: #080808">{{ k.term }}</span>
+                    <span style="font-size: 13px; color: #7A7F86; text-align: center; font-variant-numeric: tabular-nums">{{ k.was }}</span>
+                    <span style="font-family: 'Instrument Serif', serif; font-size: 22px; text-align: center; line-height: 1">{{ k.now }}</span>
+                    <span style="font-size: 12px; font-weight: 600; color: {{ k.color }}; text-align: center">{{ k.delta }}</span>
+                    <span style="font-size: 13px; color: #4A4F55; text-align: right; font-variant-numeric: tabular-nums">{{ k.vol }}</span>
+                    <span style="font-size: 12px; font-weight: 600; color: {{ k.color }}; text-align: right">{{ k.trend }}</span>
+                  </div>
+                </sc-for>
+                <div style="padding: 13px 20px; font-size: 12px; color: #7A7F86">Only keywords with recorded conversions in the last 90 days. 41 tracked, 6 shown.</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 20px">
+                <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 18px">
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Content pipeline</div>
+                  <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 14px">
+                    <sc-for list="{{ pipeline }}" as="p" hint-placeholder-count="4">
+                      <div style="border-bottom: 1px solid #E8E5DD; padding-bottom: 11px">
+                        <div style="font-size: 13.5px; font-weight: 500; line-height: 1.4">{{ p.title }}</div>
+                        <div style="display: flex; align-items: center; gap: 8px; margin-top: 5px">
+                          <span style="font-size: 11px; font-weight: 600; color: {{ p.color }}">{{ p.status }}</span>
+                          <span style="font-size: 11.5px; color: #7A7F86">· {{ p.note }}</span>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 18px">
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Loading pattern</div>
+                  <div style="display: flex; flex-direction: column; gap: 9px; margin-top: 14px">
+                    <div style="height: 12px; width: 72%; background: #E8E5DD; border-radius: 3px; animation: tmSkel 1.4s ease-in-out infinite"></div>
+                    <div style="height: 12px; width: 90%; background: #E8E5DD; border-radius: 3px; animation: tmSkel 1.4s ease-in-out infinite"></div>
+                    <div style="height: 12px; width: 54%; background: #E8E5DD; border-radius: 3px; animation: tmSkel 1.4s ease-in-out infinite"></div>
+                  </div>
+                  <div style="font-size: 12px; color: #7A7F86; margin-top: 12px">Search Console data lands 48 hours behind. Skeleton, never a blank panel.</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 14px">
+              <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap">
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Recommendation queue</span>
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; padding: 4px 10px; border-radius: 999px; background: #F4F2EE; color: #4A4F55">{{ recCount }}</span>
+                <span style="font-size: 12.5px; color: #7A7F86">Approving runs the job. Declining logs the reason and mutes the rule for 60 days.</span>
+              </div>
+              <sc-for list="{{ recs }}" as="r" hint-placeholder-count="2">
+                <dc-import name="RecCard" rec="{{ r }}" on-action="{{ onRecAction }}" hint-size="100%,440px"></dc-import>
+              </sc-for>
+            </div>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ wsPaidTab }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 20px">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: #E8E5DD; border: 1px solid #E8E5DD; border-radius: 12px; overflow: hidden">
+              <sc-for list="{{ paidMetrics }}" as="m" hint-placeholder-count="4">
+                <div style="background: #FFFFFF; padding: 16px 18px">
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">{{ m.k }}</div>
+                  <div style="font-family: 'Instrument Serif', serif; font-size: 40px; line-height: 1; margin-top: 8px">{{ m.v }}</div>
+                  <div style="font-size: 12px; font-weight: 500; color: {{ m.color }}; margin-top: 6px">{{ m.d }}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+              <div style="display: grid; grid-template-columns: 1fr 92px 72px 84px 84px 96px 116px; gap: 10px; padding: 12px 20px; background: #F4F2EE; border-bottom: 1px solid #E8E5DD">
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Running creative</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Channel</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">Days</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">Freq</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">CTR</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">Spend 28d</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">Health</div>
+              </div>
+              <sc-for list="{{ fatigueRows }}" as="f" hint-placeholder-count="4">
+                <div style="display: grid; grid-template-columns: 1fr 92px 72px 84px 84px 96px 116px; gap: 10px; align-items: center; padding: 13px 20px; border-bottom: 1px solid #E8E5DD">
+                  <span style="font-size: 13.5px; font-weight: 500">{{ f.name }}</span>
+                  <span style="font-size: 12.5px; color: #4A4F55">{{ f.ch }}</span>
+                  <span style="font-size: 13px; text-align: right; font-variant-numeric: tabular-nums">{{ f.days }}</span>
+                  <span style="font-size: 13px; font-weight: 600; color: {{ f.color }}; text-align: right">{{ f.freq }}</span>
+                  <span style="font-size: 13px; text-align: right; font-variant-numeric: tabular-nums">{{ f.ctr }}</span>
+                  <span style="font-size: 13px; text-align: right; font-variant-numeric: tabular-nums">{{ f.spend }}</span>
+                  <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: {{ f.color }}; text-align: right">{{ f.health }}</span>
+                </div>
+              </sc-for>
+              <div style="padding: 13px 20px; font-size: 12px; color: #7A7F86">Frequency ceiling is 3.0 for prospecting, 5.0 for retargeting. Anything above it raises a refresh rec automatically.</div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 14px">
+              <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap">
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Recommendation queue</span>
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; padding: 4px 10px; border-radius: 999px; background: #F4F2EE; color: #4A4F55">{{ recCount }}</span>
+                <span style="font-size: 12.5px; color: #7A7F86">New creative uploads paused. Going live is a separate, explicit yes.</span>
+              </div>
+              <sc-for list="{{ recs }}" as="r" hint-placeholder-count="1">
+                <dc-import name="RecCard" rec="{{ r }}" on-action="{{ onRecAction }}" hint-size="100%,460px"></dc-import>
+              </sc-for>
+            </div>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ wsSocial }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 20px">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: #E8E5DD; border: 1px solid #E8E5DD; border-radius: 12px; overflow: hidden">
+              <sc-for list="{{ socialMetrics }}" as="m" hint-placeholder-count="4">
+                <div style="background: #FFFFFF; padding: 16px 18px">
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">{{ m.k }}</div>
+                  <div style="font-family: 'Instrument Serif', serif; font-size: 40px; line-height: 1; margin-top: 8px">{{ m.v }}</div>
+                  <div style="font-size: 12px; font-weight: 500; color: {{ m.color }}; margin-top: 6px">{{ m.d }}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+              <div style="display: grid; grid-template-columns: 1fr 104px 84px 92px 92px 92px; gap: 10px; padding: 12px 20px; background: #F4F2EE; border-bottom: 1px solid #E8E5DD">
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Published post</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Network</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Date</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">Engaged</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">vs median</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">Call taps</div>
+              </div>
+              <sc-for list="{{ socialPosts }}" as="p" hint-placeholder-count="4">
+                <div style="display: grid; grid-template-columns: 1fr 104px 84px 92px 92px 92px; gap: 10px; align-items: center; padding: 13px 20px; border-bottom: 1px solid #E8E5DD">
+                  <span style="font-size: 13.5px; font-weight: 500">{{ p.title }}</span>
+                  <span style="font-size: 12.5px; color: #4A4F55">{{ p.net }}</span>
+                  <span style="font-size: 12.5px; color: #7A7F86">{{ p.date }}</span>
+                  <span style="font-size: 13px; text-align: right; font-variant-numeric: tabular-nums">{{ p.eng }}</span>
+                  <span style="font-family: 'Instrument Serif', serif; font-size: 22px; line-height: 1; text-align: right">{{ p.mult }}</span>
+                  <span style="font-size: 13px; text-align: right">{{ p.taps }}</span>
+                </div>
+              </sc-for>
+              <div style="padding: 13px 20px; font-size: 12px; color: #7A7F86">Engagement window: Tuesday and Thursday, 7–9 PM carries 61% of this account's total engagement.</div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 14px">
+              <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap">
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Recommendation queue</span>
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; padding: 4px 10px; border-radius: 999px; background: #F4F2EE; color: #4A4F55">{{ recCount }}</span>
+                <span style="font-size: 12.5px; color: #7A7F86">Drafts land in PostFlow unscheduled — scheduling stays a human call.</span>
+              </div>
+              <sc-for list="{{ recs }}" as="r" hint-placeholder-count="1">
+                <dc-import name="RecCard" rec="{{ r }}" on-action="{{ onRecAction }}" hint-size="100%,440px"></dc-import>
+              </sc-for>
+            </div>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ wsAeoTab }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 20px">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: #E8E5DD; border: 1px solid #E8E5DD; border-radius: 12px; overflow: hidden">
+              <sc-for list="{{ aeoCounts }}" as="m" hint-placeholder-count="4">
+                <div style="background: #FFFFFF; padding: 16px 18px">
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">{{ m.k }}</div>
+                  <div style="font-family: 'Instrument Serif', serif; font-size: 40px; line-height: 1; margin-top: 8px; color: {{ m.color }}">{{ m.v }}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+              <div style="display: grid; grid-template-columns: 1fr 132px 180px 60px 76px; gap: 10px; padding: 12px 20px; background: #F4F2EE; border-bottom: 1px solid #E8E5DD">
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Prompt</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Status</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Where</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: center">Trend</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">Checked</div>
+              </div>
+              <sc-for list="{{ aeoRows }}" as="a" hint-placeholder-count="8">
+                <div style="display: grid; grid-template-columns: 1fr 132px 180px 60px 76px; gap: 10px; align-items: center; padding: 13px 20px; border-bottom: 1px solid #E8E5DD">
+                  <span style="font-size: 13.5px">{{ a.q }}</span>
+                  <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: {{ a.fg }}; background: {{ a.bg }}; border: 1px solid {{ a.edge }}; border-radius: 999px; padding: 4px 10px; justify-self: start">{{ a.status }}</span>
+                  <span style="font-size: 12.5px; color: #4A4F55">{{ a.tools }}</span>
+                  <span style="font-size: 13px; color: {{ a.arrowColor }}; text-align: center">{{ a.arrow }}</span>
+                  <span style="font-size: 12.5px; color: #7A7F86; text-align: right">{{ a.last }}</span>
+                </div>
+              </sc-for>
+              <div style="padding: 13px 20px; font-size: 12px; color: #7A7F86">22 prompts, re-run every Monday against ChatGPT, Gemini and Google AI Overviews with the exact customer wording.</div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 14px">
+              <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap">
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Recommendation queue</span>
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; padding: 4px 10px; border-radius: 999px; background: #F4F2EE; color: #4A4F55">{{ recCount }}</span>
+                <span style="font-size: 12.5px; color: #7A7F86">Answer blocks stage against a live page and ship on the nightly deploy.</span>
+              </div>
+              <sc-for list="{{ recs }}" as="r" hint-placeholder-count="1">
+                <dc-import name="RecCard" rec="{{ r }}" on-action="{{ onRecAction }}" hint-size="100%,440px"></dc-import>
+              </sc-for>
+            </div>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ wsGbpTab }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 20px">
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: #E8E5DD; border: 1px solid #E8E5DD; border-radius: 12px; overflow: hidden">
+              <div style="background: #FFFFFF; padding: 16px 18px"><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Calls</div><div style="font-family: 'Instrument Serif', serif; font-size: 40px; line-height: 1; margin-top: 8px">184</div><div style="font-size: 12px; color: #2F8F4E; margin-top: 6px">+31</div></div>
+              <div style="background: #FFFFFF; padding: 16px 18px"><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Directions</div><div style="font-family: 'Instrument Serif', serif; font-size: 40px; line-height: 1; margin-top: 8px">96</div><div style="font-size: 12px; color: #2F8F4E; margin-top: 6px">+12</div></div>
+              <div style="background: #FFFFFF; padding: 16px 18px"><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Views</div><div style="font-family: 'Instrument Serif', serif; font-size: 40px; line-height: 1; margin-top: 8px">6,210</div><div style="font-size: 12px; color: #4A4F55; margin-top: 6px">steady</div></div>
+              <div style="background: #FFFFFF; padding: 16px 18px"><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Rating</div><div style="font-family: 'Instrument Serif', serif; font-size: 40px; line-height: 1; margin-top: 8px">4.8</div><div style="font-size: 12px; color: #4A4F55; margin-top: 6px">212 reviews</div></div>
+              <div style="background: #FFFFFF; padding: 16px 18px"><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Median reply</div><div style="font-family: 'Instrument Serif', serif; font-size: 40px; line-height: 1; margin-top: 8px">7h</div><div style="font-size: 12px; color: #2F8F4E; margin-top: 6px">SLA 24h</div></div>
+            </div>
+            <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+              <div style="padding: 15px 20px; border-bottom: 1px solid #E8E5DD; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Unanswered reviews · replies drafted</span>
+                <button onClick="{{ approveReplies }}" style="font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 9px 16px; border-radius: 999px; border: 1px solid #C7FF6A; background: #C7FF6A; color: #080808">Approve all three</button>
+              </div>
+              <div style="padding: 16px 20px; border-bottom: 1px solid #F0EEE8">
+                <div style="font-size: 12.5px; color: #7A7F86">★★★★★ · Marcus T. · 2 days ago · Congress Ave location</div>
+                <div style="font-size: 14px; margin-top: 6px">“Came out same day for our rooftop unit. Fair price, no upsell nonsense.”</div>
+                <div style="border-left: 2px solid #C7FF6A; padding-left: 13px; margin-top: 10px; font-size: 13px; color: #4A4F55">Draft: “Thanks Marcus — glad we could get you running the same day. See you at the next maintenance visit.”</div>
+              </div>
+              <div style="padding: 16px 20px; border-bottom: 1px solid #F0EEE8">
+                <div style="font-size: 12.5px; color: #7A7F86">★★★ · Priya S. · 4 days ago · needs a careful reply</div>
+                <div style="font-size: 14px; margin-top: 6px">“Work was good but the arrival window was wide and nobody called ahead.”</div>
+                <div style="border-left: 2px solid #8C6500; padding-left: 13px; margin-top: 10px; font-size: 13px; color: #4A4F55">Draft: “You're right, Priya — we should have called ahead. We've added a text-ahead step to every visit. Thank you for saying so.”</div>
+              </div>
+              <div style="padding: 16px 20px">
+                <div style="font-size: 12.5px; color: #7A7F86">★★★★★ · Ana G. · 5 days ago · Round Rock location</div>
+                <div style="font-size: 14px; margin-top: 6px">“Second year on the maintenance plan. Never had a summer failure since.”</div>
+                <div style="border-left: 2px solid #C7FF6A; padding-left: 13px; margin-top: 10px; font-size: 13px; color: #4A4F55">Draft: “That's exactly what the plan is for, Ana. Thanks for staying with us.”</div>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ wsAutomationTab }}" hint-placeholder-val="{{ false }}">
+          <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+            <div style="display: grid; grid-template-columns: 1fr 240px 150px 108px; gap: 12px; padding: 12px 20px; background: #F4F2EE; border-bottom: 1px solid #E8E5DD">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Automation</div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Volume since January</div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Last run</div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">Status</div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 240px 150px 108px; gap: 12px; align-items: center; padding: 14px 20px; border-bottom: 1px solid #E8E5DD">
+              <div><div style="font-size: 13.5px; font-weight: 600">Missed-call text-back</div><div style="font-size: 12px; color: #7A7F86; margin-top: 2px">CallRail → Twilio · 30s delay</div></div>
+              <span style="font-size: 13px">412 → 168 replied → 61 booked</span>
+              <span style="font-size: 12.5px; color: #7A7F86">14 minutes ago</span>
+              <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: #2F8F4E; background: #E5FFB8; border-radius: 999px; padding: 4px 10px; justify-self: end">Running</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 240px 150px 108px; gap: 12px; align-items: center; padding: 14px 20px; border-bottom: 1px solid #E8E5DD">
+              <div><div style="font-size: 13.5px; font-weight: 600">Post-job review request</div><div style="font-size: 12px; color: #7A7F86; margin-top: 2px">ServiceTitan close → SMS + email</div></div>
+              <span style="font-size: 13px">312 sent → 47 reviews</span>
+              <span style="font-size: 12.5px; color: #7A7F86">2 hours ago</span>
+              <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: #2F8F4E; background: #E5FFB8; border-radius: 999px; padding: 4px 10px; justify-self: end">Running</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 240px 150px 108px; gap: 12px; align-items: center; padding: 14px 20px; border-bottom: 1px solid #E8E5DD">
+              <div><div style="font-size: 13.5px; font-weight: 600">Maintenance-plan renewal reminder</div><div style="font-size: 12px; color: #7A7F86; margin-top: 2px">30 days before lapse · email + SMS</div></div>
+              <span style="font-size: 13px">88 sent → 71 renewed (81%)</span>
+              <span style="font-size: 12.5px; color: #7A7F86">Yesterday</span>
+              <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: #2F8F4E; background: #E5FFB8; border-radius: 999px; padding: 4px 10px; justify-self: end">Running</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 240px 150px 108px; gap: 12px; align-items: center; padding: 14px 20px">
+              <div><div style="font-size: 13.5px; font-weight: 600">Quote follow-up sequence</div><div style="font-size: 12px; color: #7A7F86; margin-top: 2px">Quotes over $2,000 · 3 touches / 10 days</div></div>
+              <span style="font-size: 13px; color: #4A4F55">On for 9 days — measuring</span>
+              <span style="font-size: 12.5px; color: #7A7F86">3 hours ago</span>
+              <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: #4A4F55; background: #F4F2EE; border-radius: 999px; padding: 4px 10px; justify-self: end">New</span>
+            </div>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ wsPlaybookTab }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 14px">
+            <sc-for list="{{ workstreams }}" as="w" hint-placeholder-count="6">
+              <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+                <div style="display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid #E8E5DD">
+                  <div style="font-size: 15px; font-weight: 600; min-width: 150px">{{ w.name }}</div>
+                  <div style="flex: 1; height: 4px; background: #F4F2EE; border-radius: 999px; overflow: hidden"><div style="height: 100%; width: {{ w.pct }}; background: #080808; border-radius: 999px"></div></div>
+                  <div style="font-size: 12.5px; color: #4A4F55; min-width: 88px; text-align: right">{{ w.done }}</div>
+                </div>
+                <sc-for list="{{ w.items }}" as="i" hint-placeholder-count="4">
+                  <div style="display: grid; grid-template-columns: 1fr 120px 120px; gap: 12px; align-items: center; padding: 11px 20px; border-bottom: 1px solid #F0EEE8">
+                    <div style="display: flex; align-items: center; gap: 10px">
+                      <span style="width: 16px; height: 16px; border-radius: 999px; background: {{ i.bg }}; color: {{ i.fg }}; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: none">{{ i.glyph }}</span>
+                      <span style="font-size: 13.5px">{{ i.text }}</span>
+                    </div>
+                    <span style="font-size: 12.5px; color: #7A7F86">{{ i.owner }}</span>
+                    <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: {{ i.fg }}; background: {{ i.bg }}; border-radius: 999px; padding: 4px 10px; justify-self: start">{{ i.status }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ wsQcTab }}" hint-placeholder-val="{{ false }}">
+          <div style="display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: start">
+            <div style="border: 1px solid #1E1E26; background: #080808; border-radius: 12px; padding: 22px; color: #FFFFFF">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #C7FF6A">Site score</div>
+              <div style="font-family: 'Instrument Serif', serif; font-size: 88px; line-height: 0.9; margin-top: 10px">{{ qcScore }}</div>
+              <div style="font-size: 13px; color: #B8BCB0; margin-top: 10px; line-height: 1.5">Two critical issues are holding it under 90. Last crawl 6 hours ago, 412 URLs.</div>
+              <button onClick="{{ runScan }}" style="font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; margin-top: 16px; padding: 9px 16px; border-radius: 999px; border: 1px solid #C7FF6A; background: #C7FF6A; color: #080808">Run scan now</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 20px">
+              <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+                <div style="padding: 14px 20px; border-bottom: 1px solid #E8E5DD; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Open issues</div>
+                <sc-for list="{{ qcIssues }}" as="i" hint-placeholder-count="5">
+                  <div style="display: flex; align-items: center; gap: 14px; padding: 13px 20px; border-bottom: 1px solid #E8E5DD; border-left: 3px solid {{ i.fg }}">
+                    <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; padding: 4px 10px; border-radius: 999px; background: {{ i.bg }}; color: {{ i.fg }}; flex: none">{{ i.sev }}</span>
+                    <span style="font-size: 13.5px; flex: 1">{{ i.text }}</span>
+                    <button style="font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; padding: 8px 14px; border-radius: 999px; border: 1px solid #E8E5DD; background: #FFFFFF; color: #080808; flex: none">Stage a fix</button>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+                <div style="padding: 14px 20px; border-bottom: 1px solid #E8E5DD; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Scan history</div>
+                <sc-for list="{{ qcHistory }}" as="r" hint-placeholder-count="5">
+                  <div style="display: grid; grid-template-columns: 120px 56px 1fr 40px; align-items: center; gap: 12px; padding: 11px 20px; border-bottom: 1px solid #F0EEE8">
+                    <span style="font-size: 12.5px; color: #7A7F86">{{ r.when }}</span>
+                    <span style="font-family: 'Instrument Serif', serif; font-size: 22px; line-height: 1">{{ r.score }}</span>
+                    <span style="font-size: 13px; color: #4A4F55">{{ r.detail }}</span>
+                    <span style="font-size: 13px; color: {{ r.color }}; text-align: right">{{ r.arrow }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ wsChangesTab }}" hint-placeholder-val="{{ false }}">
+          <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+            <div style="display: grid; grid-template-columns: 128px 84px 1fr 168px 132px; gap: 12px; padding: 12px 20px; background: #F4F2EE; border-bottom: 1px solid #E8E5DD">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">When</div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Channel</div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">What changed</div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Outcome</div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">Decided by</div>
+            </div>
+            <sc-for list="{{ changeLog }}" as="c" hint-placeholder-count="9">
+              <div style="display: grid; grid-template-columns: 128px 84px 1fr 168px 132px; gap: 12px; align-items: center; padding: 13px 20px; border-bottom: 1px solid #E8E5DD">
+                <span style="font-size: 12.5px; color: #7A7F86">{{ c.when }}</span>
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: #4A4F55">{{ c.kind }}</span>
+                <span style="font-size: 13.5px">{{ c.what }}</span>
+                <span style="font-size: 12.5px; font-weight: 600; color: {{ c.color }}">{{ c.status }}</span>
+                <span style="font-size: 12.5px; color: #7A7F86; text-align: right">{{ c.who }}</span>
+              </div>
+            </sc-for>
+            <div style="padding: 13px 20px; font-size: 12px; color: #7A7F86">Every row is a receipt: who decided, what ran, and what it did. The client sees a plain-language version of this in Results.</div>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ wsSettingsTab }}" hint-placeholder-val="{{ false }}">
+          <div style="display: grid; grid-template-columns: 1fr 360px; gap: 20px; align-items: start">
+            <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+              <div style="padding: 14px 20px; border-bottom: 1px solid #E8E5DD; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Connections</div>
+              <sc-for list="{{ connections }}" as="c" hint-placeholder-count="9">
+                <div style="display: grid; grid-template-columns: 220px 1fr 132px; gap: 12px; align-items: center; padding: 13px 20px; border-bottom: 1px solid #F0EEE8">
+                  <span style="font-size: 13.5px; font-weight: 500">{{ c.name }}</span>
+                  <span style="font-size: 12.5px; color: #7A7F86">{{ c.detail }}</span>
+                  <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: {{ c.color }}; text-align: right">{{ c.status }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 20px">
+              <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 18px">
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Guardrails</div>
+                <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 14px">
+                  <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #F0EEE8; padding-bottom: 10px"><span style="font-size: 13px; color: #4A4F55">Daily spend ceiling</span><span style="font-family: 'Instrument Serif', serif; font-size: 24px; line-height: 1">$1,400</span></div>
+                  <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #F0EEE8; padding-bottom: 10px"><span style="font-size: 13px; color: #4A4F55">Budget safe band</span><span style="font-size: 13.5px; font-weight: 600">±25% per change</span></div>
+                  <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #F0EEE8; padding-bottom: 10px"><span style="font-size: 13px; color: #4A4F55">New creative goes live</span><span style="font-size: 13.5px; font-weight: 600">Second yes required</span></div>
+                  <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 13px; color: #4A4F55">Approval SLA</span><span style="font-size: 13.5px; font-weight: 600">24 hours</span></div>
+                </div>
+              </div>
+              <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 18px">
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Who approves what</div>
+                <div style="display: flex; flex-direction: column; gap: 11px; margin-top: 14px">
+                  <div style="font-size: 13px; color: #4A4F55"><span style="font-weight: 600; color: #080808">Specialist</span> · site changes, budgets inside the band, creative refresh, AEO blocks</div>
+                  <div style="font-size: 13px; color: #4A4F55"><span style="font-weight: 600; color: #080808">Client</span> · blog topics, ad photos, brand decisions, review replies over 3 stars</div>
+                  <div style="font-size: 13px; color: #4A4F55"><span style="font-weight: 600; color: #080808">Nobody, automatically</span> · alt text, internal links, schema, review requests</div>
+                </div>
+              </div>
+              <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 18px">
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Muted rules</div>
+                <div style="font-size: 13px; color: #4A4F55; margin-top: 12px; line-height: 1.55">LinkedIn commercial-contract test · declined Jul 24, muted until Sep 22.<br>Homepage hero rewrite · declined Jun 30, muted until Aug 29.</div>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isQc }}" hint-placeholder-val="{{ false }}">
+        <div style="display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start">
+          <div style="border: 1px solid #1E1E26; background: #080808; border-radius: 12px; padding: 24px; color: #FFFFFF">
+            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #C7FF6A">Site score</div>
+            <div style="font-family: 'Instrument Serif', serif; font-size: 104px; line-height: 0.9; margin-top: 10px">{{ qcScore }}</div>
+            <div style="font-size: 13.5px; color: #B8BCB0; margin-top: 10px; line-height: 1.5">Up 14 points since April. Two critical issues are holding it under 90.</div>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px; border-top: 1px solid #1E1E26; padding-top: 18px">
+              <div style="display: flex; justify-content: space-between; font-size: 13px"><span style="color: #B8BCB0">URLs crawled</span><span style="font-weight: 600">412</span></div>
+              <div style="display: flex; justify-content: space-between; font-size: 13px"><span style="color: #B8BCB0">Critical</span><span style="font-weight: 600; color: #C0392B">2</span></div>
+              <div style="display: flex; justify-content: space-between; font-size: 13px"><span style="color: #B8BCB0">Cosmetic</span><span style="font-weight: 600">8</span></div>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 20px">
+            <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+              <div style="padding: 15px 20px; border-bottom: 1px solid #E8E5DD; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Open issues</div>
+              <sc-for list="{{ qcIssues }}" as="i" hint-placeholder-count="5">
+                <div style="display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid #E8E5DD; border-left: 3px solid {{ i.fg }}">
+                  <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; padding: 5px 11px; border-radius: 999px; background: {{ i.bg }}; color: {{ i.fg }}; flex: none">{{ i.sev }}</span>
+                  <span style="font-size: 13.5px; flex: 1">{{ i.text }}</span>
+                  <button style="font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; padding: 8px 14px; border-radius: 999px; border: 1px solid #E8E5DD; background: #FFFFFF; color: #080808; flex: none">Stage a fix</button>
+                </div>
+              </sc-for>
+            </div>
+            <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+              <div style="padding: 15px 20px; border-bottom: 1px solid #E8E5DD; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Scan history</div>
+              <sc-for list="{{ qcHistory }}" as="r" hint-placeholder-count="5">
+                <div style="display: grid; grid-template-columns: 120px 60px 1fr 40px; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid #E8E5DD">
+                  <span style="font-size: 12.5px; color: #7A7F86">{{ r.when }}</span>
+                  <span style="font-family: 'Instrument Serif', serif; font-size: 24px; line-height: 1">{{ r.score }}</span>
+                  <span style="font-size: 13px; color: #4A4F55">{{ r.detail }}</span>
+                  <span style="font-size: 13px; color: {{ r.color }}; text-align: right">{{ r.arrow }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPaid }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 18px">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+            <sc-for list="{{ paidTabs }}" as="t" hint-placeholder-count="3">
+              <button onClick="{{ t.go }}" style="font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 8px 16px; border-radius: 999px; border: 1px solid {{ t.edge }}; background: {{ t.bg }}; color: {{ t.fg }}">{{ t.label }}</button>
+            </sc-for>
+            <div style="flex: 1"></div>
+            <sc-for list="{{ paidTotals }}" as="p" hint-placeholder-count="4">
+              <div style="display: flex; align-items: baseline; gap: 8px; padding-left: 20px; border-left: 1px solid #E8E5DD">
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">{{ p.k }}</span>
+                <span style="font-family: 'Instrument Serif', serif; font-size: 26px; line-height: 1">{{ p.v }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+            <div style="display: grid; grid-template-columns: 1fr 92px 152px 92px 78px 68px 68px 96px; gap: 10px; padding: 12px 20px; background: #F4F2EE; border-bottom: 1px solid #E8E5DD">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Campaign · ad set · ad</div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Status</div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: center">Daily budget</div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">Spend 28d</div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">CPA</div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">Conv</div>
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; text-align: right">ROAS</div>
+              <div></div>
+            </div>
+            <sc-for list="{{ campaigns }}" as="c" hint-placeholder-count="6">
+              <div style="display: grid; grid-template-columns: 1fr 92px 152px 92px 78px 68px 68px 96px; gap: 10px; align-items: center; padding: 13px 20px; border-bottom: 1px solid #E8E5DD; background: {{ c.rowBg }}">
+                <div style="padding-left: {{ c.indent }}; min-width: 0">
+                  <div style="font-size: 13.5px; font-weight: {{ c.weight }}; color: #080808">{{ c.name }}</div>
+                  <div style="font-size: 11px; color: #7A7F86; margin-top: 2px">{{ c.level }} · safe band {{ c.band }}</div>
+                </div>
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; padding: 4px 10px; border-radius: 999px; background: {{ c.statusBg }}; color: {{ c.statusFg }}; justify-self: start">{{ c.statusLabel }}</span>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 6px">
+                  <button onClick="{{ c.down }}" style="font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; width: 28px; height: 28px; border-radius: 999px; border: 1px solid #E8E5DD; background: #FFFFFF; color: #080808">−</button>
+                  <span style="font-family: 'Instrument Serif', serif; font-size: 22px; line-height: 1; min-width: 56px; text-align: center">{{ c.budget }}</span>
+                  <button onClick="{{ c.up }}" style="font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; width: 28px; height: 28px; border-radius: 999px; border: 1px solid #E8E5DD; background: #FFFFFF; color: #080808">+</button>
+                </div>
+                <span style="font-size: 13px; text-align: right; font-variant-numeric: tabular-nums">{{ c.spend }}</span>
+                <span style="font-size: 13px; font-weight: 600; color: {{ c.cpaColor }}; text-align: right">{{ c.cpa }}</span>
+                <span style="font-size: 13px; text-align: right">{{ c.conv }}</span>
+                <span style="font-size: 13px; text-align: right">{{ c.roas }}</span>
+                <button onClick="{{ c.toggle }}" style="font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; padding: 8px 0; border-radius: 999px; border: 1px solid #E8E5DD; background: #FFFFFF; color: #080808">{{ c.toggleLabel }}</button>
+              </div>
+            </sc-for>
+            <div style="padding: 13px 20px; font-size: 12px; color: #7A7F86">Decreases and pauses apply immediately. Increases beyond the safe band require the confirmation below.</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isInventory }}" hint-placeholder-val="{{ false }}">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px">
+          <sc-for list="{{ inventory }}" as="g" hint-placeholder-count="9">
+            <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 20px">
+              <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px">
+                <div style="font-family: 'Instrument Serif', serif; font-size: 26px; line-height: 1">{{ g.group }}</div>
+                <div style="font-size: 11px; color: #7A7F86; text-align: right">{{ g.note }}</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px">
+                <sc-for list="{{ g.items }}" as="i" hint-placeholder-count="4">
+                  <div style="display: flex; align-items: center; gap: 9px; font-size: 13px; color: #4A4F55; border-bottom: 1px solid #F0EEE8; padding-bottom: 8px">
+                    <span style="width: 4px; height: 4px; border-radius: 999px; background: #C7FF6A; flex: none"></span>{{ i }}
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isHome }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 22px; max-width: 1080px">
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px">
+            <sc-for list="{{ homeMetrics }}" as="m" hint-placeholder-count="4">
+              <div onMouseEnter="{{ m.enter }}" onMouseLeave="{{ m.leave }}" style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 20px; min-height: 168px; display: flex; flex-direction: column">
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px">
+                  <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55; max-width: 16ch">{{ m.k }}</div>
+                  <span style="width: 17px; height: 17px; border-radius: 999px; border: 1px solid #E8E5DD; color: #7A7F86; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex: none">?</span>
+                </div>
+                <div style="font-family: 'Instrument Serif', serif; font-size: 58px; line-height: 1; margin-top: 12px">{{ m.v }}</div>
+                <div style="font-size: 13px; font-weight: 500; color: {{ m.color }}; margin-top: 8px">{{ m.note }}</div>
+                <sc-if value="{{ m.showExplain }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size: 12.5px; line-height: 1.5; color: #4A4F55; margin-top: 12px; border-top: 1px solid #E8E5DD; padding-top: 10px; animation: tmRise 200ms cubic-bezier(0.2,0.7,0.2,1)">{{ m.explain }}</div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px">
+            <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 26px">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">This month, in one sentence</div>
+              <div style="font-family: 'Instrument Serif', serif; font-size: 34px; line-height: 1.15; margin-top: 12px; text-wrap: pretty">We are making the maintenance-plan side of your business easier to find, because those customers are worth <span style="color: #8FCC2E">four times</span> a one-off repair.</div>
+              <div style="display: flex; align-items: center; gap: 12px; margin-top: 20px">
+                <button onClick="{{ headerAction }}" style="font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; padding: 11px 20px; border-radius: 999px; border: 1px solid #080808; background: #FFFFFF; color: #080808">See the full plan</button>
+                <span style="font-size: 12.5px; color: #7A7F86">9 of 22 commitments done · 41% of July</span>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 16px">
+              <div style="border: 1px solid #1E1E26; background: #080808; border-radius: 12px; padding: 22px; color: #FFFFFF">
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #C7FF6A">The best thing that happened</div>
+                <div style="font-size: 17px; line-height: 1.45; margin-top: 11px">When someone asks ChatGPT who does commercial HVAC maintenance in Austin, <span style="color: #C7FF6A">you are now named</span> — three months ago you were not.</div>
+              </div>
+              <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 18px">
+                <div style="display: flex; align-items: center; gap: 9px">
+                  <span style="width: 7px; height: 7px; border-radius: 999px; background: #B8BCB0"></span>
+                  <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Measuring — 12 days left</span>
+                </div>
+                <div style="font-size: 13.5px; line-height: 1.5; color: #4A4F55; margin-top: 9px">The new maintenance-plan page needs 30 days of traffic before we can say whether it works. We will not guess before then.</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 22px 26px; display: flex; align-items: center; gap: 22px; flex-wrap: wrap">
+            <div style="flex: 1; min-width: 260px">
+              <div style="font-size: 15.5px; font-weight: 600">Two things are waiting on you</div>
+              <div style="font-size: 13.5px; color: #4A4F55; margin-top: 4px">A blog topic and an ad photo. About two minutes, no jargon.</div>
+            </div>
+            <button onClick="{{ goPortalApprovals }}" style="font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; padding: 12px 22px; border-radius: 999px; border: 1px solid #C7FF6A; background: #C7FF6A; color: #080808">Review both</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPlaybook }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 16px; max-width: 1080px">
+          <sc-for list="{{ workstreams }}" as="w" hint-placeholder-count="6">
+            <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+              <div style="display: flex; align-items: center; gap: 18px; padding: 18px 24px; border-bottom: 1px solid #E8E5DD">
+                <div style="font-family: 'Instrument Serif', serif; font-size: 28px; line-height: 1; min-width: 190px">{{ w.name }}</div>
+                <div style="flex: 1; height: 5px; background: #F4F2EE; border-radius: 999px; overflow: hidden"><div style="height: 100%; width: {{ w.pct }}; background: #080808; border-radius: 999px"></div></div>
+                <div style="font-size: 12.5px; color: #4A4F55; min-width: 92px; text-align: right">{{ w.done }}</div>
+              </div>
+              <sc-for list="{{ w.items }}" as="i" hint-placeholder-count="4">
+                <div style="display: grid; grid-template-columns: 1fr 130px 132px; gap: 14px; align-items: center; padding: 13px 24px; border-bottom: 1px solid #F0EEE8">
+                  <div style="display: flex; align-items: center; gap: 11px">
+                    <span style="width: 18px; height: 18px; border-radius: 999px; background: {{ i.bg }}; color: {{ i.fg }}; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: none">{{ i.glyph }}</span>
+                    <span style="font-size: 14px; color: #080808">{{ i.text }}</span>
+                  </div>
+                  <span style="font-size: 12.5px; color: #7A7F86">{{ i.owner }}</span>
+                  <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: {{ i.fg }}; background: {{ i.bg }}; border-radius: 999px; padding: 5px 11px; justify-self: start">{{ i.status }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+          <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+            <div style="padding: 16px 24px; border-bottom: 1px solid #E8E5DD; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Earlier months · what they produced</div>
+            <sc-for list="{{ archive }}" as="a" hint-placeholder-count="3">
+              <div style="display: grid; grid-template-columns: 100px 1fr 150px; gap: 14px; align-items: center; padding: 15px 24px; border-bottom: 1px solid #F0EEE8">
+                <span style="font-family: 'Instrument Serif', serif; font-size: 24px; line-height: 1">{{ a.month }}</span>
+                <span style="font-size: 14px; color: {{ a.color }}">{{ a.outcome }}</span>
+                <span style="font-size: 12.5px; color: #7A7F86; text-align: right">{{ a.shipped }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPOrganic }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 20px; max-width: 1080px">
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px">
+            <sc-for list="{{ concepts }}" as="c" hint-placeholder-count="2">
+              <div style="border: 1px solid #EFE0BB; background: #FDFBF4; border-radius: 12px; padding: 22px">
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #8C6500">{{ c.status }}</div>
+                <div style="font-size: 19px; font-weight: 600; line-height: 1.35; margin-top: 10px; text-wrap: pretty">{{ c.title }}</div>
+                <div style="font-size: 13.5px; color: #4A4F55; margin-top: 8px">{{ c.why }}</div>
+                <button onClick="{{ c.go }}" style="font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 16px; padding: 10px 18px; border-radius: 999px; border: 1px solid #080808; background: #FFFFFF; color: #080808">Take a look</button>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+            <div style="padding: 16px 24px; border-bottom: 1px solid #E8E5DD">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Where you show up on Google</div>
+              <div style="font-size: 13px; color: #7A7F86; margin-top: 5px">Only the searches that turn into calls. We ignore the rest.</div>
+            </div>
+            <sc-for list="{{ pKeywords }}" as="k" hint-placeholder-count="4">
+              <div style="display: grid; grid-template-columns: 1fr 120px 230px; gap: 16px; align-items: center; padding: 16px 24px; border-bottom: 1px solid #F0EEE8">
+                <span style="font-size: 14.5px">{{ k.term }}</span>
+                <span style="font-family: 'Instrument Serif', serif; font-size: 22px; line-height: 1; text-align: center">{{ k.move }}</span>
+                <span style="font-size: 12.5px; font-weight: 500; color: {{ k.color }}; text-align: right">{{ k.note }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+            <div style="padding: 16px 24px; border-bottom: 1px solid #E8E5DD; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Published for you</div>
+            <sc-for list="{{ published }}" as="p" hint-placeholder-count="3">
+              <div style="display: grid; grid-template-columns: 1fr 130px 210px 110px; gap: 14px; align-items: center; padding: 15px 24px; border-bottom: 1px solid #F0EEE8">
+                <span style="font-size: 14.5px">{{ p.title }}</span>
+                <span style="font-size: 12.5px; color: #7A7F86">{{ p.age }}</span>
+                <span style="font-size: 13px; color: #4A4F55">{{ p.result }}</span>
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: {{ p.color }}; background: {{ p.bg }}; border-radius: 999px; padding: 5px 11px; justify-self: end">{{ p.verdict }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPPaid }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 20px; max-width: 1080px">
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: #E8E5DD; border: 1px solid #E8E5DD; border-radius: 12px; overflow: hidden">
+            <div style="background: #FFFFFF; padding: 20px">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Spent in July</div>
+              <div style="font-family: 'Instrument Serif', serif; font-size: 48px; line-height: 1; margin-top: 10px">$8,640</div>
+              <div style="font-size: 12.5px; color: #4A4F55; margin-top: 6px">of your $9,000 budget</div>
+            </div>
+            <div style="background: #FFFFFF; padding: 20px">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Jobs booked</div>
+              <div style="font-family: 'Instrument Serif', serif; font-size: 48px; line-height: 1; margin-top: 10px">65</div>
+              <div style="font-size: 12.5px; color: #2F8F4E; margin-top: 6px">+18 vs June</div>
+            </div>
+            <div style="background: #FFFFFF; padding: 20px">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Cost per job</div>
+              <div style="font-family: 'Instrument Serif', serif; font-size: 48px; line-height: 1; margin-top: 10px">$133</div>
+              <div style="font-size: 12.5px; color: #2F8F4E; margin-top: 6px">down from $158</div>
+            </div>
+            <div style="background: #FFFFFF; padding: 20px">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Back for every $1</div>
+              <div style="font-family: 'Instrument Serif', serif; font-size: 48px; line-height: 1; margin-top: 10px">$3.40</div>
+              <div style="font-size: 12.5px; color: #4A4F55; margin-top: 6px">Meta · Google · LinkedIn combined</div>
+            </div>
+          </div>
+
+          <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 22px 24px">
+            <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 14px">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Running right now</div>
+              <div style="font-size: 12.5px; color: #7A7F86">Four creatives live across Meta and Google</div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 16px">
+              <sc-for list="{{ creatives }}" as="c" hint-placeholder-count="4">
+                <div style="border: 1px solid #E8E5DD; border-radius: 8px; overflow: hidden">
+                  <div style="height: 148px; background: {{ c.tone }}; display: flex; align-items: flex-end; padding: 12px">
+                    <div style="height: 12px; width: 60%; background: rgba(8,8,8,0.14); border-radius: 2px"></div>
+                  </div>
+                  <div style="padding: 12px; border-top: 1px solid #E8E5DD">
+                    <div style="font-size: 13.5px; font-weight: 600">{{ c.name }}</div>
+                    <div style="font-size: 12px; color: #4A4F55; margin-top: 5px">{{ c.spend }} · {{ c.result }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; padding: 22px 24px">
+            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">What we are testing</div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 16px">
+              <div>
+                <div style="font-size: 15px; font-weight: 600">A testimonial video cut</div>
+                <div style="font-size: 13px; color: #4A4F55; margin-top: 6px">Against the stone photo. Launched Monday — measuring, 12 days left.</div>
+              </div>
+              <div>
+                <div style="font-size: 15px; font-weight: 600">Maintenance plan vs repair offer</div>
+                <div style="font-size: 13px; color: #4A4F55; margin-top: 6px">Plan wins on cost per lead so far: $88 vs $133.</div>
+              </div>
+              <div>
+                <div style="font-size: 15px; font-weight: 600">LinkedIn for commercial contracts</div>
+                <div style="font-size: 13px; color: #4A4F55; margin-top: 6px">Inconclusive after $840. We are recommending we stop it.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isAeo }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 18px; max-width: 1000px">
+          <div style="border: 1px solid #1E1E26; background: #080808; border-radius: 12px; padding: 30px 32px; color: #FFFFFF; display: flex; align-items: center; gap: 34px; flex-wrap: wrap">
+            <div style="flex: 1; min-width: 300px">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #C7FF6A">Answer engine visibility</div>
+              <div style="font-family: 'Instrument Serif', serif; font-size: 40px; line-height: 1.1; margin-top: 12px">You are named in <span style="color: #C7FF6A">3 of the 8</span> questions your buyers ask AI.</div>
+              <div style="font-size: 14px; color: #B8BCB0; margin-top: 12px; line-height: 1.5">In January it was zero. We check ChatGPT, Gemini and Google AI Overviews every week using the exact wording real customers use.</div>
+            </div>
+            <div style="display: flex; gap: 28px">
+              <div><div style="font-family: 'Instrument Serif', serif; font-size: 52px; line-height: 1; color: #C7FF6A">3</div><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #B8BCB0; margin-top: 6px">Cited</div></div>
+              <div><div style="font-family: 'Instrument Serif', serif; font-size: 52px; line-height: 1">2</div><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #B8BCB0; margin-top: 6px">Mentioned</div></div>
+              <div><div style="font-family: 'Instrument Serif', serif; font-size: 52px; line-height: 1; color: #7A7F86">3</div><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #B8BCB0; margin-top: 6px">Not yet</div></div>
+            </div>
+          </div>
+
+          <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+            <sc-for list="{{ aeoPrompts }}" as="a" hint-placeholder-count="8">
+              <div style="display: grid; grid-template-columns: 1fr 132px 300px; gap: 16px; align-items: center; padding: 17px 24px; border-bottom: 1px solid #F0EEE8">
+                <span style="font-size: 15px; color: #080808">“{{ a.q }}”</span>
+                <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: {{ a.fg }}; background: {{ a.bg }}; border: 1px solid {{ a.edge }}; border-radius: 999px; padding: 5px 12px; justify-self: start">{{ a.status }}</span>
+                <span style="font-size: 12.5px; color: {{ a.trendColor }}; text-align: right">{{ a.trend }}</span>
+              </div>
+            </sc-for>
+            <div style="padding: 15px 24px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap">
+              <span style="font-size: 12.5px; color: #7A7F86">22 questions tracked · 8 shown · checked every Monday</span>
+              <button style="font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 9px 18px; border-radius: 999px; border: 1px solid #080808; background: #FFFFFF; color: #080808">Share this page</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isGbp }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 18px; max-width: 1000px">
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: #E8E5DD; border: 1px solid #E8E5DD; border-radius: 12px; overflow: hidden">
+            <div style="background: #FFFFFF; padding: 20px"><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Calls</div><div style="font-family: 'Instrument Serif', serif; font-size: 46px; line-height: 1; margin-top: 10px">184</div><div style="font-size: 12.5px; color: #2F8F4E; margin-top: 6px">+31 vs June</div></div>
+            <div style="background: #FFFFFF; padding: 20px"><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Direction requests</div><div style="font-family: 'Instrument Serif', serif; font-size: 46px; line-height: 1; margin-top: 10px">96</div><div style="font-size: 12.5px; color: #2F8F4E; margin-top: 6px">+12</div></div>
+            <div style="background: #FFFFFF; padding: 20px"><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Profile views</div><div style="font-family: 'Instrument Serif', serif; font-size: 46px; line-height: 1; margin-top: 10px">6,210</div><div style="font-size: 12.5px; color: #4A4F55; margin-top: 6px">steady</div></div>
+            <div style="background: #FFFFFF; padding: 20px"><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Rating</div><div style="font-family: 'Instrument Serif', serif; font-size: 46px; line-height: 1; margin-top: 10px">4.8</div><div style="font-size: 12.5px; color: #4A4F55; margin-top: 6px">from 212 reviews</div></div>
+          </div>
+          <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden">
+            <div style="padding: 16px 24px; border-bottom: 1px solid #E8E5DD; display: flex; align-items: center; justify-content: space-between">
+              <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Three reviews need a reply · we drafted them</span>
+              <button style="font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 9px 18px; border-radius: 999px; border: 1px solid #C7FF6A; background: #C7FF6A; color: #080808">Approve all three</button>
+            </div>
+            <div style="padding: 18px 24px; border-bottom: 1px solid #F0EEE8">
+              <div style="font-size: 13px; color: #7A7F86">★★★★★ · Marcus T. · 2 days ago</div>
+              <div style="font-size: 14.5px; margin-top: 7px">“Came out same day for our rooftop unit. Fair price, no upsell nonsense.”</div>
+              <div style="border-left: 2px solid #C7FF6A; padding-left: 14px; margin-top: 12px; font-size: 13.5px; color: #4A4F55">Our draft: “Thanks Marcus — glad we could get you running the same day. We'll see you at the next maintenance visit.”</div>
+            </div>
+            <div style="padding: 18px 24px">
+              <div style="font-size: 13px; color: #7A7F86">★★★ · Priya S. · 4 days ago</div>
+              <div style="font-size: 14.5px; margin-top: 7px">“Work was good but the arrival window was wide and nobody called ahead.”</div>
+              <div style="border-left: 2px solid #C7FF6A; padding-left: 14px; margin-top: 12px; font-size: 13.5px; color: #4A4F55">Our draft: “You're right, Priya — we should have called ahead. We've added a text-ahead step for every visit. Thank you for saying so.”</div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isAutomation }}" hint-placeholder-val="{{ false }}">
+        <div style="border: 1px solid #E8E5DD; background: #FFFFFF; border-radius: 12px; overflow: hidden; max-width: 1000px">
+          <div style="display: grid; grid-template-columns: 1fr 300px 130px; gap: 16px; align-items: center; padding: 18px 24px; border-bottom: 1px solid #F0EEE8">
+            <div><div style="font-size: 15.5px; font-weight: 600">Missed-call text-back</div><div style="font-size: 13px; color: #4A4F55; margin-top: 4px">If nobody answers, the caller gets a text within 30 seconds.</div></div>
+            <div style="font-size: 13.5px; color: #080808">412 missed calls → 168 replied → 61 booked</div>
+            <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: #2F8F4E; background: #E5FFB8; border-radius: 999px; padding: 5px 12px; justify-self: end">Running</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 300px 130px; gap: 16px; align-items: center; padding: 18px 24px; border-bottom: 1px solid #F0EEE8">
+            <div><div style="font-size: 15.5px; font-weight: 600">Review requests after every job</div><div style="font-size: 13px; color: #4A4F55; margin-top: 4px">Sent two hours after the technician closes the ticket.</div></div>
+            <div style="font-size: 13.5px; color: #080808">312 requests sent → 47 reviews collected</div>
+            <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: #2F8F4E; background: #E5FFB8; border-radius: 999px; padding: 5px 12px; justify-self: end">Running</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 300px 130px; gap: 16px; align-items: center; padding: 18px 24px; border-bottom: 1px solid #F0EEE8">
+            <div><div style="font-size: 15.5px; font-weight: 600">Maintenance-plan renewal reminders</div><div style="font-size: 13px; color: #4A4F55; margin-top: 4px">Email plus text, 30 days before the plan lapses.</div></div>
+            <div style="font-size: 13.5px; color: #080808">88 reminders → 71 renewed (81%)</div>
+            <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: #2F8F4E; background: #E5FFB8; border-radius: 999px; padding: 5px 12px; justify-self: end">Running</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 300px 130px; gap: 16px; align-items: center; padding: 18px 24px">
+            <div><div style="font-size: 15.5px; font-weight: 600">Quote follow-up sequence</div><div style="font-size: 13px; color: #4A4F55; margin-top: 4px">Three touches over ten days on any quote over $2,000.</div></div>
+            <div style="font-size: 13.5px; color: #4A4F55">Turned on 9 days ago — measuring</div>
+            <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: #4A4F55; background: #F4F2EE; border-radius: 999px; padding: 5px 12px; justify-self: end">New</span>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPApprovals }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 16px; max-width: 860px">
+          <div style="font-size: 14px; color: #4A4F55; max-width: 62ch">Everything below is finished and checked. Say yes and it goes live tonight, or tell us what to change — either answer is useful.</div>
+          <sc-for list="{{ portalQueue }}" as="p" hint-placeholder-count="2">
+            <dc-import name="ApprovalCard" card="{{ p }}" warm="{{ true }}" hint-size="100%,420px"></dc-import>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isMobile }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; gap: 34px; align-items: flex-start; flex-wrap: wrap">
+          <div style="width: 390px; border: 1px solid #E8E5DD; border-radius: 28px; background: #FFFFFF; overflow: hidden; box-shadow: 0 12px 28px rgba(8,8,8,0.10)">
+            <div style="padding: 16px 20px 12px; border-bottom: 1px solid #E8E5DD; display: flex; align-items: center; justify-content: space-between">
+              <div style="font-family: 'Instrument Serif', serif; font-size: 21px">Growth<span style="color: #8FCC2E"> OS</span></div>
+              <div style="width: 30px; height: 30px; border-radius: 999px; background: #080808; color: #C7FF6A; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center">DR</div>
+            </div>
+            <div style="padding: 20px">
+              <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Ridgeline HVAC · July</div>
+              <div style="font-family: 'Instrument Serif', serif; font-size: 32px; line-height: 1.05; margin-top: 8px">Is this working?</div>
+              <div style="font-size: 14px; color: #4A4F55; margin-top: 8px">Yes. Calls are up 31% and your cost per lead is down.</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px">
+                <div style="border: 1px solid #E8E5DD; border-radius: 12px; padding: 14px"><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Calls</div><div style="font-family: 'Instrument Serif', serif; font-size: 38px; line-height: 1; margin-top: 6px">184</div><div style="font-size: 12px; color: #2F8F4E; margin-top: 4px">+31</div></div>
+                <div style="border: 1px solid #E8E5DD; border-radius: 12px; padding: 14px"><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Cost / lead</div><div style="font-family: 'Instrument Serif', serif; font-size: 38px; line-height: 1; margin-top: 6px">$96</div><div style="font-size: 12px; color: #2F8F4E; margin-top: 4px">−$13</div></div>
+                <div style="border: 1px solid #E8E5DD; border-radius: 12px; padding: 14px"><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Found you</div><div style="font-family: 'Instrument Serif', serif; font-size: 38px; line-height: 1; margin-top: 6px">9.4k</div><div style="font-size: 12px; color: #2F8F4E; margin-top: 4px">+18%</div></div>
+                <div style="border: 1px solid #E8E5DD; border-radius: 12px; padding: 14px"><div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Jobs from ads</div><div style="font-family: 'Instrument Serif', serif; font-size: 38px; line-height: 1; margin-top: 6px">65</div><div style="font-size: 12px; color: #2F8F4E; margin-top: 4px">3.4x</div></div>
+              </div>
+              <div style="border: 1px solid #1E1E26; background: #080808; border-radius: 12px; padding: 18px; margin-top: 14px; color: #FFFFFF">
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #C7FF6A">Best thing this month</div>
+                <div style="font-size: 15px; line-height: 1.45; margin-top: 9px">Ask ChatGPT who does commercial HVAC maintenance in Austin — <span style="color: #C7FF6A">you get named</span>.</div>
+              </div>
+              <button style="width: 100%; font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 14px; padding: 15px 0; border-radius: 999px; border: 1px solid #C7FF6A; background: #C7FF6A; color: #080808">Review 2 things waiting</button>
+              <div style="font-size: 12px; color: #7A7F86; text-align: center; margin-top: 10px">A blog topic and an ad photo · about 2 minutes</div>
+            </div>
+            <div style="display: flex; border-top: 1px solid #E8E5DD">
+              <div style="flex: 1; text-align: center; padding: 13px 0; font-size: 11px; font-weight: 600; color: #080808; border-top: 2px solid #080808">Home</div>
+              <div style="flex: 1; text-align: center; padding: 13px 0; font-size: 11px; font-weight: 600; color: #7A7F86">Plan</div>
+              <div style="flex: 1; text-align: center; padding: 13px 0; font-size: 11px; font-weight: 600; color: #7A7F86">Results</div>
+              <div style="flex: 1; text-align: center; padding: 13px 0; font-size: 11px; font-weight: 600; color: #7A7F86">Approvals</div>
+            </div>
+          </div>
+          <div style="max-width: 380px; padding-top: 10px">
+            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Mobile rules</div>
+            <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px">
+              <div style="font-size: 14px; line-height: 1.55; color: #4A4F55">One column. Metrics drop to a 2×2 grid; the serif numeral never goes below 32px.</div>
+              <div style="font-size: 14px; line-height: 1.55; color: #4A4F55">Hover explanations become tap-to-expand — nothing depends on a pointer.</div>
+              <div style="font-size: 14px; line-height: 1.55; color: #4A4F55">Every target is at least 44px tall. The one green button sits above the fold.</div>
+              <div style="font-size: 14px; line-height: 1.55; color: #4A4F55">Approval cards stack their before/after vertically and keep the actions pinned at the bottom of the card.</div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <div data-tail="1"></div>
+    </div>
+  </div>
+
+  <sc-if value="{{ liveConfirm }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; inset: 0; z-index: 50; background: rgba(8,8,8,0.42); display: flex; align-items: center; justify-content: center; padding: 40px">
+      <div style="width: 520px; max-width: 100%; background: #FFFFFF; border: 1px solid #E8E5DD; border-radius: 12px; padding: 30px 32px; animation: tmRise 200ms cubic-bezier(0.2,0.7,0.2,1)">
+        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #8C6500">Second yes · this starts spending</div>
+        <div style="font-family: 'Instrument Serif', serif; font-size: 32px; line-height: 1.1; margin-top: 12px">{{ liveName }} goes live at</div>
+        <div style="display: flex; align-items: baseline; gap: 14px; margin-top: 10px">
+          <span style="font-family: 'Instrument Serif', serif; font-size: 84px; line-height: 0.95">{{ liveBudget }}</span>
+          <span style="font-size: 14px; color: #4A4F55">per day</span>
+        </div>
+        <div style="font-size: 14px; color: #4A4F55; margin-top: 14px; line-height: 1.55">{{ liveMonthly }}. The other two concepts stay paused. You can pause this again at any time without a second approval.</div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 24px">
+          <button onClick="{{ confirmLive }}" style="font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; padding: 12px 22px; border-radius: 999px; border: 1px solid #C7FF6A; background: #C7FF6A; color: #080808">Set live at {{ liveBudget }}/day</button>
+          <button onClick="{{ cancelLive }}" style="font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; padding: 12px 20px; border-radius: 999px; border: 1px solid #E8E5DD; background: #FFFFFF; color: #080808">Keep it paused</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ pending }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; inset: 0; z-index: 50; background: rgba(8,8,8,0.42); display: flex; align-items: center; justify-content: center; padding: 40px">
+      <div style="width: 520px; max-width: 100%; background: #FFFFFF; border: 1px solid #E8E5DD; border-radius: 12px; padding: 30px 32px; animation: tmRise 200ms cubic-bezier(0.2,0.7,0.2,1)">
+        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #8C6500">This increases spend exposure</div>
+        <div style="font-family: 'Instrument Serif', serif; font-size: 34px; line-height: 1.1; margin-top: 12px">You are committing to</div>
+        <div style="display: flex; align-items: baseline; gap: 14px; margin-top: 10px">
+          <span style="font-family: 'Instrument Serif', serif; font-size: 84px; line-height: 0.95">{{ pendingTo }}</span>
+          <span style="font-size: 14px; color: #4A4F55">per day · {{ pendingDelta }}</span>
+        </div>
+        <div style="font-size: 14px; color: #4A4F55; margin-top: 14px; line-height: 1.55">{{ pendingName }} · currently {{ pendingFrom }}. Left running, that is {{ pendingMonthly }}. You can lower it again at any time without a second approval.</div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 24px">
+          <button onClick="{{ confirmBudget }}" style="font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; padding: 12px 22px; border-radius: 999px; border: 1px solid #C7FF6A; background: #C7FF6A; color: #080808">Commit {{ pendingTo }}/day</button>
+          <button onClick="{{ cancelBudget }}" style="font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; padding: 12px 20px; border-radius: 999px; border: 1px solid #E8E5DD; background: #FFFFFF; color: #080808">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; left: 272px; bottom: 24px; z-index: 40; display: flex; align-items: center; gap: 12px; background: #080808; color: #FFFFFF; border-radius: 999px; padding: 12px 20px; box-shadow: 0 12px 28px rgba(8,8,8,0.18); animation: tmRise 200ms cubic-bezier(0.2,0.7,0.2,1)">
+      <span style="width: 7px; height: 7px; border-radius: 999px; background: #C7FF6A"></span>
+      <span style="font-size: 13.5px; font-weight: 500">{{ toast }}</span>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;comfortable&quot;,&quot;dense&quot;],&quot;default&quot;:&quot;comfortable&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Agency&quot;},&quot;showSpendGuard&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Paid controls&quot;},&quot;portalTone&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;warm&quot;,&quot;neutral&quot;],&quot;default&quot;:&quot;warm&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Client portal&quot;}}">
+const CH = ['Organic', 'AI', 'Paid', 'Social', 'Site'];
+
+const CAMPAIGNS = [
+  { id: 'c1', name: 'Maintenance Plans — Prospecting', level: 'Campaign', budget: 205, floor: 120, ceiling: 260, spend: '$5,740', cpa: '$88', conv: '65', roas: '3.4x', paused: false },
+  { id: 'c2', name: 'Austin metro · 25–65', level: 'Ad set', budget: 135, floor: 80, ceiling: 180, spend: '$3,780', cpa: '$81', conv: '47', roas: '3.6x', paused: false },
+  { id: 'c3', name: 'Rooftop unit — stone hero', level: 'Ad', budget: 70, floor: 40, ceiling: 95, spend: '$1,960', cpa: '$92', conv: '18', roas: '3.1x', paused: false },
+  { id: 'c4', name: 'Emergency Service — Retargeting', level: 'Campaign', budget: 90, floor: 60, ceiling: 140, spend: '$2,520', cpa: '$61', conv: '41', roas: '4.2x', paused: false },
+  { id: 'c5', name: 'Whitening — Broad (test)', level: 'Ad set', budget: 156, floor: 0, ceiling: 200, spend: '$2,180', cpa: '$545', conv: '4', roas: '0.6x', paused: false, over: true },
+  { id: 'c6', name: 'Commercial Contracts — Cold', level: 'Campaign', budget: 60, floor: 40, ceiling: 120, spend: '$1,680', cpa: '$140', conv: '12', roas: '1.9x', paused: true }
+];
+
+const RECS = [
+  { id: 'r1', tab: 'Organic', variant: 'titletag', priority: 'High', rule: 'Rank gap · page one within reach', agent: 'SEO agent', age: '4h', client: 'Ridgeline HVAC',
+    title: 'Rewrite the services page title and H1 around "commercial hvac maintenance"',
+    why: '1,400 searches a month, you sit at #11, and the page still says "Our Services". Intent match is the only thing missing.',
+    impactFig: '+38', impactNote: 'sessions / mo', impactBasis: 'Modelled from the CTR curve at #6–8 · confidence medium',
+    beforeTitle: 'Our Services | Ridgeline HVAC', beforeH1: 'Our Services',
+    afterTitle: 'Commercial HVAC Maintenance in Austin | Ridgeline HVAC', afterH1: 'Commercial HVAC maintenance that keeps you running',
+    steps: ['Apply the staged title and H1', 'Deploy to the live site', 'Verify render, schema and internal links', 'Open the 28-day measurement window'],
+    foot: 'Staged and QC-clean · 6/6', approveLabel: 'Approve & publish',
+    receipt: 'Published at 11:58 AM. The 28-day measurement window opened today — verdict in 28 days, and we will not call it before then.',
+    nextAction: 'Watch the 28-day window', doneMeta: 'Logged to Changes · visible to the client in Results',
+    nextToast: 'Measurement window pinned to your dashboard · verdict Aug 24' },
+
+  { id: 'r2', tab: 'Organic', variant: 'blog', priority: 'Medium', rule: 'Content gap · no strong answer online', agent: 'Content agent', age: '1d', client: 'Ridgeline HVAC',
+    title: 'Write and stage the guide on what a commercial maintenance contract should include',
+    why: '590 searches a month and the top results are thin listicles. This is the question your best-fit customers ask before they sign anything.',
+    impactFig: '590', impactNote: 'searches / mo', impactBasis: 'Reusable in the AEO answer block · confidence medium',
+    blogMeta: '1,200 words · target "commercial hvac maintenance contract"',
+    blogTitle: 'What a commercial HVAC maintenance contract should include',
+    outline: ['What is actually covered — and what is not', 'How pricing is built: per unit vs per visit', 'The five clauses to check before you sign', 'What Ridgeline includes as standard'],
+    steps: ['Draft to brand voice', 'Generate the hero image in Bloom (16:9)', 'Run QC — 6 checks', 'Place in WordPress as pending review'],
+    foot: 'Nothing goes public without a second yes',
+    receipt: 'Drafted to brand voice, hero image generated in Bloom, QC 6/6 passed. It is sitting in WordPress as Pending review at 12:06 PM — nothing is public.',
+    nextAction: 'Send to client for approval', doneMeta: 'Lands in the client portal as a blog topic',
+    nextToast: 'Sent to Dana Reyes · appears in her portal approvals' },
+
+  { id: 'r3', tab: 'Paid', variant: 'creative', priority: 'High', rule: 'Creative fatigue · frequency ceiling', agent: 'Paid agent', age: '6h', client: 'Ridgeline HVAC',
+    title: 'Refresh the maintenance-plan creative — the current cut is burnt',
+    why: 'Frequency hit 4.2 and CTR halved in ten days while spend held flat. Targeting is fine; people have simply seen it.',
+    impactFig: '−32%', impactNote: 'cost per lead', impactBasis: 'Median across 9 fatigue refreshes · confidence high',
+    fatigue: [{ k: 'Frequency', v: '4.2', note: 'ceiling 3.0', color: '#C0392B' }, { k: 'CTR', v: '0.36%', note: 'was 0.72%', color: '#C0392B' }, { k: 'Days live', v: '42', note: 'since Jun 15', color: '#080808' }, { k: 'Spend 28d', v: '$4,120', note: '$88 CPA', color: '#080808' }],
+    concepts: [['Concept A', 'Technician at the unit', '#D8DCCE'], ['Concept B', 'Plan value, type-led', '#0F1A2B'], ['Concept C', 'Offer-forward', '#C7FF6A']],
+    steps: ['Read the fatigue signals', 'Generate three concepts in Bloom (4:5)', 'Brand and policy check', 'Upload to Meta — paused'],
+    foot: 'Uploads paused · going live is a second yes',
+    pausedNote: 'Concept A, B and C are in the ad set as paused ads, same targeting, $60/day cap each.',
+    nextAction: 'Watch frequency for 7 days', doneMeta: 'Budget change logged against the safe band',
+    nextToast: 'Frequency check scheduled · Aug 3' },
+
+  { id: 'r4', tab: 'Social', variant: 'social', priority: 'Medium', rule: 'Proven post · worth a series', agent: 'Social agent', age: '2d', client: 'Ridgeline HVAC',
+    title: 'Turn the rooftop-unit before/after into a four-week series',
+    why: 'That one post did 3.1x your median engagement and sent 6 people to the call button. The format works — once is not a strategy.',
+    impactFig: '3.1x', impactNote: 'median engagement', impactBasis: 'Measured on the original post · confidence medium',
+    series: [{ wk: 'Week 1', t: 'Before/after: a 20-year-old rooftop unit' }, { wk: 'Week 2', t: 'What the technician actually checks (carousel)' }, { wk: 'Week 3', t: 'The cost of ignoring it — one number' }, { wk: 'Week 4', t: 'Customer story: the restaurant on Congress' }],
+    steps: ['Extract what worked in the original', 'Write four weekly variations', 'Brand check', 'Load into PostFlow — unscheduled'],
+    foot: 'Drafts land unscheduled',
+    receipt: 'Four drafts are in PostFlow, unscheduled. Suggested slot: Tuesday and Thursday, 7–9 PM — that window carries 61% of this account\u2019s engagement.',
+    nextAction: 'Open the PostFlow queue', doneMeta: 'Nothing posts until someone schedules it',
+    nextToast: 'PostFlow queue open · 4 drafts, unscheduled' },
+
+  { id: 'r5', tab: 'AEO', variant: 'aeo', priority: 'High', rule: 'Prompt gap · not cited', agent: 'AEO agent', age: '5h', client: 'Ridgeline HVAC',
+    title: 'Stage an answer block and FAQ schema for the walk-in cooler prompt',
+    why: 'Three AI tools answer this question and none of them mention you. The page exists — it just does not answer in a shape a model can quote.',
+    impactFig: '1 of 22', impactNote: 'prompts recoverable', impactBasis: 'Two of three tools cite pages they can parse · confidence medium',
+    prompt: 'HVAC companies that service walk-in coolers',
+    answerHeading: 'Do you service walk-in coolers and refrigeration?',
+    answerBody: 'Yes — Ridgeline services walk-in coolers, freezers and refrigeration racks across Austin, with 24-hour emergency response for food-service clients. Typical response time is under four hours.',
+    targetPage: '/commercial-refrigeration',
+    steps: ['Draft the answer block', 'Build FAQ schema (4 pairs)', 'QC against the live page', 'Stage for tonight\u2019s deploy'],
+    foot: 'Publishes with tonight\u2019s deploy',
+    receipt: 'Answer block and FAQ schema staged on /commercial-refrigeration. It ships with tonight\u2019s deploy and we re-check the prompt Monday.',
+    nextAction: 'Re-check the prompt Monday', doneMeta: 'Client sees the status move in their AEO tab',
+    nextToast: 'Monday re-check scheduled for all 22 prompts' }
+];
+
+const FATIGUE_ROWS = [
+  ['Maintenance plan · stone hero', 'Meta', '42', '4.2', '0.36%', '$4,120', 'Fatigued', '#C0392B'],
+  ['Emergency call · dark', 'Meta', '18', '2.1', '0.81%', '$2,880', 'Healthy', '#2F8F4E'],
+  ['Search · maintenance plans', 'Google', '96', '—', '4.10%', '$3,420', 'Healthy', '#2F8F4E'],
+  ['Commercial contracts', 'LinkedIn', '24', '1.8', '0.42%', '$840', 'Inconclusive', '#4A4F55']
+];
+
+const SOCIAL_POSTS = [
+  ['Before/after: 20-year-old rooftop unit', 'Instagram', 'Jul 9', '412', '3.1x', '6 taps'],
+  ['Technician spotlight: Marcus', 'Instagram', 'Jul 15', '188', '1.4x', '2 taps'],
+  ['Summer maintenance checklist', 'Facebook', 'Jul 18', '96', '0.7x', '1 tap'],
+  ['Restaurant walk-in rescue', 'Instagram', 'Jul 22', '306', '2.3x', '4 taps']
+];
+
+const AEO_ROWS = [
+  ['Who does commercial HVAC maintenance in Austin?', 'Cited', 'ChatGPT · Gemini', 'up', 'Mon'],
+  ['Best rooftop unit repair company near me', 'Cited', 'ChatGPT', 'up', 'Mon'],
+  ['How much does an HVAC maintenance contract cost?', 'Cited', 'AI Overviews', 'up', 'Mon'],
+  ['Who should I call for emergency AC repair in Austin?', 'Mentioned', 'Gemini', 'flat', 'Mon'],
+  ['Most reliable HVAC contractors for restaurants', 'Mentioned', 'ChatGPT', 'up', 'Mon'],
+  ['HVAC companies that service walk-in coolers', 'Not showing', 'none of three', '', 'Mon'],
+  ['Who installs commercial chillers in central Texas?', 'Not showing', 'none of three', '', 'Mon'],
+  ['Cheapest AC repair in Austin', 'Not showing', 'not targeted', '', 'Mon']
+];
+
+const CONNECTIONS = [
+  ['Meta Ads', 'Connected', 'act_4471… · write access', '#2F8F4E'],
+  ['Google Ads', 'Connected', '882-441-9930 · write access', '#2F8F4E'],
+  ['LinkedIn Ads', 'Connected', 'read only — write pending client', '#8C6500'],
+  ['GA4 + Search Console', 'Connected', 'ridgelinehvac.com', '#2F8F4E'],
+  ['WordPress', 'Connected', 'staging + live · pending-review flow on', '#2F8F4E'],
+  ['Google Business Profile', 'Connected', '2 locations', '#2F8F4E'],
+  ['PostFlow', 'Connected', 'drafts land unscheduled', '#2F8F4E'],
+  ['Bloom', 'Connected', 'brand kit v3 · 4:5, 1:1, 16:9', '#2F8F4E'],
+  ['CallRail', 'Needs reauth', 'token expires in 4 days', '#C0392B']
+];
+
+const PORTAL_METRICS = [
+  ['Phone calls from Google', '184', '31 more than last month', '#2F8F4E', 'Every call that came from someone finding you on Google — search results, the map, or your profile. We count calls over 30 seconds so wrong numbers do not inflate it.'],
+  ['People who found you', '9,420', 'up 18% since June', '#2F8F4E', 'Visits from unpaid search. This grows slowly and compounds — it is the number that keeps working after you stop paying.'],
+  ['Cost per new lead', '$96', 'down from $109', '#2F8F4E', 'Total ad spend divided by leads. Lower is better. Yours dropped because we moved money out of an ad set that was not booking calls.'],
+  ['Booked jobs from ads', '65', '3.4x return on spend', '#2F8F4E', 'Jobs we can trace back to an ad. For every $1 spent, $3.40 came back as booked work.']
+];
+
+const STATUS_C = {
+  Done: ['#2F8F4E', '#E5FFB8', '\u2713'],
+  Running: ['#080808', '#F4F2EE', '\u2022'],
+  Measuring: ['#4A4F55', '#F4F2EE', '\u2014'],
+  Queued: ['#7A7F86', '#FFFFFF', '\u25cb'],
+  'Needs you': ['#8C6500', '#FBF3DE', '!']
+};
+
+const WORKSTREAMS = [
+  { name: 'Organic', pct: '67%', done: 4, total: 6, items: [
+    ['Rewrite the services page around what people search', 'Mara K.', 'Needs you'],
+    ['Publish the rooftop unit service guide', 'Content', 'Done'],
+    ['Fix 22 broken internal links', 'Site', 'Done'],
+    ['Build the maintenance-plan landing page', 'Site', 'Running'],
+    ['Add FAQ schema to 6 service pages', 'Site', 'Done'],
+    ['Second buying guide — your input needed', 'You', 'Queued']
+  ] },
+  { name: 'Paid', pct: '75%', done: 3, total: 4, items: [
+    ['Move budget out of the whitening test', 'Paid', 'Done'],
+    ['Launch three new creative cuts', 'Creative', 'Running'],
+    ['Raise maintenance-plan budget to $205/day', 'Paid', 'Done'],
+    ['Test a Google Local Services listing', 'Paid', 'Queued']
+  ] },
+  { name: 'Social', pct: '50%', done: 2, total: 4, items: [
+    ['12 posts across Instagram and Facebook', 'Social', 'Done'],
+    ['Before/after job photo series', 'Social', 'Running'],
+    ['Technician spotlight reel', 'Social', 'Queued'],
+    ['LinkedIn for commercial contracts', 'Social', 'Measuring']
+  ] },
+  { name: 'Google Business', pct: '100%', done: 3, total: 3, items: [
+    ['Reply to every review within 24 hours', 'GBP', 'Done'],
+    ['Add 18 job photos', 'GBP', 'Done'],
+    ['Fix service-area boundaries', 'GBP', 'Done']
+  ] },
+  { name: 'AEO', pct: '33%', done: 1, total: 3, items: [
+    ['Track 22 buyer questions across AI tools', 'AEO', 'Done'],
+    ['Publish answers to the 5 we do not appear in', 'Content', 'Running'],
+    ['Get listed in the three sources AI quotes most', 'AEO', 'Queued']
+  ] },
+  { name: 'Automation', pct: '50%', done: 1, total: 2, items: [
+    ['Missed-call text-back', 'Automation', 'Done'],
+    ['Post-job review request sequence', 'Automation', 'Measuring']
+  ] }
+];
+
+const AEO_C = {
+  Cited: ['#080808', '#C7FF6A', '#C7FF6A'],
+  Mentioned: ['#3E5216', '#E5FFB8', '#D3EDA6'],
+  'Not showing': ['#4A4F55', '#FFFFFF', '#E8E5DD']
+};
+
+const AEO = [
+  ['Who does commercial HVAC maintenance in Austin?', 'Cited', 'Quoted by name in ChatGPT and Gemini', 'up'],
+  ['Best rooftop unit repair company near me', 'Cited', 'New this month', 'up'],
+  ['How much does an HVAC maintenance contract cost?', 'Cited', 'Your pricing page is the source', 'up'],
+  ['Who should I call for emergency AC repair in Austin?', 'Mentioned', 'Listed, not linked yet', 'flat'],
+  ['Most reliable HVAC contractors for restaurants', 'Mentioned', 'In the list, third position', 'up'],
+  ['Cheapest AC repair in Austin', 'Not showing', 'We are not chasing this one on purpose', ''],
+  ['HVAC companies that service walk-in coolers', 'Not showing', 'Answer page publishing Thursday', ''],
+  ['Who installs commercial chillers in central Texas?', 'Not showing', 'Answer page in draft', '']
+];
+
+const PORTAL_CARDS = [
+  { id: 'p1', status: 'default', variant: 'content', severity: 'Routine', category: 'Blog topic', client: 'For your approval',
+    title: 'Can we publish this guide on what a maintenance contract should include?',
+    why: '590 people a month search this and nobody answers it well. It brings in the kind of customer who signs a contract.',
+    qc: 'Written, edited and fact-checked', age: '1d', contentMeta: '1,180 words · ready',
+    draftTitle: 'What a commercial HVAC maintenance contract should include',
+    draftNote: 'Reading time 5 minutes · your logo on the header image', foot: 'No jargon — say yes or tell us what to change' },
+  { id: 'p2', status: 'default', variant: 'creative', severity: 'Routine', category: 'Ad creative', client: 'For your approval',
+    title: 'Pick the photo you want running on the maintenance-plan ad',
+    why: 'The current image has been up for ten weeks and people have stopped noticing it.',
+    qc: 'Brand-checked', age: '2d', foot: 'Whichever you pick goes live tonight' }
+];
+
+const INVENTORY = [
+  { group: 'Buttons', note: 'Green appears once per view', items: ['Primary · Approve & publish', 'Secondary · Decline', 'Ghost · Edit', 'Destructive-adjacent · Confirm decline', 'Disabled · Approve locked'] },
+  { group: 'Pills', note: '999px, 11px caps, 0.14em', items: ['Severity high / medium / low', 'Tier scale / growth / core / launch', 'Status active / paused / measuring', 'SLA past-window', 'AEO cited / mentioned / not showing'] },
+  { group: 'Metric blocks', note: 'Serif numeral, sans label', items: ['Headline metric with delta', 'Channel strip cell', 'Attention-band counter', 'Spend exposure block', 'Honest state: measuring'] },
+  { group: 'Tables', note: '1px hairlines, no zebra', items: ['Portfolio row (13)', 'Keyword table', 'Campaign tree with inline controls', 'Change log', 'Scan history'] },
+  { group: 'Filters & tabs', note: 'Filter chips, underline tabs', items: ['Chip row with count', 'Workspace tab bar (11)', 'Channel segmented control', 'Mode switch agency / portal'] },
+  { group: 'Cards', note: '12px radius, 1px border', items: ['Approval Card (4 variants, 7 states)', 'Panel card', 'Dark emphasis card', 'Empty state card', 'Skeleton card'] },
+  { group: 'Modals & toasts', note: 'One decision per modal', items: ['Spend confirmation (serif number)', 'Decline reason selector', 'Toast · published', 'Toast · safe-band limit'] },
+  { group: 'Honest states', note: 'Intentional, not broken', items: ['Measuring — 12 days left', 'Inconclusive', 'Declined', 'Too early to tell', 'Not showing (on purpose)'] },
+  { group: 'Loading', note: 'Nothing loads blank', items: ['Metric skeleton', 'Row skeleton', 'Card skeleton', 'Purposeful empty state'] }
+];
+
+const CLIENTS = [
+  ['Northstar Apparel', 'eCommerce · Shopify', 'Scale', ['+18%', '3', '2.4x', '+9%', '92'], ['up', 'up', 'up', 'up', 'flat'], 3, false],
+  ['Harbor Dental Group', 'Multi-location dental', 'Scale', ['+6%', '1', '1.9x', '+2%', '78'], ['up', 'flat', 'down', 'flat', 'down'], 5, true],
+  ['Ridgeline HVAC', 'Home services', 'Growth', ['+31%', '4', '3.1x', '+14%', '88'], ['up', 'up', 'up', 'up', 'up'], 2, false],
+  ['Cedar & Co. Interiors', 'Design studio', 'Growth', ['−4%', '0', '1.2x', '+1%', '81'], ['down', 'down', 'down', 'flat', 'flat'], 4, true],
+  ['Verity Legal', 'Professional services', 'Core', ['+12%', '2', '—', '+5%', '90'], ['up', 'up', 'flat', 'up', 'flat'], 1, false],
+  ['Pinewood Outfitters', 'eCommerce · Shopify', 'Scale', ['+22%', '5', '2.8x', '+18%', '95'], ['up', 'up', 'up', 'up', 'up'], 2, false],
+  ['Atlas Roofing', 'Home services', 'Core', ['+3%', '1', '2.1x', '−3%', '74'], ['flat', 'flat', 'up', 'down', 'down'], 6, true],
+  ['Marlow Fitness', 'Studio franchise', 'Growth', ['+15%', '2', '1.7x', '+27%', '86'], ['up', 'up', 'down', 'up', 'flat'], 3, false],
+  ['Solace Med Spa', 'Aesthetics', 'Growth', ['+9%', '3', '2.6x', '+11%', '83'], ['up', 'up', 'up', 'up', 'flat'], 2, false],
+  ['Fairview Plumbing', 'Home services', 'Core', ['−7%', '0', '1.4x', '0%', '69'], ['down', 'down', 'flat', 'flat', 'down'], 4, true],
+  ['Beacon Financial', 'Advisory', 'Core', ['+5%', '2', '—', '+4%', '87'], ['up', 'up', 'flat', 'up', 'flat'], 1, false],
+  ['Tidewater Coffee', 'eCommerce · Shopify', 'Launch', ['—', '0', '1.1x', '+41%', '91'], ['flat', 'flat', 'flat', 'up', 'up'], 2, false],
+  ['Union Street Autos', 'Retail service', 'Core', ['+11%', '1', '2.2x', '+6%', '80'], ['up', 'flat', 'up', 'up', 'flat'], 1, false]
+];
+
+const TIER = {
+  Scale: ['#080808', '#C7FF6A', '#080808'],
+  Growth: ['#E5FFB8', '#3E5216', '#D3EDA6'],
+  Core: ['#F4F2EE', '#4A4F55', '#E8E5DD'],
+  Launch: ['#FFFFFF', '#4A4F55', '#E8E5DD']
+};
+
+const DIR = { up: '#2F8F4E', down: '#C0392B', flat: '#7A7F86' };
+const ARROW = { up: '↑', down: '↓', flat: '·' };
+
+const QUEUE_SEED = [
+  {
+    id: 'q1', status: 'default', variant: 'site', severity: 'High', category: 'Site · SEO',
+    client: 'Ridgeline HVAC',
+    title: 'Rewrite the services page title and H1 around the term people actually search',
+    why: '"commercial hvac maintenance" gets 1,400 searches a month; the page ranks #18 and the title says "Our Services".',
+    qc: '6/6 checks passed', age: '4h', shotMeta: 'services page · desktop', foot: 'Staged by SEO agent · 11:42 AM'
+  },
+  {
+    id: 'q2', status: 'default', variant: 'ad', severity: 'High', category: 'Paid · Meta',
+    client: 'Harbor Dental Group',
+    title: 'Pause the "Whitening — Broad" ad set; it is spending 3x target CPA',
+    why: '14 days, $2,180 spent, 4 booked calls. The Implants ad set books at $71 and is budget-capped.',
+    qc: '4/4 checks passed', age: '2h', spend: '$156/day', spendNote: 'Pausing frees $156/day to move to Implants — no new exposure.',
+    adChannel: 'Meta · Whitening — Broad', adCpa: '$545', adTarget: '$180', adConv: '4', foot: 'Reversible · relaunch in one click'
+  },
+  {
+    id: 'q3', status: 'default', variant: 'content', severity: 'Medium', category: 'Organic · Content',
+    client: 'Pinewood Outfitters',
+    title: 'Publish the buying guide draft for "insulated vs down jackets"',
+    why: 'Answers the top pre-purchase question in support tickets and targets 900 monthly searches with no strong result.',
+    qc: '5/5 checks passed', age: '9h', contentMeta: '1,240 words · draft v2',
+    draftTitle: 'Insulated vs down: which jacket actually keeps you warm?',
+    draftNote: 'Target: "insulated vs down jacket" · internal links to 3 products', foot: 'Client-visible after publish'
+  },
+  {
+    id: 'q4', status: 'stale', variant: 'creative', severity: 'Medium', category: 'Paid · Creative',
+    client: 'Cedar & Co. Interiors',
+    title: 'Swap the tired hero creative on the lead-gen campaign for one of three new cuts',
+    why: 'Frequency hit 4.2 and CTR fell 38% in 10 days. Fresh creative is the cheapest fix available.',
+    qc: '4/4 checks passed', age: '3d 4h', foot: 'Past 24h SLA · client asked for a look first'
+  },
+  {
+    id: 'q5', status: 'blocked', variant: 'site', severity: 'Low', category: 'Site · Accessibility',
+    client: 'Fairview Plumbing',
+    title: 'Add alt text to 18 service images and fix the contrast on the quote button',
+    why: 'Screen-reader users cannot tell the images apart and the button fails AA at 3.1:1.',
+    qc: '4/6 checks failed', age: '6h', blockedReason: 'Contrast AA still fails on the quote button (3.4:1) and two images lost their alt attribute in the staging build.',
+    shotMeta: 'quote block · mobile', foot: 'Auto-retry queued'
+  }
+];
+
+const VARIANT_CARDS = [
+  Object.assign({}, QUEUE_SEED[0], { id: 'v1', labName: 'Site change', labNote: 'before / after screenshots' }),
+  Object.assign({}, QUEUE_SEED[1], { id: 'v2', labName: 'Ad action', labNote: 'spend exposure shown' }),
+  Object.assign({}, QUEUE_SEED[3], { id: 'v3', status: 'default', labName: 'Creative', labNote: 'variant chooser' }),
+  Object.assign({}, QUEUE_SEED[2], { id: 'v4', labName: 'Content', labNote: 'rendered preview + hero' })
+];
+
+const STATE_CARDS = [
+  ['default', 'Default', '10-second decision'],
+  ['expanded', 'Expanded', 'full diff + all checks'],
+  ['declining', 'Declining', 'reason selector'],
+  ['publishing', 'Publishing', 'in progress, 3 steps'],
+  ['published', 'Published', 'confirmation, then it leaves'],
+  ['blocked', 'Blocked', 'QC failed, approve locked'],
+  ['stale', 'Stale', 'past SLA, escalated quietly']
+].map((s, i) => {
+  const base = s[0] === 'blocked' ? QUEUE_SEED[4] : QUEUE_SEED[0];
+  return Object.assign({}, base, {
+    id: 's' + i, status: s[0], labName: s[1], labNote: s[2],
+    publishedAgo: '2 seconds ago', declineReason: 'Off-brand',
+    age: s[0] === 'stale' ? '2d 7h' : base.age
+  });
+});
+
+class Component extends DCLogic {
+  state = {
+    mode: 'agency', screen: 'portfolio', filter: 'All', queue: QUEUE_SEED.map((q) => Object.assign({}, q)),
+    toast: null, wsTab: 'Overview', paidChannel: 'Meta', campaigns: null, pending: null,
+    hoverMetric: null, paidTab: 'Meta', portalCards: null,
+    recs: RECS.map((r) => Object.assign({}, r)), liveConfirm: null
+  };
+
+  patchRec(id, changes) {
+    this.setState((s) => ({ recs: s.recs.map((r) => (r.id === id ? Object.assign({}, r, changes) : r)) }));
+  }
+
+  runRec(id) {
+    const rec = this.state.recs.filter((r) => r.id === id)[0];
+    const n = rec.steps.length;
+    this.patchRec(id, { status: 'running', step: 0 });
+    let i = 0;
+    const tick = () => {
+      i += 1;
+      if (i < n) { this.patchRec(id, { step: i }); setTimeout(tick, 950); return; }
+      this.patchRec(id, { step: n });
+      setTimeout(() => {
+        if (rec.variant === 'creative') {
+          this.patchRec(id, { status: 'choose' });
+          this.toast('Bloom returned three concepts \u00b7 pick one');
+        } else {
+          this.patchRec(id, { status: 'done' });
+          this.toast('Job finished \u00b7 receipt on the card');
+        }
+      }, 700);
+    };
+    setTimeout(tick, 950);
+  }
+
+  onRecAction = (id, action, payload) => {
+    const rec = this.state.recs.filter((r) => r.id === id)[0];
+    if (action === 'approve') this.runRec(id);
+    else if (action === 'pick') {
+      this.patchRec(id, { chosen: payload, status: 'paused' });
+      this.toast('Three concepts uploaded to Meta \u00b7 all paused');
+    } else if (action === 'set-live') {
+      const name = rec.concepts[rec.chosen][0];
+      this.setState({ liveConfirm: { id: id, name: name, budget: 60 } });
+    } else if (action === 'leave-paused') {
+      this.patchRec(id, { status: 'done', receipt: 'All three concepts are in Meta, paused, as of 12:04 PM. Nothing is spending. They sit there until someone sets one live.', nextAction: 'Open the ad set', doneMeta: 'No budget committed' });
+    } else if (action === 'decline') this.patchRec(id, { status: 'declining' });
+    else if (action === 'confirm-decline') {
+      this.patchRec(id, { status: 'declined', declineReason: payload });
+      this.toast('Reason logged \u00b7 this rule is muted for 60 days');
+    } else if (action === 'cancel-decline') this.patchRec(id, { status: 'default' });
+    else if (action === 'reopen') this.patchRec(id, { status: 'default' });
+    else if (action === 'next') this.toast(rec.nextToast || 'Opened');
+  };
+
+  confirmLive() {
+    const c = this.state.liveConfirm;
+    this.patchRec(c.id, { status: 'done', receipt: c.name + ' set live at 12:04 PM at $' + c.budget + '/day. The other two stay paused. Frequency check in 7 days, verdict in 28.', nextAction: 'Watch frequency for 7 days', doneMeta: 'Committed inside the $40\u2013$95 safe band' });
+    this.setState({ liveConfirm: null });
+    this.toast(c.name + ' live at $' + c.budget + '/day \u00b7 committed');
+  }
+
+  toast(msg) {
+    clearTimeout(this._t);
+    this.setState({ toast: msg });
+    this._t = setTimeout(() => this.setState({ toast: null }), 3400);
+  }
+
+  patch(id, changes) {
+    this.setState((s) => ({ queue: s.queue.map((q) => (q.id === id ? Object.assign({}, q, changes) : q)) }));
+  }
+
+  onCardAction = (id, action, payload) => {
+    if (action === 'approve') {
+      this.patch(id, { status: 'publishing' });
+      setTimeout(() => this.patch(id, { status: 'published', publishedAgo: 'just now' }), 2500);
+      setTimeout(() => {
+        this.setState((s) => ({ queue: s.queue.filter((q) => q.id !== id) }));
+        this.toast('Published to live site · logged to the client\u2019s Changes feed');
+      }, 5600);
+    } else if (action === 'decline') this.patch(id, { status: 'declining' });
+    else if (action === 'confirm-decline') {
+      this.patch(id, { status: 'declined', declineReason: payload });
+      this.toast('Declined · the agent will re-draft with that reason');
+    } else if (action === 'cancel-decline') this.patch(id, { status: 'default' });
+    else if (action === 'reopen') this.patch(id, { status: 'default' });
+  };
+
+  nav(mode) {
+    return mode === 'agency'
+      ? [['portfolio', 'Portfolio', ''], ['approvals', 'Approvals queue', String(this.state.queue.length)], ['workspace', 'Client workspace', ''], ['qc', 'QC panel', '2'], ['paid', 'Paid controls', ''], ['cardlab', 'Approval Card lab', ''], ['inventory', 'Component inventory', '']]
+      : [['home', 'Home', ''], ['playbook', 'Playbook', ''], ['organic', 'Organic', ''], ['pPaid', 'Paid', ''], ['gbp', 'Google Business', '3'], ['aeo', 'AEO', 'new'], ['automation', 'Automation', ''], ['pApprovals', 'Approvals', '2'], ['mobile', 'On mobile', '']];
+  }
+
+  header() {
+    const s = this.state.screen;
+    const m = this.state.mode;
+    const map = {
+      portfolio: ['Agency · morning page', 'Portfolio', 'Thirteen clients, five channels each. Scan the band, then work the queue.', 'Wednesday, 8:42 AM', 'Open approvals'],
+      approvals: ['Agency · decision queue', 'Approvals', 'Everything here is finished work. Your job is yes or no.', 'Median decision 38s today', 'Approve all low-risk'],
+      workspace: ['Agency · client workspace', 'Ridgeline HVAC', 'Growth tier · $6,500/mo · 14 months · owner Dana Reyes', 'Data through yesterday', 'Log a change'],
+      qc: ['Agency · site quality', 'QC panel', 'Ridgeline HVAC · last full crawl 6 hours ago, 412 URLs.', 'Next scan 6:00 PM', 'Run scan now'],
+      paid: ['Agency · paid controls', 'Paid controls', 'Inline changes are live. Anything that raises spend asks twice.', '$1,284/day committed', 'New campaign'],
+      cardlab: ['Component', 'The Approval Card', 'One component, four variants, seven states. Everything else is arrangement around it.', 'v1 · light mode', 'Open the queue'],
+      inventory: ['System', 'Component inventory', 'The parts every screen is built from — so this is a system, not a set of pictures.', '9 groups', 'Open the queue'],
+      home: ['Ridgeline HVAC · July', 'Is this working?', 'Yes — and here is the short version, in plain English.', 'Updated this morning', 'See the plan'],
+      playbook: ['Ridgeline HVAC · July', 'This month\u2019s plan', 'Six workstreams, twenty-two commitments. Nine done, seven running, six queued.', '41% of July complete', 'See last month'],
+      organic: ['Ridgeline HVAC', 'Organic search', 'The keywords that turn into calls — not every word you rank for.', '2 things need you', 'Review blog topics'],
+      pPaid: ['Ridgeline HVAC', 'Paid advertising', 'Where the money went, what it brought back, and what is running right now.', 'Meta · Google · LinkedIn', 'Review creative'],
+      gbp: ['Ridgeline HVAC', 'Google Business', 'The profile that turns searches into phone calls.', '3 reviews need a reply', 'Approve replies'],
+      aeo: ['Ridgeline HVAC', 'When someone asks AI about you', 'We track the questions your buyers type into ChatGPT, Gemini and AI Overviews.', 'Checked weekly', 'Share this page'],
+      automation: ['Ridgeline HVAC', 'What runs for you', 'Systems working in the background, with the numbers they produced.', 'Since January', 'See the plan'],
+      pApprovals: ['Ridgeline HVAC', 'Your approvals', 'Two things need a yes or no. Nothing technical — we handle that.', '2 waiting', 'Start reviewing'],
+      results: ['Ridgeline HVAC', 'What we shipped', 'Every change, what it did, and where it is too early to tell.', 'Last 90 days', 'See the plan'],
+      mobile: ['Client portal', 'On a phone', 'Owners check this from a truck cab. Same content, one column, thumb-sized targets.', '390 \u00d7 844', 'See the plan']
+    };
+    const h = map[s] || map[m === 'agency' ? 'portfolio' : 'home'];
+    return h;
+  }
+
+  go(screen) { this.setState({ screen: screen }); }
+
+  renderVals() {
+    const st = this.state;
+    const h = this.header();
+    const agency = st.mode === 'agency';
+
+    const nav = this.nav(st.mode).map((n) => ({
+      label: n[1],
+      badge: n[2],
+      go: () => this.go(n[0]),
+      bg: st.screen === n[0] ? '#F4F2EE' : 'transparent',
+      fg: st.screen === n[0] ? '#080808' : '#4A4F55',
+      weight: st.screen === n[0] ? 600 : 500,
+      dot: st.screen === n[0] ? '#C7FF6A' : 'transparent',
+      badgeBg: n[2] ? (n[2] === 'new' ? '#E5FFB8' : '#F4F2EE') : 'transparent',
+      badgeFg: n[2] === 'new' ? '#3E5216' : '#4A4F55'
+    }));
+
+    const clients = CLIENTS.map((c) => ({
+      name: c[0], industry: c[1], tier: c[2],
+      tierBg: TIER[c[2]][0], tierFg: TIER[c[2]][1], tierEdge: TIER[c[2]][2],
+      channels: c[3].map((v, i) => ({ v: v, d: ARROW[c[4][i]], color: DIR[c[4][i]] })),
+      pending: c[5] + ' waiting',
+      flagged: c[6],
+      rowBg: c[6] ? '#FDFBF4' : '#FFFFFF',
+      go: () => this.setState({ screen: 'workspace' })
+    }));
+
+    const queue = st.filter === 'All' ? st.queue
+      : st.filter === 'Stale' ? st.queue.slice().sort((a, b) => (b.status === 'stale' ? 1 : 0) - (a.status === 'stale' ? 1 : 0))
+      : st.queue.filter((q) => q.category.indexOf(st.filter) === 0 || q.severity === st.filter);
+
+    const filters = ['All', 'High', 'Site', 'Paid', 'Organic', 'Stale'].map((f) => ({
+      label: f === 'All' ? 'All ' + st.queue.length : f,
+      go: () => this.setState({ filter: f }),
+      bg: st.filter === f ? '#080808' : '#FFFFFF',
+      fg: st.filter === f ? '#FFFFFF' : '#080808',
+      edge: st.filter === f ? '#080808' : '#E8E5DD'
+    }));
+
+    const base = {
+      eyebrow: h[0], pageTitle: h[1], pageSub: h[2], headerMeta: h[3], headerCta: h[4],
+      headerAction: () => this.go(agency ? 'approvals' : 'playbook'),
+      goAgency: () => this.setState({ mode: 'agency', screen: 'portfolio' }),
+      goPortal: () => this.setState({ mode: 'portal', screen: 'home' }),
+      agencyTabBg: agency ? '#FFFFFF' : 'transparent',
+      agencyTabFg: agency ? '#080808' : '#4A4F55',
+      portalTabBg: agency ? 'transparent' : '#FFFFFF',
+      portalTabFg: agency ? '#4A4F55' : '#080808',
+      modeHint: agency ? 'Specialist view · all 13 clients' : 'Viewing as Dana Reyes · Ridgeline HVAC',
+      userInitials: agency ? 'MK' : 'DR',
+      userName: agency ? 'Mara Klein' : 'Dana Reyes',
+      userRole: agency ? 'Growth specialist' : 'Owner · Ridgeline HVAC',
+      nav: nav,
+      isPortfolio: st.screen === 'portfolio',
+      isApprovals: st.screen === 'approvals',
+      isCardLab: st.screen === 'cardlab',
+      portfolioHead: ['Client'].concat(CH).concat(['Waiting']).map((label, i) => ({ label: label, align: i === 0 ? 'left' : i === 6 ? 'right' : 'center' })),
+      clients: clients,
+      attention: [
+        { label: 'Declining metrics', n: '4', note: 'clients trending down', color: '#C0392B', go: () => this.go('workspace') },
+        { label: 'Failed QC', n: '2', note: 'sites with critical issues', color: '#C0392B', go: () => this.go('qc') },
+        { label: 'Negative verdicts', n: '1', note: 'test lost — needs a call', color: '#8C6500', go: () => this.go('workspace') },
+        { label: 'Stale approvals', n: '4', note: 'past the 24h window', color: '#8C6500', go: () => this.go('approvals') }
+      ],
+      filters: filters,
+      queue: queue,
+      hasQueue: queue.length > 0,
+      queueEmpty: queue.length === 0,
+      bulkCount: 3,
+      bulkApprove: () => this.toast('3 low-risk fixes approved and publishing'),
+      filterStale: () => this.setState({ filter: 'Stale' }),
+      queueStats: [
+        { k: 'Decided', v: '14', color: '#080808' },
+        { k: 'Published', v: '11', color: '#2F8F4E' },
+        { k: 'Declined', v: '3', color: '#4A4F55' },
+        { k: 'Median decision', v: '38s', color: '#080808' }
+      ],
+      emptyStats: [
+        { v: '11', k: 'Published' }, { v: '3', k: 'Declined' }, { v: '38s', k: 'Median' }
+      ],
+      variantCards: VARIANT_CARDS,
+      stateCards: STATE_CARDS,
+      onCardAction: this.onCardAction,
+      toast: st.toast
+    };
+    return Object.assign(base, this.agencyVals(), this.portalVals());
+  }
+
+  setBudget(id, dir) {
+    const camps = this.state.campaigns || CAMPAIGNS;
+    const c = camps.filter((x) => x.id === id)[0];
+    const step = c.budget < 100 ? 10 : 25;
+    const next = Math.max(c.floor, Math.min(c.ceiling, c.budget + dir * step));
+    if (next === c.budget) { this.toast('Safe band limit · ' + c.floor + '\u2013' + c.ceiling + '/day without a second approval'); return; }
+    if (next > c.budget) { this.setState({ pending: { id: id, from: c.budget, to: next, name: c.name } }); return; }
+    this.applyBudget(id, next);
+    this.toast(c.name + ' budget lowered to $' + next + '/day');
+  }
+
+  applyBudget(id, next) {
+    const camps = (this.state.campaigns || CAMPAIGNS).map((x) => (x.id === id ? Object.assign({}, x, { budget: next }) : x));
+    this.setState({ campaigns: camps, pending: null });
+  }
+
+  toggleCampaign(id) {
+    const camps = (this.state.campaigns || CAMPAIGNS).map((x) => (x.id === id ? Object.assign({}, x, { paused: !x.paused }) : x));
+    const c = camps.filter((x) => x.id === id)[0];
+    this.setState({ campaigns: camps });
+    this.toast(c.name + (c.paused ? ' paused · spend stopped' : ' resumed · $' + c.budget + '/day live'));
+  }
+
+  agencyVals() {
+    const st = this.state;
+    const camps = st.campaigns || CAMPAIGNS;
+    const p = st.pending;
+    const tabs = ['Overview', 'Organic', 'Paid', 'Social', 'GBP', 'AEO', 'Automation', 'Playbook', 'QC', 'Changes', 'Settings'];
+    return {
+      isWorkspace: st.screen === 'workspace',
+      isQc: st.screen === 'qc',
+      isPaid: st.screen === 'paid',
+      isInventory: st.screen === 'inventory',
+      wsTabs: tabs.map((t) => ({
+        label: t,
+        go: () => this.setState({ wsTab: t }),
+        fg: st.wsTab === t ? '#080808' : '#4A4F55',
+        weight: st.wsTab === t ? 600 : 500,
+        edge: st.wsTab === t ? '#080808' : 'transparent'
+      })),
+      wsOverview: st.wsTab === 'Overview',
+      wsOrganic: st.wsTab === 'Organic',
+      wsPaidTab: st.wsTab === 'Paid',
+      wsSocial: st.wsTab === 'Social',
+      wsGbpTab: st.wsTab === 'GBP',
+      wsAeoTab: st.wsTab === 'AEO',
+      wsAutomationTab: st.wsTab === 'Automation',
+      wsPlaybookTab: st.wsTab === 'Playbook',
+      wsQcTab: st.wsTab === 'QC',
+      wsChangesTab: st.wsTab === 'Changes',
+      wsSettingsTab: st.wsTab === 'Settings',
+      wsTabName: st.wsTab,
+      recs: st.recs.filter((r) => r.tab === st.wsTab),
+      recCount: st.recs.filter((r) => r.tab === st.wsTab && (!r.status || r.status === 'default')).length + ' waiting',
+      onRecAction: this.onRecAction,
+      approveReplies: () => this.toast('Three review replies published \u00b7 median reply time now 6h'),
+      runScan: () => this.toast('Crawl started \u00b7 412 URLs, about 4 minutes'),
+      liveConfirm: !!st.liveConfirm,
+      liveName: st.liveConfirm ? st.liveConfirm.name : '',
+      liveBudget: st.liveConfirm ? '$' + st.liveConfirm.budget : '',
+      liveMonthly: st.liveConfirm ? '$' + (st.liveConfirm.budget * 30).toLocaleString() + ' over 30 days if it keeps running' : '',
+      confirmLive: () => this.confirmLive(),
+      cancelLive: () => this.setState({ liveConfirm: null }),
+      organicMetrics: [
+        { k: 'Organic sessions', v: '9,420', d: '+18% vs prior 28', color: '#2F8F4E' },
+        { k: 'Conversion keywords top 10', v: '14', d: 'of 41 tracked · +3', color: '#2F8F4E' },
+        { k: 'Published this month', v: '3', d: '1 measuring', color: '#4A4F55' },
+        { k: 'Calls from organic', v: '96', d: '+22', color: '#2F8F4E' }
+      ],
+      paidMetrics: [
+        { k: 'Spend 28d', v: '$8,640', d: 'of $9,000 budget', color: '#4A4F55' },
+        { k: 'Leads', v: '65', d: '+18 vs prior 28', color: '#2F8F4E' },
+        { k: 'CPA', v: '$133', d: 'down from $158', color: '#2F8F4E' },
+        { k: 'ROAS', v: '3.4x', d: 'blended, 3 channels', color: '#2F8F4E' }
+      ],
+      fatigueRows: FATIGUE_ROWS.map((r) => ({ name: r[0], ch: r[1], days: r[2], freq: r[3], ctr: r[4], spend: r[5], health: r[6], color: r[7] })),
+      socialMetrics: [
+        { k: 'Posts published', v: '18', d: 'this month', color: '#4A4F55' },
+        { k: 'Engagement rate', v: '4.6%', d: '+1.1pt', color: '#2F8F4E' },
+        { k: 'Profile taps to call', v: '128', d: '+31', color: '#2F8F4E' },
+        { k: 'Best window', v: 'Tue/Thu', d: '7–9 PM · 61% of engagement', color: '#4A4F55' }
+      ],
+      socialPosts: SOCIAL_POSTS.map((p) => ({ title: p[0], net: p[1], date: p[2], eng: p[3], mult: p[4], taps: p[5], top: p[4] === '3.1x' })),
+      aeoCounts: [
+        { k: 'Cited', v: '3', color: '#2F8F4E' },
+        { k: 'Mentioned', v: '2', color: '#8C6500' },
+        { k: 'Not showing', v: '3', color: '#4A4F55' },
+        { k: 'Prompts tracked', v: '22', color: '#080808' }
+      ],
+      aeoRows: AEO_ROWS.map((a) => ({
+        q: a[0], status: a[1], tools: a[2], last: a[4],
+        fg: AEO_C[a[1]][0], bg: AEO_C[a[1]][1], edge: AEO_C[a[1]][2],
+        arrow: a[3] ? ARROW[a[3]] : '·', arrowColor: a[3] ? DIR[a[3]] : '#B8BCB0'
+      })),
+      connections: CONNECTIONS.map((c) => ({ name: c[0], status: c[1], detail: c[2], color: c[3] })),
+      changeLog: [
+        ['Today 11:58', 'Site', 'Services page title + H1 rewritten', 'Published · measuring', '#4A4F55', 'Mara K.'],
+        ['Today 09:10', 'Paid', 'Maintenance ad set budget $180 → $205', 'Live', '#2F8F4E', 'Mara K.'],
+        ['Yesterday 16:22', 'Organic', 'Published: "How often does a rooftop unit need service?"', 'Live · day 9', '#4A4F55', 'Content agent'],
+        ['Yesterday 11:04', 'GBP', '6 review replies sent', 'Live', '#2F8F4E', 'GBP agent'],
+        ['Jul 24', 'Site', 'Fixed 22 broken internal links', 'Live', '#2F8F4E', 'Site agent'],
+        ['Jul 24', 'Paid', 'LinkedIn commercial test — declined by Mara', 'Declined · muted 60d', '#4A4F55', 'Mara K.'],
+        ['Jul 23', 'Automation', 'Missed-call text-back enabled', 'Live', '#2F8F4E', 'Automation agent'],
+        ['Jul 22', 'AEO', 'Answer block added to /commercial-maintenance', 'Live · cited Jul 26', '#2F8F4E', 'AEO agent'],
+        ['Jul 21', 'Social', '4 posts scheduled from the July series', 'Live', '#2F8F4E', 'Social agent']
+      ].map((r) => ({ when: r[0], kind: r[1], what: r[2], status: r[3], color: r[4], who: r[5] })),
+      wsMetrics: [
+        { k: 'Calls (28d)', v: '184', d: '+31% vs prior 28', color: '#2F8F4E' },
+        { k: 'Organic sessions', v: '9,420', d: '+18%', color: '#2F8F4E' },
+        { k: 'Blended CPA', v: '$96', d: '−12%', color: '#2F8F4E' },
+        { k: 'Paid ROAS', v: '3.1x', d: '+0.4', color: '#2F8F4E' },
+        { k: 'AI citations', v: '4', d: 'of 22 prompts', color: '#4A4F55' },
+        { k: 'Site score', v: '88', d: '2 open issues', color: '#8C6500' }
+      ],
+      wsChanges: [
+        ['Today 11:42', 'Site', 'Services title + H1 rewrite', 'Awaiting approval', '#8C6500'],
+        ['Today 09:10', 'Paid', 'Maintenance ad set budget $180 → $205', 'Live', '#2F8F4E'],
+        ['Yesterday', 'Organic', 'Published: "How often does a rooftop unit need service?"', 'Live · measuring', '#4A4F55'],
+        ['Yesterday', 'GBP', '6 review replies sent', 'Live', '#2F8F4E'],
+        ['Mon', 'Site', 'Fixed 22 broken internal links', 'Live', '#2F8F4E'],
+        ['Mon', 'Automation', 'Missed-call text-back enabled', 'Live', '#2F8F4E']
+      ].map((r) => ({ when: r[0], kind: r[1], what: r[2], status: r[3], color: r[4] })),
+      wsPlaybook: [
+        { k: 'Organic', done: 4, total: 6, pct: '67%' },
+        { k: 'Paid', done: 3, total: 4, pct: '75%' },
+        { k: 'Social', done: 2, total: 4, pct: '50%' },
+        { k: 'GBP', done: 3, total: 3, pct: '100%' },
+        { k: 'AEO', done: 1, total: 3, pct: '33%' },
+        { k: 'Automation', done: 1, total: 2, pct: '50%' }
+      ],
+      keywords: [
+        ['commercial hvac maintenance', 18, 11, 1400, 'Rising', '#2F8F4E'],
+        ['rooftop unit repair austin', 6, 6, 320, 'Holding', '#4A4F55'],
+        ['emergency ac repair near me', 3, 4, 2900, 'Slipped', '#C0392B'],
+        ['hvac preventive maintenance plan', 12, 9, 590, 'Rising', '#2F8F4E'],
+        ['chiller service contractor', 27, 19, 210, 'Rising', '#2F8F4E'],
+        ['walk in cooler repair', 41, 33, 170, 'Rising', '#2F8F4E']
+      ].map((k) => ({ term: k[0], was: '#' + k[1], now: '#' + k[2], vol: k[3].toLocaleString(), trend: k[4], color: k[5], delta: (k[1] - k[2] > 0 ? '+' : '') + (k[1] - k[2]) })),
+      pipeline: [
+        ['Rooftop unit service intervals', 'Published', '#2F8F4E', 'Day 9 · 41 sessions'],
+        ['Insulated vs down (client draft)', 'Awaiting client', '#8C6500', 'Sent Tuesday'],
+        ['Commercial maintenance contracts', 'In QC', '#4A4F55', 'Draft v2'],
+        ['Emergency AC checklist', 'Queued', '#7A7F86', 'Writer assigned']
+      ].map((p) => ({ title: p[0], status: p[1], color: p[2], note: p[3] })),
+      qcScore: '88',
+      qcIssues: [
+        ['Critical', 1, '#C0392B', '#FBEAE7', 'Quote button contrast fails AA (3.4:1) on mobile'],
+        ['Critical', 1, '#C0392B', '#FBEAE7', 'Two service images missing alt attributes'],
+        ['Serious', 2, '#8C6500', '#FBF3DE', 'Duplicate meta description on 4 location pages'],
+        ['Cosmetic', 5, '#4A4F55', '#F4F2EE', 'Inconsistent heading case in the footer'],
+        ['Cosmetic', 3, '#4A4F55', '#F4F2EE', 'Two images served at 2x the needed size']
+      ].map((i) => ({ sev: i[0], n: i[1], fg: i[2], bg: i[3], text: i[4], critical: i[0] === 'Critical' })),
+      qcHistory: [
+        ['Today 06:00', '88', '2 critical · 5 cosmetic', 'flat'],
+        ['Yesterday', '88', '2 critical · 6 cosmetic', 'up'],
+        ['Jul 24', '84', '3 critical · 9 cosmetic', 'up'],
+        ['Jul 21', '79', '5 critical · 11 cosmetic', 'up'],
+        ['Jul 18', '74', '6 critical · 14 cosmetic', 'flat']
+      ].map((r) => ({ when: r[0], score: r[1], detail: r[2], color: DIR[r[3]], arrow: ARROW[r[3]] })),
+      paidTabs: ['Meta', 'Google', 'LinkedIn'].map((t) => ({
+        label: t,
+        go: () => this.setState({ paidChannel: t }),
+        bg: st.paidChannel === t ? '#080808' : '#FFFFFF',
+        fg: st.paidChannel === t ? '#FFFFFF' : '#080808',
+        edge: st.paidChannel === t ? '#080808' : '#E8E5DD'
+      })),
+      campaigns: camps.map((c) => ({
+        id: c.id, name: c.name, level: c.level, indent: c.level === 'Ad set' ? '22px' : c.level === 'Ad' ? '44px' : '0px',
+        budget: '$' + c.budget, band: '$' + c.floor + '–$' + c.ceiling, spend: c.spend, cpa: c.cpa, conv: c.conv, roas: c.roas,
+        statusLabel: c.paused ? 'Paused' : 'Active',
+        statusBg: c.paused ? '#F4F2EE' : '#E5FFB8',
+        statusFg: c.paused ? '#4A4F55' : '#3E5216',
+        toggleLabel: c.paused ? 'Resume' : 'Pause',
+        toggle: () => this.toggleCampaign(c.id),
+        up: () => this.setBudget(c.id, 1),
+        down: () => this.setBudget(c.id, -1),
+        cpaColor: c.over ? '#C0392B' : '#080808',
+        rowBg: c.paused ? '#FBFAF8' : '#FFFFFF',
+        weight: c.level === 'Campaign' ? 600 : 500
+      })),
+      paidTotals: [
+        { k: 'Committed / day', v: '$1,284' }, { k: 'Spent (28d)', v: '$34,180' },
+        { k: 'Leads (28d)', v: '356' }, { k: 'Blended CPA', v: '$96' }
+      ],
+      pending: !!p,
+      pendingName: p ? p.name : '',
+      pendingFrom: p ? '$' + p.from + '/day' : '',
+      pendingTo: p ? '$' + p.to : '',
+      pendingMonthly: p ? '$' + (p.to * 30).toLocaleString() + ' over 30 days' : '',
+      pendingDelta: p ? '+$' + (p.to - p.from) + '/day' : '',
+      confirmBudget: () => { const q = this.state.pending; this.applyBudget(q.id, q.to); this.toast(q.name + ' raised to $' + q.to + '/day · committed'); },
+      cancelBudget: () => this.setState({ pending: null }),
+      inventory: INVENTORY
+    };
+  }
+
+  portalVals() {
+    const st = this.state;
+    const hv = st.hoverMetric;
+    return {
+      isHome: st.screen === 'home',
+      isPlaybook: st.screen === 'playbook',
+      isPOrganic: st.screen === 'organic',
+      isPPaid: st.screen === 'pPaid',
+      isAeo: st.screen === 'aeo',
+      isPApprovals: st.screen === 'pApprovals',
+      isGbp: st.screen === 'gbp',
+      isAutomation: st.screen === 'automation',
+      isMobile: st.screen === 'mobile',
+      goPortalApprovals: () => this.setState({ screen: 'pApprovals' }),
+      homeMetrics: PORTAL_METRICS.map((m, i) => ({
+        k: m[0], v: m[1], note: m[2], color: m[3], explain: m[4],
+        showExplain: hv === i,
+        enter: () => this.setState({ hoverMetric: i }),
+        leave: () => this.setState({ hoverMetric: null })
+      })),
+      workstreams: WORKSTREAMS.map((w) => ({
+        name: w.name, pct: w.pct, done: w.done + ' of ' + w.total + ' done',
+        items: w.items.map((i) => ({
+          text: i[0], owner: i[1], status: i[2],
+          fg: STATUS_C[i[2]][0], bg: STATUS_C[i[2]][1], glyph: STATUS_C[i[2]][2]
+        }))
+      })),
+      archive: [
+        ['June', 'Doubled maintenance-plan signups', '18 of 20 shipped', '#2F8F4E'],
+        ['May', 'Fixed the site speed problem', '20 of 21 shipped', '#2F8F4E'],
+        ['April', 'Meta test lost — we stopped it', '17 of 19 shipped', '#4A4F55']
+      ].map((a) => ({ month: a[0], outcome: a[1], shipped: a[2], color: a[3] })),
+      pKeywords: [
+        ['People searching for "commercial hvac maintenance"', '#18 → #11', 'Page one is close', '#2F8F4E'],
+        ['"emergency ac repair near me"', '#3 → #4', 'Slipped one spot — we are on it', '#8C6500'],
+        ['"hvac maintenance plan"', '#12 → #9', 'Climbing since the new page', '#2F8F4E'],
+        ['"rooftop unit repair"', '#6 → #6', 'Holding steady', '#4A4F55']
+      ].map((k) => ({ term: k[0], move: k[1], note: k[2], color: k[3] })),
+      concepts: [
+        ['Insulated vs down: which jacket keeps you warm?', 'Answers your most-asked pre-sale question', 'Waiting on you'],
+        ['What a commercial maintenance contract should include', 'Targets 590 searches a month with no strong answer online', 'Waiting on you']
+      ].map((c) => ({ title: c[0], why: c[1], status: c[2], go: () => this.setState({ screen: 'pApprovals' }) })),
+      published: [
+        ['How often does a rooftop unit need service?', 'Live 9 days', '41 visits · 2 calls', 'Working'],
+        ['5 signs your AC is about to fail', 'Live 34 days', '380 visits · 11 calls', 'Working'],
+        ['Choosing an HVAC contractor in Austin', 'Live 12 days', 'Measuring — 18 days left', 'Too early']
+      ].map((p) => ({ title: p[0], age: p[1], result: p[2], verdict: p[3], color: p[3] === 'Working' ? '#2F8F4E' : '#4A4F55', bg: p[3] === 'Working' ? '#E5FFB8' : '#F4F2EE' })),
+      aeoPrompts: AEO.map((a) => ({
+        q: a[0], status: a[1], trend: a[2],
+        fg: AEO_C[a[1]][0], bg: AEO_C[a[1]][1], edge: AEO_C[a[1]][2],
+        trendColor: a[3] ? DIR[a[3]] : '#7A7F86'
+      })),
+      portalQueue: PORTAL_CARDS,
+      creatives: [
+        ['Maintenance plan · stone', '$4,120 spent', '38 leads', '#D8DCCE'],
+        ['Emergency call · dark', '$2,880 spent', '24 leads', '#0F1A2B'],
+        ['Offer-forward · green', '$1,640 spent', '11 leads', '#C7FF6A'],
+        ['Testimonial cut', 'Launched Monday', 'Measuring', '#B8BCB0']
+      ].map((c) => ({ name: c[0], spend: c[1], result: c[2], tone: c[3] }))
+    };
+  }
+}
+
+</script>
+</body>
+</html>

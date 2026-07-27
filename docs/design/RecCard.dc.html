@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/trusted-marketing-design-system-019dd5c1-2c87-73f4-bd45-a6ebc29aa4fc/colors_and_type.css">
+<script src="_ds/trusted-marketing-design-system-019dd5c1-2c87-73f4-bd45-a6ebc29aa4fc/_ds_bundle.js"></script>
+<style>
+  @keyframes recPulse { 0% { opacity: 0.35 } 50% { opacity: 1 } 100% { opacity: 0.35 } }
+  @keyframes recFade { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
+</style>
+</helmet>
+
+<div style="background: {{ surface }}; border: 1px solid {{ edge }}; border-radius: 12px; padding: 20px 22px 18px; display: flex; flex-direction: column; gap: 14px">
+
+  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+    <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; padding: 5px 11px; border-radius: 999px; background: {{ sevBg }}; color: {{ sevFg }}">{{ rec.priority }}</span>
+    <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">{{ rec.rule }}</span>
+    <span style="width: 3px; height: 3px; border-radius: 999px; background: #B8BCB0"></span>
+    <span style="font-size: 12px; color: #7A7F86">Staged by {{ rec.agent }}</span>
+    <div style="flex: 1"></div>
+    <span style="font-size: 12px; color: #7A7F86">{{ rec.age }}</span>
+  </div>
+
+  <div style="font-size: 19px; line-height: 1.35; font-weight: 600; letter-spacing: -0.005em; text-wrap: pretty; color: #080808">{{ rec.title }}</div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; border-top: 1px solid #F0EEE8; border-bottom: 1px solid #F0EEE8; padding: 13px 0">
+    <div>
+      <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #8FCC2E">Why</div>
+      <div style="font-size: 13.5px; line-height: 1.5; color: #4A4F55; margin-top: 6px; text-wrap: pretty">{{ rec.why }}</div>
+    </div>
+    <div>
+      <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Expected impact</div>
+      <div style="display: flex; align-items: baseline; gap: 9px; margin-top: 4px">
+        <span style="font-family: 'Instrument Serif', serif; font-size: 30px; line-height: 1; color: #080808">{{ rec.impactFig }}</span>
+        <span style="font-size: 13px; color: #4A4F55">{{ rec.impactNote }}</span>
+      </div>
+      <div style="font-size: 12px; color: #7A7F86; margin-top: 5px">{{ rec.impactBasis }}</div>
+    </div>
+  </div>
+
+  <sc-if value="{{ isTitleTag }}" hint-placeholder-val="{{ false }}">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+      <div style="border: 1px solid #E8E5DD; border-radius: 8px; overflow: hidden">
+        <div style="padding: 7px 11px; background: #F4F2EE; border-bottom: 1px solid #E8E5DD; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Live now</div>
+        <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px">
+          <div style="font-size: 13px; color: #4A4F55; line-height: 1.4">{{ rec.beforeTitle }}</div>
+          <div style="font-size: 15px; font-weight: 600; color: #4A4F55">{{ rec.beforeH1 }}</div>
+          <div style="height: 6px; width: 88%; background: #F0EEE8; border-radius: 2px"></div>
+          <div style="height: 6px; width: 64%; background: #F0EEE8; border-radius: 2px"></div>
+        </div>
+      </div>
+      <div style="border: 1px solid #C9CCC1; border-radius: 8px; overflow: hidden">
+        <div style="padding: 7px 11px; background: #080808; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #C7FF6A">Staged</div>
+        <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px">
+          <div style="font-size: 13px; color: #080808; line-height: 1.4">{{ rec.afterTitle }}</div>
+          <div style="font-size: 15px; font-weight: 600; color: #080808">{{ rec.afterH1 }}</div>
+          <div style="height: 6px; width: 88%; background: #F0EEE8; border-radius: 2px"></div>
+          <div style="height: 6px; width: 72%; background: #F0EEE8; border-radius: 2px"></div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isBlog }}" hint-placeholder-val="{{ false }}">
+    <div style="border: 1px solid #E8E5DD; border-radius: 8px; overflow: hidden">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; background: #F4F2EE; border-bottom: 1px solid #E8E5DD">
+        <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Outline the agent will write from</span>
+        <span style="font-size: 11px; color: #7A7F86">{{ rec.blogMeta }}</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 150px 1fr; gap: 14px; padding: 14px">
+        <div style="border-radius: 6px; background: #D8DCCE; display: flex; flex-direction: column; justify-content: flex-end; padding: 9px; min-height: 116px">
+          <span style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Hero via Bloom</span>
+          <span style="font-size: 11px; color: #4A4F55; margin-top: 3px">16:9 · brand palette</span>
+        </div>
+        <div>
+          <div style="font-family: 'Instrument Serif', serif; font-size: 23px; line-height: 1.12; color: #080808">{{ rec.blogTitle }}</div>
+          <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 10px">
+            <sc-for list="{{ outline }}" as="o" hint-placeholder-count="4">
+              <div style="display: flex; gap: 9px; font-size: 13px; color: #4A4F55"><span style="color: #B8BCB0">{{ o.n }}</span>{{ o.t }}</div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isCreative }}" hint-placeholder-val="{{ false }}">
+    <div style="display: grid; grid-template-columns: 156px 1fr; gap: 14px">
+      <div style="border: 1px solid #E8E5DD; border-radius: 8px; overflow: hidden">
+        <div style="aspect-ratio: 4 / 5; background: #D8DCCE; display: flex; align-items: flex-end; padding: 10px">
+          <div style="height: 10px; width: 62%; background: rgba(8,8,8,0.14); border-radius: 2px"></div>
+        </div>
+        <div style="padding: 8px 10px; border-top: 1px solid #E8E5DD; font-size: 11px; color: #4A4F55">Running 42 days</div>
+      </div>
+      <div style="border: 1px solid #E8E5DD; border-radius: 8px; padding: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-content: start">
+        <sc-for list="{{ fatigue }}" as="f" hint-placeholder-count="4">
+          <div>
+            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">{{ f.k }}</div>
+            <div style="display: flex; align-items: baseline; gap: 8px; margin-top: 4px">
+              <span style="font-family: 'Instrument Serif', serif; font-size: 28px; line-height: 1; color: {{ f.color }}">{{ f.v }}</span>
+              <span style="font-size: 12px; color: #7A7F86">{{ f.note }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isSocial }}" hint-placeholder-val="{{ false }}">
+    <div style="display: grid; grid-template-columns: 148px 1fr; gap: 14px">
+      <div style="border: 1px solid #E8E5DD; border-radius: 8px; overflow: hidden">
+        <div style="aspect-ratio: 1 / 1; background: #0F1A2B; display: flex; align-items: flex-end; padding: 10px">
+          <div style="height: 10px; width: 58%; background: rgba(255,255,255,0.22); border-radius: 2px"></div>
+        </div>
+        <div style="padding: 8px 10px; border-top: 1px solid #E8E5DD; font-size: 11px; color: #4A4F55">The proven post</div>
+      </div>
+      <div style="border: 1px solid #E8E5DD; border-radius: 8px; padding: 14px">
+        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Four-week series the agent will draft</div>
+        <div style="display: flex; flex-direction: column; gap: 7px; margin-top: 10px">
+          <sc-for list="{{ series }}" as="s" hint-placeholder-count="4">
+            <div style="display: flex; gap: 10px; font-size: 13px; color: #4A4F55"><span style="font-weight: 600; color: #080808; min-width: 52px">{{ s.wk }}</span>{{ s.t }}</div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isAeo }}" hint-placeholder-val="{{ false }}">
+    <div style="border: 1px solid #E8E5DD; border-radius: 8px; overflow: hidden">
+      <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #F4F2EE; border-bottom: 1px solid #E8E5DD; flex-wrap: wrap">
+        <span style="font-size: 13.5px; color: #080808">“{{ rec.prompt }}”</span>
+        <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; padding: 4px 10px; border-radius: 999px; background: #FFFFFF; border: 1px solid #E8E5DD; color: #4A4F55">Not showing</span>
+        <div style="flex: 1"></div>
+        <span style="font-size: 11px; color: #7A7F86">ChatGPT · Gemini · AI Overviews</span>
+      </div>
+      <div style="padding: 14px; display: flex; flex-direction: column; gap: 9px">
+        <div style="font-size: 15px; font-weight: 600; color: #080808">{{ rec.answerHeading }}</div>
+        <div style="font-size: 13px; line-height: 1.55; color: #4A4F55">{{ rec.answerBody }}</div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 3px">
+          <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; padding: 4px 10px; border-radius: 999px; background: #E5FFB8; color: #3E5216">FAQ schema · 4 pairs</span>
+          <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; padding: 4px 10px; border-radius: 999px; background: #F4F2EE; color: #4A4F55">Target page {{ rec.targetPage }}</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isRunning }}" hint-placeholder-val="{{ false }}">
+    <div style="border: 1px solid #E8E5DD; background: #F4F2EE; border-radius: 8px; padding: 14px">
+      <div style="display: flex; align-items: center; justify-content: space-between">
+        <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Job running</span>
+        <span style="font-size: 12px; color: #4A4F55">{{ stepCount }}</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 9px; margin-top: 12px">
+        <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+          <div style="display: flex; align-items: center; gap: 10px; font-size: 13px; color: {{ s.fg }}; animation: {{ s.anim }}">
+            <span style="width: 15px; height: 15px; border-radius: 999px; background: {{ s.dot }}; border: 1px solid {{ s.dotEdge }}; color: #FFFFFF; font-size: 9px; display: flex; align-items: center; justify-content: center; flex: none">{{ s.glyph }}</span>
+            {{ s.label }}
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isChoose }}" hint-placeholder-val="{{ false }}">
+    <div style="border: 1px solid #C9CCC1; border-radius: 8px; padding: 14px; animation: recFade 200ms cubic-bezier(0.2,0.7,0.2,1)">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+        <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Bloom returned three concepts · 4:5</span>
+        <span style="font-size: 12px; color: #7A7F86">Pick one to upload. It uploads paused.</span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px">
+        <sc-for list="{{ concepts }}" as="c" hint-placeholder-count="3">
+          <button onClick="{{ c.pick }}" style="text-align: left; font-family: inherit; cursor: pointer; padding: 0; background: #FFFFFF; border: 1px solid {{ c.edge }}; border-radius: 8px; overflow: hidden">
+            <div style="aspect-ratio: 4 / 5; background: {{ c.tone }}; display: flex; align-items: flex-end; padding: 10px">
+              <div style="height: 10px; width: 60%; background: rgba(8,8,8,0.16); border-radius: 2px"></div>
+            </div>
+            <div style="padding: 9px 10px; border-top: 1px solid #E8E5DD">
+              <div style="font-size: 12.5px; font-weight: 600; color: #080808">{{ c.name }}</div>
+              <div style="font-size: 11px; color: #7A7F86; margin-top: 2px">{{ c.note }}</div>
+            </div>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isPaused }}" hint-placeholder-val="{{ false }}">
+    <div style="border: 1px solid #EFE0BB; background: #FDFBF4; border-radius: 8px; padding: 14px; animation: recFade 200ms cubic-bezier(0.2,0.7,0.2,1)">
+      <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #8C6500">Uploaded to Meta · all three paused</div>
+      <div style="font-size: 13.5px; line-height: 1.5; color: #080808; margin-top: 8px">{{ rec.pausedNote }}</div>
+      <div style="font-size: 12.5px; color: #4A4F55; margin-top: 6px">Nothing is spending yet. Setting one live is a separate decision, because it commits budget.</div>
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap">
+        <button onClick="{{ setLive }}" style="font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 11px 18px; border-radius: 999px; border: 1px solid #C7FF6A; background: #C7FF6A; color: #080808">Set {{ chosenName }} live</button>
+        <button onClick="{{ finishPaused }}" style="font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 11px 16px; border-radius: 999px; border: 1px solid #E8E5DD; background: #FFFFFF; color: #080808">Leave paused for now</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+    <div style="border: 1px solid #E8E5DD; border-left: 3px solid #2F8F4E; border-radius: 8px; padding: 14px; animation: recFade 360ms cubic-bezier(0.2,0.7,0.2,1)">
+      <div style="display: flex; align-items: center; gap: 9px">
+        <span style="width: 18px; height: 18px; border-radius: 999px; background: #2F8F4E; color: #FFFFFF; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center">✓</span>
+        <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #2F8F4E">Done · receipt</span>
+      </div>
+      <div style="font-size: 14px; line-height: 1.55; color: #080808; margin-top: 9px; text-wrap: pretty">{{ rec.receipt }}</div>
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap">
+        <button onClick="{{ next }}" style="font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 11px 18px; border-radius: 999px; border: 1px solid #080808; background: #FFFFFF; color: #080808">{{ rec.nextAction }}</button>
+        <span style="font-size: 12px; color: #7A7F86">{{ rec.doneMeta }}</span>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isDeclining }}" hint-placeholder-val="{{ false }}">
+    <div style="border: 1px solid #E8E5DD; background: #F4F2EE; border-radius: 8px; padding: 14px; animation: recFade 200ms cubic-bezier(0.2,0.7,0.2,1)">
+      <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Why are you declining?</div>
+      <div style="font-size: 12.5px; color: #4A4F55; margin-top: 7px">The reason is logged and this rule stops firing for {{ rec.client }} for 60 days.</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 14px">
+        <sc-for list="{{ reasons }}" as="r" hint-placeholder-count="4">
+          <button onClick="{{ r.pick }}" style="font-family: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; padding: 7px 13px; border-radius: 999px; border: 1px solid {{ r.edge }}; background: {{ r.bg }}; color: {{ r.fg }}">{{ r.label }}</button>
+        </sc-for>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+        <button onClick="{{ confirmDecline }}" style="font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 11px 18px; border-radius: 999px; border: 1px solid #080808; background: #080808; color: #FFFFFF">Decline & suppress 60 days</button>
+        <button onClick="{{ cancelDecline }}" style="font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 11px 16px; border-radius: 999px; border: 1px solid #E8E5DD; background: #FFFFFF; color: #080808">Keep it</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isDeclined }}" hint-placeholder-val="{{ false }}">
+    <div style="border: 1px dashed #C9CCC1; border-radius: 8px; padding: 13px 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+      <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: #4A4F55">Declined</span>
+      <span style="font-size: 13px; color: #080808">{{ rec.declineReason }}</span>
+      <span style="font-size: 12.5px; color: #7A7F86">· logged, and this rule is suppressed until {{ rec.suppressUntil }}</span>
+      <div style="flex: 1"></div>
+      <button onClick="{{ reopen }}" style="font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; padding: 7px 14px; border-radius: 999px; border: 1px solid #E8E5DD; background: #FFFFFF; color: #080808">Undo</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ showActions }}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+      <button onClick="{{ approve }}" style="font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; padding: 11px 20px; border-radius: 999px; border: 1px solid #C7FF6A; background: #C7FF6A; color: #080808">{{ rec.approveLabel }}</button>
+      <button onClick="{{ decline }}" style="font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; padding: 11px 18px; border-radius: 999px; border: 1px solid #E8E5DD; background: #FFFFFF; color: #080808">Decline</button>
+      <button style="font-family: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer; padding: 11px 12px; border-radius: 999px; border: none; background: none; color: #4A4F55">Edit before running</button>
+      <div style="flex: 1"></div>
+      <span style="font-size: 12px; color: #7A7F86">{{ rec.foot }}</span>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:780,&quot;height&quot;:560},&quot;rec&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;},&quot;onAction&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(id: string, action: string, payload?: any) =&gt; void&quot;}}">
+class Component extends DCLogic {
+  state = { reason: null };
+
+  get rec() { return this.props.rec || {}; }
+
+  act(action, payload) {
+    if (this.props.onAction) this.props.onAction(this.rec.id, action, payload);
+  }
+
+  renderVals() {
+    const r = this.rec;
+    const st = r.status || 'default';
+    const sevMap = { High: ['#FBEAE7', '#C0392B'], Medium: ['#FBF3DE', '#8C6500'], Low: ['#F4F2EE', '#4A4F55'] };
+    const sevPair = sevMap[r.priority] || sevMap.Low;
+    const stepList = r.steps || [];
+    const cur = r.step || 0;
+
+    const reasons = (r.reasons || ['Client would object', 'Wrong priority this month', 'We tried this already', 'Not enough upside']).map((label) => ({
+      label,
+      pick: () => this.setState({ reason: label }),
+      bg: this.state.reason === label ? '#080808' : '#FFFFFF',
+      fg: this.state.reason === label ? '#FFFFFF' : '#080808',
+      edge: this.state.reason === label ? '#080808' : '#E8E5DD'
+    }));
+
+    return {
+      rec: Object.assign({ priority: 'Medium', age: '3h', agent: 'Growth agent', approveLabel: 'Approve & run', client: 'this client', suppressUntil: 'Sep 25' }, r),
+      isTitleTag: r.variant === 'titletag',
+      isBlog: r.variant === 'blog',
+      isCreative: r.variant === 'creative',
+      isSocial: r.variant === 'social',
+      isAeo: r.variant === 'aeo',
+      isRunning: st === 'running',
+      isChoose: st === 'choose',
+      isPaused: st === 'paused',
+      isDone: st === 'done',
+      isDeclining: st === 'declining',
+      isDeclined: st === 'declined',
+      showActions: st === 'default',
+      surface: st === 'declined' ? '#FBFAF8' : '#FFFFFF',
+      edge: st === 'done' ? '#E8E5DD' : '#E8E5DD',
+      sevBg: sevPair[0],
+      sevFg: sevPair[1],
+      stepCount: 'step ' + Math.min(cur + 1, stepList.length) + ' of ' + stepList.length,
+      steps: stepList.map((label, i) => ({
+        label: label,
+        fg: i < cur ? '#4A4F55' : i === cur ? '#080808' : '#B8BCB0',
+        dot: i < cur ? '#2F8F4E' : i === cur ? '#080808' : '#FFFFFF',
+        dotEdge: i <= cur ? 'transparent' : '#E8E5DD',
+        glyph: i < cur ? '✓' : i === cur ? '·' : '',
+        anim: i === cur ? 'recPulse 1.2s ease-in-out infinite' : 'none'
+      })),
+      outline: (r.outline || []).map((t, i) => ({ n: String(i + 1) + '.', t: t })),
+      series: r.series || [],
+      fatigue: r.fatigue || [],
+      concepts: (r.concepts || []).map((c, i) => ({
+        name: c[0], note: c[1], tone: c[2],
+        edge: r.chosen === i ? '#080808' : '#E8E5DD',
+        pick: () => this.act('pick', i)
+      })),
+      chosenName: r.concepts && r.concepts[r.chosen] ? r.concepts[r.chosen][0] : 'the pick',
+      approve: () => this.act('approve'),
+      decline: () => this.act('decline'),
+      confirmDecline: () => this.act('confirm-decline', this.state.reason || reasons[0].label),
+      cancelDecline: () => this.act('cancel-decline'),
+      reopen: () => this.act('reopen'),
+      setLive: () => this.act('set-live'),
+      finishPaused: () => this.act('leave-paused'),
+      next: () => this.act('next')
+    };
+  }
+}
+
+</script>
+</body>
+</html>

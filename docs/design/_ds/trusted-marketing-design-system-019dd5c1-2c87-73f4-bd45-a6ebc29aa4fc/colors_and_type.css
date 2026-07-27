@@ -1,0 +1,240 @@
+/* ──────────────────────────────────────────────────────────────────
+   TRUSTED MARKETING — Colors & Type
+   Revenue-first growth partner. Direct, confident, practical.
+   ────────────────────────────────────────────────────────────────── */
+
+/* Webfonts ── Both families self-hosted from brand-supplied TTFs.
+   Instrument Serif for display; Inter (variable) for UI/body.        */
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/InstrumentSerif-Regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/InstrumentSerif-Italic.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/Inter-VariableFont_opsz_wght.ttf') format('truetype-variations');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/Inter-Italic-VariableFont_opsz_wght.ttf') format('truetype-variations');
+}
+
+:root {
+  /* ── CORE PALETTE ──────────────────────────────────────────────── */
+  /* Pulled directly from the Figma brand board.                      */
+  --tm-deep-charcoal:     #080808;  /* primary dark surface           */
+  --tm-performance-green: #C7FF6A;  /* signature lime — accent only   */
+  --tm-midnight-blue:     #0F1A2B;  /* deep secondary surface         */
+  --tm-warm-stone:        #D8DCCE;  /* neutral light surface          */
+  --tm-graphite:          #4A4F55;  /* neutral mid                    */
+  --tm-white:             #FFFFFF;
+  --tm-black:             #000000;
+
+  /* Tints / shades for surfaces & dividers ─────────────────────── */
+  --tm-charcoal-900:      #0B0B0D;
+  --tm-charcoal-800:      #14141A;
+  --tm-charcoal-700:      #1E1E26;
+  --tm-stone-100:         #F4F2EE;
+  --tm-stone-200:         #E8E5DD;
+  --tm-stone-300:         #D8DCCE;
+  --tm-stone-400:         #B8BCB0;
+
+  --tm-green-soft:        #E5FFB8;  /* tinted green for backgrounds   */
+  --tm-green-deep:        #8FCC2E;  /* hover/press for accent on white*/
+
+  /* Semantic — light mode ──────────────────────────────────────── */
+  --bg:                   var(--tm-white);
+  --bg-elevated:          var(--tm-stone-100);
+  --bg-inverse:           var(--tm-deep-charcoal);
+  --fg1:                  var(--tm-deep-charcoal);   /* primary text  */
+  --fg2:                  var(--tm-graphite);        /* secondary     */
+  --fg3:                  #7A7F86;                   /* tertiary/meta */
+  --fg-on-inverse:        var(--tm-white);
+  --accent:               var(--tm-performance-green);
+  --accent-fg:            var(--tm-deep-charcoal);   /* text on green */
+  --border:               var(--tm-stone-200);
+  --border-strong:        #C9CCC1;
+  --divider:              var(--tm-stone-200);
+
+  /* Status — used sparingly; brand prefers no decorative color.    */
+  --success:              #2F8F4E;
+  --warning:              #C49000;
+  --danger:               #C0392B;
+
+  /* ── RADII ───────────────────────────────────────────────────── */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  /* ── SPACING (4-pt scale) ────────────────────────────────────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* ── SHADOWS ─────────────────────────────────────────────────── */
+  /* Brand prefers flat / minimal. Shadows are quiet, never colored.*/
+  --shadow-xs: 0 1px 1px rgba(8,8,8,0.04);
+  --shadow-sm: 0 1px 2px rgba(8,8,8,0.06), 0 1px 3px rgba(8,8,8,0.04);
+  --shadow-md: 0 2px 6px rgba(8,8,8,0.06), 0 8px 16px rgba(8,8,8,0.05);
+  --shadow-lg: 0 12px 28px rgba(8,8,8,0.10), 0 4px 8px rgba(8,8,8,0.05);
+  --shadow-focus: 0 0 0 3px rgba(199,255,106,0.55);
+
+  /* ── BORDERS ─────────────────────────────────────────────────── */
+  --border-width: 1px;
+  --border-thick: 2px;
+
+  /* ── MOTION ──────────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1); /* @kind other */
+  --ease-in-out: cubic-bezier(0.4, 0.0, 0.2, 1); /* @kind other */
+  --t-fast: 120ms; /* @kind other */
+  --t-base: 200ms; /* @kind other */
+  --t-slow: 360ms; /* @kind other */
+
+  /* ── TYPE FAMILIES ───────────────────────────────────────────── */
+  --font-display: 'Instrument Serif', 'Times New Roman', serif;
+  --font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono:    ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* ── TYPE SCALE — display (serif) ────────────────────────────── */
+  --display-xxl-size:   128px;  --display-xxl-line: 0.92; /* @kind font */  --display-xxl-tracking: -0.02em;
+  --display-xl-size:    96px;   --display-xl-line:  0.95; /* @kind font */  --display-xl-tracking:  -0.02em;
+  --display-lg-size:    72px;   --display-lg-line:  0.98; /* @kind font */  --display-lg-tracking:  -0.015em;
+  --display-md-size:    56px;   --display-md-line:  1.02; /* @kind font */  --display-md-tracking:  -0.01em;
+  --display-sm-size:    40px;   --display-sm-line:  1.05; /* @kind font */  --display-sm-tracking:  -0.01em;
+
+  /* ── TYPE SCALE — UI/body (Inter) ────────────────────────────── */
+  --h1-size: 40px;  --h1-line: 1.15; /* @kind font */  --h1-weight: 600; /* @kind font */  --h1-tracking: -0.015em;
+  --h2-size: 32px;  --h2-line: 1.2; /* @kind font */   --h2-weight: 600; /* @kind font */  --h2-tracking: -0.01em;
+  --h3-size: 24px;  --h3-line: 1.25; /* @kind font */  --h3-weight: 600; /* @kind font */  --h3-tracking: -0.005em;
+  --h4-size: 20px;  --h4-line: 1.3; /* @kind font */   --h4-weight: 600; /* @kind font */  --h4-tracking: 0;
+  --h5-size: 16px;  --h5-line: 1.4; /* @kind font */   --h5-weight: 600; /* @kind font */  --h5-tracking: 0;
+
+  --body-lg-size: 18px; --body-lg-line: 1.55; /* @kind font */
+  --body-size:    16px; --body-line:    1.55; /* @kind font */
+  --body-sm-size: 14px; --body-sm-line: 1.5; /* @kind font */
+  --caption-size: 12px; --caption-line: 1.4; /* @kind font */
+  --eyebrow-size: 12px; --eyebrow-tracking: 0.12em; /* ALL CAPS labels */
+  --code-size:    14px; --code-line:    1.5; /* @kind font */
+}
+
+/* ── BASE RESETS / DEFAULTS ───────────────────────────────────── */
+html, body {
+  background: var(--bg);
+  color: var(--fg1);
+  font-family: var(--font-body);
+  font-size: var(--body-size);
+  line-height: var(--body-line);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── DISPLAY (serif) ─────────────────────────────────────────── */
+.display-xxl, .display-xl, .display-lg, .display-md, .display-sm {
+  font-family: var(--font-display);
+  font-weight: 400;          /* Instrument Serif is a 1-weight family */
+  color: var(--fg1);
+}
+.display-xxl { font-size: var(--display-xxl-size); line-height: var(--display-xxl-line); letter-spacing: var(--display-xxl-tracking); }
+.display-xl  { font-size: var(--display-xl-size);  line-height: var(--display-xl-line);  letter-spacing: var(--display-xl-tracking);  }
+.display-lg  { font-size: var(--display-lg-size);  line-height: var(--display-lg-line);  letter-spacing: var(--display-lg-tracking);  }
+.display-md  { font-size: var(--display-md-size);  line-height: var(--display-md-line);  letter-spacing: var(--display-md-tracking);  }
+.display-sm  { font-size: var(--display-sm-size);  line-height: var(--display-sm-line);  letter-spacing: var(--display-sm-tracking);  }
+
+/* Italic display is a brand signature — used to emphasise key
+   revenue/growth nouns (see: "generate leads, drive growth"). */
+.display-italic { font-style: italic; color: var(--accent); }
+
+/* ── SEMANTIC HEADINGS (Inter) ───────────────────────────────── */
+h1, .h1 { font-family: var(--font-body); font-size: var(--h1-size); line-height: var(--h1-line); font-weight: var(--h1-weight); letter-spacing: var(--h1-tracking); color: var(--fg1); }
+h2, .h2 { font-family: var(--font-body); font-size: var(--h2-size); line-height: var(--h2-line); font-weight: var(--h2-weight); letter-spacing: var(--h2-tracking); color: var(--fg1); }
+h3, .h3 { font-family: var(--font-body); font-size: var(--h3-size); line-height: var(--h3-line); font-weight: var(--h3-weight); letter-spacing: var(--h3-tracking); color: var(--fg1); }
+h4, .h4 { font-family: var(--font-body); font-size: var(--h4-size); line-height: var(--h4-line); font-weight: var(--h4-weight); color: var(--fg1); }
+h5, .h5 { font-family: var(--font-body); font-size: var(--h5-size); line-height: var(--h5-line); font-weight: var(--h5-weight); color: var(--fg1); }
+
+p, .body    { font-size: var(--body-size);    line-height: var(--body-line);    color: var(--fg1); }
+.body-lg    { font-size: var(--body-lg-size); line-height: var(--body-lg-line); color: var(--fg1); }
+.body-sm    { font-size: var(--body-sm-size); line-height: var(--body-sm-line); color: var(--fg2); }
+.caption    { font-size: var(--caption-size); line-height: var(--caption-line); color: var(--fg3); }
+
+/* The all-caps eyebrow is a key brand component — see brand-board
+   labels: "PRIMARY LOGO", "BRAND ESSENCE", "COLOR PALETTE", etc.   */
+.eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--eyebrow-size);
+  font-weight: 600;
+  letter-spacing: var(--eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--fg2);
+}
+
+code, .code, kbd, samp {
+  font-family: var(--font-mono);
+  font-size: var(--code-size);
+  line-height: var(--code-line);
+  background: var(--tm-stone-100);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── DARK CONTEXT ────────────────────────────────────────────── */
+/* Add `class="tm-dark"` to any container to flip semantics for use
+   on Deep Charcoal surfaces (the brand's primary dark backdrop). */
+.tm-dark {
+  --bg:            var(--tm-deep-charcoal);
+  --bg-elevated:   var(--tm-charcoal-800);
+  --bg-inverse:    var(--tm-white);
+  --fg1:           var(--tm-white);
+  --fg2:           #B8BCB0;
+  --fg3:           #7A7F86;
+  --fg-on-inverse: var(--tm-deep-charcoal);
+  --border:        var(--tm-charcoal-700);
+  --border-strong: #2A2A35;
+  --divider:       var(--tm-charcoal-700);
+  background: var(--bg);
+  color: var(--fg1);
+}
+
+/* ── LINKS ───────────────────────────────────────────────────── */
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--border-strong);
+  transition: text-decoration-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+a:hover { text-decoration-color: var(--accent); }
+
+/* ── FOCUS ───────────────────────────────────────────────────── */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-radius: var(--radius-sm);
+}

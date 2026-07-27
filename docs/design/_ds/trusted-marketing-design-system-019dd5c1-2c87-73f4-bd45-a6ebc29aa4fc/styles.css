@@ -1,0 +1,12 @@
+/* ──────────────────────────────────────────────────────────────────
+   TRUSTED MARKETING — Design System entry stylesheet
+   Single import surface for consumers. Pulls in the full token set,
+   type scale, motion, and base element styles.
+
+       <link rel="stylesheet" href="styles.css">
+
+   Kit-specific stylesheets (ui_kits/<kit>/*.css) are scoped to their
+   kit and imported by that kit's own pages — they are intentionally
+   NOT bundled here.
+   ────────────────────────────────────────────────────────────────── */
+@import url('colors_and_type.css');
