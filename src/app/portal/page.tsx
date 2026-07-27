@@ -39,7 +39,7 @@ export default async function Portal() {
 
         <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--fg2)", margin: "0 0 18px" }}>
           You are signed in{profile.full_name ? `, ${profile.full_name}` : ""}. There is nothing to
-          show here yet — we are still checking every number against the platforms it comes from, and
+          show here yet. We are still checking every number against the platforms it comes from, and
           we would rather show you nothing than show you something we have not verified.
         </p>
 
