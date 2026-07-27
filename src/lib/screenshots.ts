@@ -17,13 +17,25 @@ import { dbClient } from "@/lib/db";
 export type ShotKind = "before" | "after";
 
 export type Shot = {
-  url: string;          // where the image now lives (our storage, not the vendor's)
+  /**
+   * Storage path. THIS is what gets persisted against the approval, never a URL.
+   *
+   * The bucket is private, so a link is a temporary grant rather than an address.
+   * Storing a signed URL would bake in an expiry and, worse, leave a working
+   * link to a client's staged page sitting in the database.
+   */
+  path: string;
+  /** Short-lived signed URL for rendering now. Regenerate at render time. */
+  url: string;
   sourceUrl: string;    // the page that was captured
   kind: ShotKind;
   width: number;
   height: number;
   capturedAt: string;
 };
+
+/** How long a rendered screenshot link stays valid. */
+export const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
 
 const MOCK = () => process.env.MOCK_APIS === "1";
 
@@ -74,6 +86,7 @@ export async function captureFor(args: {
 
   if (MOCK()) {
     return {
+      path,
       url: `mock://screenshots/${path}`,
       sourceUrl: args.pageUrl,
       kind: args.kind,
@@ -92,9 +105,22 @@ export async function captureFor(args: {
   });
   if (error) throw new Error(`screenshot upload failed: ${error.message}`);
 
-  const { data } = db.storage.from("screenshots").getPublicUrl(path);
+  return { path, url: await signedUrl(path), sourceUrl: args.pageUrl, kind: args.kind, width, height: 0, capturedAt };
+}
 
-  return { url: data.publicUrl, sourceUrl: args.pageUrl, kind: args.kind, width, height: 0, capturedAt };
+/**
+ * A time-limited link to a stored screenshot.
+ *
+ * The bucket is private on purpose: these images show a client's site, sometimes
+ * a staged page that is not public yet. A public bucket would make every
+ * screenshot guessable by URL forever.
+ */
+export async function signedUrl(path: string, ttl = SIGNED_URL_TTL_SECONDS): Promise<string> {
+  if (MOCK()) return `mock://screenshots/${path}`;
+  const { data, error } = await dbClient().storage
+    .from("screenshots").createSignedUrl(path, ttl);
+  if (error) throw new Error(`signing failed: ${error.message}`);
+  return data.signedUrl;
 }
 
 /**
