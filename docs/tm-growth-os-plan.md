@@ -14,11 +14,36 @@ they are calendar time we do not control, and the clock has not started.
 | Capability | Application needed | Status (2026-07-27) | What it blocks |
 |---|---|---|---|
 | **Google Ads** data + controls | Developer token via MCC 711-022-5227, Explorer → Basic access | ⛔ **Not submitted.** Explorer-tier token exists and is vaulted; full-portfolio daily volume needs Basic | Paid tab's Google rows; cross-platform MER completeness |
-| **Google Business Profile** | Business Profile Performance API access | ⛔ **Not submitted.** Weeks of lead time | The entire GBP module, agency + portal. Calls, directions, views, review replies |
+| **Google Business Profile** | Business Profile API access request — **one-time, per GCP project** | ⛔ **Not submitted.** Stated review window 14 days; expect weeks | The entire GBP module, agency + portal. Calls, directions, views, review replies |
 | **LinkedIn** ads + organic | Marketing API / Community Management API app review | ⛔ **Not started.** Weeks | LinkedIn rows in Paid; B2B organic social |
 
 Two further prerequisites are **infrastructure we must build**, not approvals
 (see §7 Phase A.5), and one is an **unanswered vendor question** (PostFlow, §10).
+
+### GBP access — how it actually works *(verified 2026-07-27)*
+
+Scoped smaller than we assumed. **It is one application, not one per client.**
+
+- **The access request is one-time and per Google Cloud project**, reviewed
+  manually by Google. Approval does **not** carry over between GCP projects —
+  each starts at zero quota — so submit it against the project we intend to keep.
+- **Approval unlocks a default quota across all eight Business Profile APIs at
+  once**, including the Business Performance API (calls, directions, views). The
+  Performance API must additionally be *enabled* in the GCP console, but that's a
+  toggle, not a second application.
+- **Prerequisite to apply:** we must manage a **verified GBP active for 60+ days**.
+  It can be TM's own profile or a client's — confirm which one we cite before
+  submitting, since an incomplete submission is the main cause of delay.
+- **Per client it is an access grant, not an application.** The client adds TM as
+  a **Manager** on their Business Profile; TM then calls the API with its own
+  credentials rather than the client's. Same shape as the GSC/GA4 grants we
+  already do — see Appendix A step 5b.
+- ⚠️ **Open technical question:** GBP uses OAuth with the
+  `https://www.googleapis.com/auth/business.manage` scope, and the manager-access
+  pattern implies **user** credentials. We authenticate GSC and GA4 with a
+  **service account**. It is not confirmed that GBP supports service accounts —
+  assume it may need its own OAuth flow, and verify when the access request is
+  submitted. This changes the GBP stream's auth plumbing, not its scope.
 
 Design consequence: GBP, LinkedIn, and Google Ads panels ship as
 **"connection pending"** states, not populated with sample data. Do not demo a
@@ -305,6 +330,7 @@ Repeatable checklist; assign an owner, schedule all 12 remaining clients deliber
 3. **AI prompts** — 10–15 customer-voice questions (geo-flavored for local, product/comparison for ecom); include the head-to-head comparisons buyers actually ask
 4. **Search Console** — add tm-seo-collector service account as Full user on the property; set the exact property string in /admin (sc-domain: vs https:// form); run Backfill GSC history the same day (16-month window ages out monthly)
 5. **GA4** — grant the service account Viewer on the property (Admin → Property access management)
+5b. **Google Business Profile** *(local + hybrid clients — add once GBP API access is approved, §0)* — client adds the TM account as a **Manager** on their Business Profile; record the `gbp_location_ids` on the client row. This is an access grant, **not** an API application — the application is one-time and already covers every client. Verify the invite is *accepted*, not just sent; a pending invite reads as connected and returns nothing.
 6. **Frequencies** — set core/serp/crawl cadence per tier; Dominate gets the daily SERP option
 7. **First collection** — force-run the collector; verify the report shows core / serp / ai / recs synced with no FAILED lines; spot-check the dashboard card against Search Console
 8. **Paid + social (as Phase B lands)** — link ad accounts via Business Portfolio partner access; confirm token stored in vault with expiry date

@@ -67,7 +67,7 @@ gates one stream, and one is probably already done.** Waves 1–3 are not blocke
 | Your blocker | Streams it gates | What the delay costs |
 |---|---|---|
 | **0.1 Google Ads — Explorer→Basic upgrade** (not submitted; an Explorer token + OAuth bundle *are* vaulted) | Wave 5 Google panels only | **Low.** The collector is built, wired into cron, and mints tokens per run. Nothing in Waves 1–4 waits on it. Cost is an incomplete cross-platform MER and a "connection pending" tile. **Note:** the two remaining steps for *first* real Google data aren't applications at all — link Salty Dog's account under the MCC and seed its customer ID (~2 min each). Worth doing before the upgrade clears. |
-| **0.2 GBP API access** (not submitted) | Wave 5 GBP module — workspace GBP tab + portal Google Business screen | **Medium, and it's the longest clock.** Weeks of lead time, so every week of delay is a week added to the *end* of the project, not absorbed. For local-service clients this is also a headline portal metric (calls). Submit first. |
+| **0.2 GBP API access** (not submitted) | Wave 5 GBP module — workspace GBP tab + portal Google Business screen | **Medium, and it's the longest clock.** Stated 14-day review, realistically weeks, so every week of delay is a week added to the *end* of the project, not absorbed. For local-service clients this is also a headline portal metric (calls). **Submit first.** Good news (verified 2026-07-27): it's **one application per GCP project, not one per client** — per client is just a Manager invite. Applying needs a verified GBP active 60+ days (ours or a client's). |
 | **0.3 Meta system-user token** | Wave 3 Stream G (`module/paid-controls`) | **Probably zero — please just confirm.** WORKLOG 2026-07-23 records this generated with you via the Business Settings wizard, co-admin approved, vaulted as `meta:65f0506d…`, and Meta spend is flowing in prod today. The feasibility review lists it as outstanding. I believe the review is stale. |
 | **0.4 PostFlow API yes/no** | Module E / Social — the workspace Social tab and the portal Social screen | **Medium, and it's a scope question, not a plumbing one.** No API means "drafts land in PostFlow" becomes manual paste or PostFlow gets replaced. That changes what we build, so it can't be answered during the build. |
 | **0.5 Call-tracking decision** | Wave 4 Stream J (`module/portal-shell`) headline metrics — **for local-service clients only** | **Zero or total, depending on one other choice.** The portal leads with Calls · Cost per job · Jobs booked · Return per $1. For local clients we can't compute any of them today. **But if the portal pilot is an eCommerce client, this blocks nothing** — Shopify revenue is ground truth already. |
@@ -77,6 +77,31 @@ gates one stream, and one is probably already done.** Waves 1–3 are not blocke
 
 **Highest-value action today: submit 0.2 (GBP).** It has the longest approval clock and it's pure
 calendar time — every day it sits unsubmitted is a day added to the far end of the schedule.
+
+### Addendum — GBP access verified, and it's smaller than we scoped it
+
+Tom asked whether each business needs its own GBP API. Checked against Google's developer docs rather
+than answering from memory. **It does not — one application, per GCP project, not per client.**
+
+- Approval is **one-time per Google Cloud project**, manually reviewed, stated 14-day window
+  (realistically weeks). It does **not** carry over between GCP projects, so submit against the
+  project we intend to keep.
+- One approval unlocks a default quota across **all eight Business Profile APIs**, including the
+  Business Performance API we need for calls/directions/views. Performance also needs enabling in the
+  GCP console — a toggle, not a second application.
+- **To apply we must cite a verified GBP active 60+ days** — TM's own or a client's. Incomplete
+  submissions are the main cause of delay, so pick which profile we cite before filing.
+- **Per client it's an access grant, not an application:** the client adds TM as a **Manager**, then
+  TM calls the API with its own credentials. Added as Appendix A step **5b**, alongside the GSC/GA4
+  grants, with the gotcha that a *pending* invite reads as connected and returns nothing.
+- ⚠️ **Left open:** GBP uses OAuth (`business.manage`) and the manager pattern implies **user**
+  credentials; we use a **service account** for GSC/GA4. Not confirmed that GBP supports service
+  accounts. Assume the GBP stream may need its own OAuth flow — auth plumbing, not scope, but it's a
+  day or two the WO-003 estimate doesn't currently carry. Verify when filing.
+
+Folded into plan §0 (new subsection), Appendix A step 5b, WO-003 Wave 5, and STATUS blocker 2.
+**Net: this blocker is one form plus per-client Manager invites — but it's still the longest clock of
+the five, so it stays the highest-value thing to submit today.**
 
 ### Next action
 Awaiting approval on WO-003 before any implementation. Five open questions at the bottom of that doc

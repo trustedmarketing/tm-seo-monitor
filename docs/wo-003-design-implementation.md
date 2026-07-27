@@ -200,6 +200,16 @@ states. Per the feasibility review: *mark them pending rather than populated, so
 nobody demos a screen we can't fill.* The design already handles honest states
 well — apply that discipline to unavailable integrations.
 
+**GBP stream scoping note** *(verified 2026-07-27, see plan §0):* the access
+request is **one-time per GCP project, not per client** — approval covers all
+eight Business Profile APIs including Performance, and per client it reduces to a
+Manager invite in the onboarding runbook (Appendix A step 5b). This is smaller
+than the original estimate. ⚠️ But budget for **separate auth plumbing**: GBP uses
+OAuth with the `business.manage` scope and the manager pattern implies user
+credentials, whereas GSC/GA4 use a service account. Confirm whether GBP supports
+service accounts before the stream is scoped — if not, it needs its own OAuth
+flow and token refresh, which is a day or two the current estimate doesn't carry.
+
 ---
 
 ## Cross-cutting, every stream
