@@ -229,7 +229,12 @@ Slots into the existing plan rather than replacing it:
 ---
 
 ## 11. Open decisions
-- [ ] Which client pilots the portal (needs: Dominate tier, candid, WP Engine or git site)
+- [x] **Which client pilots the portal → SALTY DOG (decided 2026-07-27, Tom).** eCommerce, so Shopify
+      revenue is ground truth today and the portal's headline numbers exist without the call-tracking
+      decision. Also the only client with full real data flowing end to end (SEO + Meta + Shopify,
+      MER 1.84×). **Consequence to hold onto:** this proves the machine, not the local-service case.
+      "What do local clients see on their Home screen" remains a separate open decision tied to
+      call tracking (plan §10 decision 0) and must not be treated as answered by this pilot.
 - [ ] Portal as a tier entitlement — Dominate + Momentum only? (ties to the pricing decision already open)
 - [ ] Domain: portal.trustedmarketing.com vs a path inside growth.trustedmarketing.com
 - [ ] Do clients get individual logins or one shared per account (individual = better audit, more support burden)

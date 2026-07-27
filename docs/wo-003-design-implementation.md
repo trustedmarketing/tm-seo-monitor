@@ -228,10 +228,14 @@ flow and token refresh, which is a day or two the current estimate doesn't carry
 
 ## Open questions for Tom before this is scheduled
 
-1. **Portal pilot client** — recommend an eCommerce client (unblocks Wave 4 from
-   the call-tracking decision entirely). Needs to be someone who'll tell the truth.
+1. ✅ **Portal pilot client → SALTY DOG** (decided 2026-07-27). eCommerce, so Wave 4
+   is not gated by the call-tracking decision. Wave 4 Stream J builds its headline
+   as Revenue · Spend · MER · Orders, not the design's Calls / Cost-per-job row —
+   **that row is the local-service variant and is deferred, not cancelled.**
 2. **Punch list #10** — signed expiring link, or cut "Share this page" from v1?
-3. **Screenshot service** — self-hosted Playwright or a paid service?
+3. ✅ **Screenshot service → vendor** (Browserless or ScreenshotOne) for v1, CTO call
+   2026-07-27. Self-hosting Playwright means owning browser infrastructure for a
+   few dollars a month of saving. Revisit only if per-shot cost becomes material.
 4. **Portal entitlement** — Dominate + Momentum only? (ties to the open pricing decision)
 5. **Individual client logins vs one shared per account** — individual is better
    audit, more support burden.

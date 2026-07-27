@@ -85,7 +85,13 @@ WORKLOG 2026-07-27 lists exactly which streams each one gates.
 5. ⛔ **Decide the call-tracking question** (plan §10, decision 0). Blocks portal headline metrics for
    local-service clients. *An eCommerce portal pilot removes this from the critical path entirely.*
 
-Also pending: **choose the portal pilot client** (recommend eCommerce — see WO-003 open questions).
+✅ **Decided 2026-07-27:** portal pilot is **Salty Dog** (eCommerce → Wave 4 not gated by call
+tracking); screenshot service is a **vendor** (Browserless/ScreenshotOne) rather than self-hosted
+Playwright. Remaining WO-003 open question: punch-list #10, signed expiring link or cut from v1.
+
+⚠️ **Do not let the Salty Dog pilot bury this:** the portal's local-service headline (Calls · Cost
+per job · Jobs booked) is still uncomputable for most of the portfolio. That's plan §10 decision 0
+and it needs its own deadline.
 
 ## Next (unblocked, not started)
 - WO-003 Wave 1 on approval: Supabase Auth + RLS (hard gate), screenshot service, audit log.
