@@ -64,13 +64,15 @@ WORKLOG 2026-07-27 lists exactly which streams each one gates.
    full-portfolio daily volume needs. Two further ~2-minute steps, also Tom, are *not* applications:
    **link Salty Dog's Google Ads account under MCC 711-022-5227** and **seed its customer ID into
    `ad_platform_accounts`**. Those two are the fastest path to first real Google data.
-2. ⛔ **Submit the GBP Business Profile API access request.** Not submitted. Stated review window
-   14 days, expect weeks. Blocks the entire GBP module on both sides. **Scoped smaller than we
-   assumed (verified 2026-07-27): one application, per GCP project — not one per client.** Approval
-   covers all eight Business Profile APIs including Performance. Per client it's just a Manager
-   invite (runbook step 5b). To apply we must cite a **verified GBP active 60+ days** — TM's own or
-   a client's. ⚠️ Open: GBP may not support service accounts (we use one for GSC/GA4); may need its
-   own OAuth flow. **Longest clock of the five — submit first.**
+2. ✅ **GBP Business Profile API access request — SUBMITTED 2026-07-27.** Awaiting Google review;
+   stated window 14 days, so expect a response **around 2026-08-10**, possibly later. Filed as
+   "Application For Basic API Access" against the **`tm-seo-monitor` GCP project** (approval is
+   locked to that project number and does not transfer), citing **Alpha Zeta Landscapes** as the
+   verified 60+ day profile. Scoped smaller than assumed: **one application per GCP project, not
+   one per client** — approval covers all eight Business Profile APIs including Performance, and per
+   client it reduces to a Manager invite (runbook step 5b). ⚠️ Still open: GBP may not support
+   service accounts (we use one for GSC/GA4); the stream may need its own OAuth flow. **Nothing to
+   do but wait — this is now pure calendar time.**
 3. ⚠️ **Confirm the Meta system-user token is live.** WORKLOG 2026-07-23 records it as generated and
    vaulted; the feasibility review lists it as not generated. **Reconcile — likely already done.**
 4. ⛔ **Yes/no on the PostFlow API.** Open since the original plan. Blocks the Social module.

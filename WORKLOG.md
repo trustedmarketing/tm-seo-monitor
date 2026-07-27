@@ -103,6 +103,29 @@ Folded into plan §0 (new subsection), Appendix A step 5b, WO-003 Wave 5, and ST
 **Net: this blocker is one form plus per-client Manager invites — but it's still the longest clock of
 the five, so it stays the highest-value thing to submit today.**
 
+### Addendum 2 — external actions worked, live GA4 failure found
+
+Ran the blocker list with Tom. Two changes to the picture:
+
+- ✅ **Meta token confirmed live — blocker 0.3 was stale, now closed.** Verified from `collector_runs`
+  rather than asking: `meta_ads` succeeded with **706 rows today, 690 yesterday**. The feasibility
+  review's "token not yet generated" was out of date; WORKLOG 2026-07-23 was right.
+- 🚨 **New: `conversions` (GA4) has been erroring on every run** — *"User does not have sufficient
+  permissions for this property"* against Salty Dog property `451445566`. The collector service
+  account was never granted Viewer. This is silent staleness, the failure mode plan §7 A.5 calls the
+  worst client-facing one, and our own Slack staleness alerting did not surface it. **Two issues,
+  not one:** the missing grant (Tom, 2 min) and the fact that a daily-erroring collector went
+  unnoticed. Fold an alert-coverage check into WO-003 Stream C.
+- ✅ **GBP access request SUBMITTED 2026-07-27** — "Application For Basic API Access", against the
+  `tm-seo-monitor` GCP project number, citing **Alpha Zeta Landscapes** (verified, 60+ days) as the
+  qualifying profile. Response expected **~2026-08-10**. The longest clock of the five is now running,
+  which was the single most valuable thing to start today.
+  - Note for whoever picks up the GBP stream: approval is bound to that **project number**. Do not
+    move the API calls to a different GCP project without re-applying from zero.
+- ⏳ Still open with Tom: GA4 grant · link Salty Dog's Google Ads under MCC 711-022-5227 + send the
+  customer ID · Explorer→Basic upgrade · PostFlow API question · portal pilot + screenshot-vendor
+  decisions.
+
 ### Next action
 Awaiting approval on WO-003 before any implementation. Five open questions at the bottom of that doc
 (portal pilot client · punch-list #10 signed-link-or-cut · screenshot service self-host vs vendor ·
