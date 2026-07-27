@@ -82,8 +82,55 @@ Reserved migration: **012**
 - Est. 2–3 days. **Every site-change Approval Card depends on this** — "the work
   is already done before you see it" is a visual claim.
 
+### Stream M · `module/agency-shell` — the design's shell, and client-type awareness
+Reserved migration: **013** · Added 2026-07-27 after Tom flagged that the built UI
+still looks nothing like the design. **This was missing from the original WO-003**,
+which had streams for the new components and the portal but none for restyling the
+existing agency surfaces.
+
+**Migration 013 first — the §2 columns that were specced and never built:**
+`client_type` (`local_service` · `national_ecom` · `hybrid`, **nullable**),
+`service_areas jsonb`, `gbp_location_ids text[]`, `store_platform`. Today every
+client is treated identically, which is why the tab question has no answer.
+
+**Tabs derive from `client_type`, they are not a fixed list.** The design export
+models one fictional HVAC client and so shows a single 11-tab set. Reality needs
+at least two, and it cuts both ways:
+
+| Tab | Applies to |
+|---|---|
+| Revenue | **Folded into Overview** (decision below) |
+| GBP · Automation | local_service (and hybrid) |
+| Search | both — kept, see decision |
+| Organic · Paid · Social · AEO · Playbook · QC · Changes · Settings | all |
+
+`client_type` is **nullable on purpose**: an unclassified client falls back to the
+safe common set rather than forcing a guess at onboarding. Unclassified clients
+surface in `/admin` so the gap is visible rather than silent.
+
+**Decisions (Tom, 2026-07-27):**
+- **Revenue folds into Overview.** It duplicated the Overview hero, and it only
+  ever applied to eCommerce clients. For `national_ecom` the Overview revenue
+  block is Shopify ground truth; for `local_service` the same slot is a
+  leads/pipeline variant that **stays empty until the call-tracking decision**
+  (plan §10 decision 0 — this is the third time that blocker has surfaced).
+- **Search is kept** as a tab despite being absent from the design. It was
+  WO-002's deliberate high-value add (organic + paid on one query, catching
+  cannibalization) and nothing in the design replaces it.
+
+**Scope:** sidebar with Agency/Portal toggle and badge counts · Portfolio rebuilt
+to the client × channel band with the attention rail · workspace tab bar ·
+tokens lifted from `docs/design/_ds/colors_and_type.css`. Tabs not yet built
+(Social, GBP, AEO, Automation, Playbook, Changes, Settings) render honest
+"being built" / "not connected" states, never empty zeros — the same discipline
+the feasibility review demanded for GBP, LinkedIn and Google.
+
+**Also fix here:** the attention rail double-counts (one failure appears once per
+cron invocation — "NEEDS ATTENTION · 2" for a single GA4 failure). A count that
+overstates erodes trust in the number.
+
 ### Stream C · `module/audit-log` — audit log, approvals table, realtime
-Reserved migration: **013**
+Reserved migration: **014** *(was 013; Stream M now runs first)*
 - Immutable row per approve/decline/publish/pause: actor, action, target,
   before/after, timestamp, IP.
 - `approvals` table + Supabase Realtime so two people never work the same card.
