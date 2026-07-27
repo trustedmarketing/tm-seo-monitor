@@ -79,8 +79,9 @@ WORKLOG 2026-07-27 lists exactly which streams each one gates.
    `llms.txt`: create/schedule posts, explicit **draft** set/unset, list + retrieve post groups,
    per-post and per-group analytics, media upload, activity logging. The design's "drafts land in
    PostFlow" handoff works as drawn; PostFlow stays the publishing tool. **Module E unblocked on
-   this question.** Small follow-up: generate a PostFlow API token from account settings → vault as
-   `postflow`. Confirm at build time (does not change scope): rate limits · plan-tier gating ·
+   this question.** ✅ Token generated and **vaulted as `postflow` in
+   production 2026-07-27** (verified readable via `vault_read_secret`, 52 chars). Rate limits
+   confirmed: 60 req/min per token with `X-RateLimit-*` headers. Confirm at build time (does not change scope): rate limits · plan-tier gating ·
    whether post details expose a published permalink.
 5. ⛔ **Decide the call-tracking question** (plan §10, decision 0). Blocks portal headline metrics for
    local-service clients. *An eCommerce portal pilot removes this from the critical path entirely.*
