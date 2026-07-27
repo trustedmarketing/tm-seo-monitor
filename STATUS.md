@@ -28,8 +28,8 @@ _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `do
 - **Design review** — `docs/design-review-punch-list.md`. Verdict: approve the direction and build from it.
 - **Feasibility review vs current stack** — `docs/feasibility-review-stack.md`. ~60% builds on what's
   running, 25% new-but-ordinary, **15% blocked on approvals never started**.
-- **`docs/wo-003-design-implementation.md`** drafted — build order, agent-parallel streams, punch-list
-  items assigned to streams. Awaiting approval; **no implementation started**.
+- **`docs/wo-003-design-implementation.md`** — ✅ **APPROVED 2026-07-27, Wave 1 in progress.** Six
+  waves, 12 agent-parallel streams, every punch-list item assigned to a stream.
 
 ## Punch list — 10 items, all NOT STARTED
 Each is assigned to a WO-003 stream (see that doc); none is unowned.
@@ -81,8 +81,8 @@ WORKLOG 2026-07-27 lists exactly which streams each one gates.
    PostFlow" handoff works as drawn; PostFlow stays the publishing tool. **Module E unblocked on
    this question.** ✅ Token generated and **vaulted as `postflow` in
    production 2026-07-27** (verified readable via `vault_read_secret`, 52 chars). Rate limits
-   confirmed: 60 req/min per token with `X-RateLimit-*` headers. Confirm at build time (does not change scope): rate limits · plan-tier gating ·
-   whether post details expose a published permalink.
+   confirmed: 60 req/min per token with `X-RateLimit-*` headers. Confirm at build time (neither changes scope):
+   plan-tier gating · whether post details expose a published permalink.
 5. ⛔ **Decide the call-tracking question** (plan §10, decision 0). Blocks portal headline metrics for
    local-service clients. *An eCommerce portal pilot removes this from the critical path entirely.*
 
@@ -94,8 +94,19 @@ Playwright. Remaining WO-003 open question: punch-list #10, signed expiring link
 per job · Jobs booked) is still uncomputable for most of the portfolio. That's plan §10 decision 0
 and it needs its own deadline.
 
+## WO-003 Wave 1 — in progress
+- ✅ **Stream A · `module/auth-rls` — CODE COMPLETE, not merged.** Migration 012 (multi-tenant identity
+  + per-client RLS) green on staging; app moved off the two shared passwords onto per-user Supabase
+  Auth, and all six dashboard pages read through `userClient()` so RLS is enforced rather than
+  bypassed. Proven: agency user sees 2 clients / 258 rankings, client user sees 1 / 129, neither can
+  read `platform_secrets`. Green: tsc, build, 98/98 unit, 11/11 staging (collectors unaffected).
+  ⛔ **Not deployable yet** — needs `SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel **and real user accounts**. No users exist, so merging
+  as-is locks everyone out. First accounts to be created deliberately with Tom.
+- ⏭ Stream B · `module/screenshots` — not started. Vendor decided (Browserless/ScreenshotOne).
+- ⏭ Stream C · `module/audit-log` — not started. Reserved migration 013.
+
 ## Next (unblocked, not started)
-- WO-003 Wave 1 on approval: Supabase Auth + RLS (hard gate), screenshot service, audit log.
 - Scale Shopify + Meta wiring across the remaining clients.
 - `recSync`: stop auto-resolving human-**approved** recommendations (flagged bug).
 - Search view build (needs the GSC-query × paid-search-term join pipeline).
