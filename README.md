@@ -143,12 +143,56 @@ supabase/007_clickup_sync.sql      clickup_list_id + rec clickup_task_* columns 
 supabase/008_client_ga4_property.sql  clients.ga4_property_id (integration pass)
 supabase/009_meta_ads.sql          ad_platform_accounts + ad_metrics_daily (stream 4)
 supabase/010_client_stores.sql     client_stores registry (Shopify revenue collector)
+supabase/011_vault_access_rpcs.sql vault read/write via SECURITY DEFINER RPCs
+supabase/012_auth_tenancy_rls.sql  multi-tenant identity + per-client RLS (WO-003 stream A)
 supabase/seed.sql                  staging demo data (1 local + 1 ecom client)
 ```
 
 Migrations are the serialized shared spine: agents propose files, the CTO merges
 them in order, and every migration lands in **staging first**. 001–002 were
 reconstructed from production (which had no tracked migration history).
+
+## Auth and tenancy (WO-003 stream A)
+
+Replaces the two shared passwords with per-user Supabase Auth accounts and
+enforces client isolation in the database rather than in application code.
+
+**Shape:** `organization → clients → users`. One organization today; the schema
+does not assume that, so a future white-label is not a migration of everything.
+
+**Roles.** `owner` · `pod_lead` · `specialist` (agency) and `client`. Agency users
+see every client in their organization; client users see only the clients listed
+in `client_users`. The old `admin` password mapped to two different things and is
+now split: `/admin` (client config, tokens) is **owner** only, while research and
+change-logging are **any agency role**, so a pod lead can work without holding
+the keys to client credentials.
+
+**Two ways to reach the database, and the difference matters:**
+
+| | Use for | RLS |
+|---|---|---|
+| `dbClient()` (`lib/db.ts`) | collectors, cron, agency writes | **bypassed** (service role) |
+| `userClient()` (`lib/supabaseServer.ts`) | anything rendering client-visible data | **enforced** |
+
+Rendering a page with `dbClient()` is how RLS gets silently bypassed. Pages use
+`userClient()`. No exceptions on client-facing surfaces.
+
+**Every policy routes through one function**, `public.has_client_access(uuid)`,
+so the access rule lives in a single place rather than being restated in 16
+policies. `platform_secrets` deliberately has RLS on and **no** policy at all:
+deny-all for every signed-in user including owners, reachable only by the service
+role through the vault RPCs from 011 (autonomy ladder #5).
+
+**Testing.** `tests/staging/rls.test.ts` runs two kinds of check: coverage (via
+the read-only `rls_coverage()` function) and behavior (an anonymous PostgREST
+client must read nothing). The coverage test is not a hard-coded list — any table
+with a `client_id` column and no policy fails the build, which is the failure
+mode RLS actually has: a missing policy, not a wrong one.
+
+**Deploy requirements.** Needs `SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_URL`
+and `NEXT_PUBLIC_SUPABASE_ANON_KEY` set before this ships. `DASHBOARD_PASSWORD`
+becomes unused and should be removed; `ADMIN_PASSWORD` stays, because `/api/admin`
+still uses it as a machine bearer token, which is not a human login.
 
 ### Staging
 

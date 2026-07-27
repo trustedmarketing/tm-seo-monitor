@@ -225,4 +225,40 @@ end$$;
 alter table public.platform_secrets enable row level security;
 drop policy if exists platform_secrets_read on public.platform_secrets;
 
+-- ---------------------------------------------------------------- coverage view
+--
+-- Read-only metadata so CI can assert RLS coverage. The failure mode RLS really
+-- has is not a wrong policy, it is a MISSING one: a new client-scoped table with
+-- no policy is invisible in review and readable by every signed-in user. This
+-- lets tests turn that into a red build.
+--
+-- Deliberately NOT a generic exec_sql RPC: this returns table names and booleans
+-- and nothing else, so it cannot be used to read data.
+create or replace function public.rls_coverage()
+returns table (table_name text, rls_enabled boolean, policy_count int, client_scoped boolean)
+language sql
+stable
+security definer
+set search_path = public, pg_catalog, pg_temp
+as $$
+  select
+    c.relname::text,
+    c.relrowsecurity,
+    (select count(*)::int from pg_policies p
+      where p.schemaname = 'public' and p.tablename = c.relname),
+    exists (
+      select 1 from information_schema.columns col
+       where col.table_schema = 'public'
+         and col.table_name = c.relname
+         and col.column_name = 'client_id'
+    )
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and c.relkind = 'r'
+  order by c.relname
+$$;
+
+revoke all on function public.rls_coverage() from public, anon, authenticated;
+grant execute on function public.rls_coverage() to service_role;
+
 commit;

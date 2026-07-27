@@ -1,13 +1,16 @@
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/authToken";
+import { getProfile, isAgency } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
 
 const REC_STATUSES = ["open", "approved", "measuring", "validated", "no_effect", "dismissed", "resolved"];
 
 export async function POST(req: Request) {
-  const role = await verifyToken(cookies().get("tm_auth")?.value, process.env.CRON_SECRET!);
-  if (role !== "admin") return Response.json({ error: "Admin access required" }, { status: 401 });
+  // Recommendation triage is everyday pod work, so any agency role may do it.
+  // Client users must never reach this route.
+  const profile = await getProfile();
+  if (!isAgency(profile)) return Response.json({ error: "Agency access required" }, { status: 401 });
 
+  // Service role: these are writes across client rows by an authorized agency
+  // user, and the RLS policies from 012 are read-only by design.
   const db = dbClient();
   const body = await req.json();
 

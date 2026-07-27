@@ -1,5 +1,4 @@
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/authToken";
+import { getProfile, isAgency } from "@/lib/supabaseServer";
 import {
   domainRankOverview, backlinksSummary, rankedKeywords,
   competitorsDomain, keywordSuggestions,
@@ -10,8 +9,9 @@ function clean(d: string): string {
 }
 
 export async function POST(req: Request) {
-  const role = await verifyToken(cookies().get("tm_auth")?.value, process.env.CRON_SECRET!);
-  if (role !== "admin") return Response.json({ error: "Admin access required" }, { status: 401 });
+  // Research tooling is pod work, not owner-only.
+  const profile = await getProfile();
+  if (!isAgency(profile)) return Response.json({ error: "Agency access required" }, { status: 401 });
 
   const body = await req.json();
   const loc = body.location_code || 2840;

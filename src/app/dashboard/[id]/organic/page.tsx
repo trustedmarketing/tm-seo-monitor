@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { METRIC_INFO } from "@/lib/metricInfo";
-import { dbClient } from "@/lib/db";
+import { userClient } from "@/lib/supabaseServer";
 import { Info, InfoStyles } from "@/components/Info";
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/authToken";
+import { getProfile, isAgency } from "@/lib/supabaseServer";
 import { RecActions, ChangeLogger } from "@/components/Tracking";
 import { ChannelNav } from "@/components/ChannelNav";
 import "@/styles/tm-tokens.css";
@@ -120,9 +119,9 @@ export default async function ClientDetail({
   const prevStart = new Date(start); prevStart.setDate(prevStart.getDate() - periodDays);
   const prevEnd = new Date(start); prevEnd.setDate(prevEnd.getDate() - 1);
 
-  const role = await verifyToken(cookies().get("tm_auth")?.value, process.env.CRON_SECRET!);
-  const isAdmin = role === "admin";
-  const db = dbClient();
+  const profile = await getProfile();
+  const isAdmin = isAgency(profile);
+  const db = userClient();
 
   const [{ data: client }, { data: snaps }, { data: kws }, { data: ranks }, { data: gscCur }, { data: gscPrev }, { data: tprompts }, { data: presults }, { data: recRows }, { data: changeRows }] = await Promise.all([
     db.from("clients").select("*").eq("id", params.id).single(),
