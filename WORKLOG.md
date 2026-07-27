@@ -122,9 +122,23 @@ Ran the blocker list with Tom. Two changes to the picture:
   which was the single most valuable thing to start today.
   - Note for whoever picks up the GBP stream: approval is bound to that **project number**. Do not
     move the API calls to a different GCP project without re-applying from zero.
-- ⏳ Still open with Tom: GA4 grant · link Salty Dog's Google Ads under MCC 711-022-5227 + send the
-  customer ID · Explorer→Basic upgrade · PostFlow API question · portal pilot + screenshot-vendor
-  decisions.
+- ✅ **PostFlow API question RESOLVED — yes, and better than the fallback we were bracing for.** Tom
+  found their docs; verified against `postflow.app/docs` and `docs/llms.txt` rather than the AI
+  summary. Full REST API at `https://api.postflow.app/v1`, bearer auth: create + schedule posts,
+  **explicit draft set/unset** (exactly the design's "drafts land in PostFlow" handoff), list/filter/
+  retrieve post groups up to 200/request, **per-post and per-group analytics** with per-story
+  breakdowns, media upload (direct + URL), activity logging. **PostFlow is not being replaced and
+  Module E's scope is unchanged from the design.** Three build-time details still unconfirmed, none
+  affecting scope: rate limits · plan-tier gating · whether a published **permalink** is exposed
+  (the join key between publishing and our analytics). Needs a token from account settings → vault.
+- ✅ **Salty Dog confirmed to run Google Ads**, so the MCC link is live work rather than hypothetical.
+  Awaiting the customer ID from Tom, then I seed `ad_platform_accounts` and the next run tells us
+  whether the Explorer-tier token can pull production data.
+- ⏳ Still open with Tom: GA4 grant verification (waits on the next cron run) · Google Ads customer
+  ID · Explorer→Basic upgrade · PostFlow token · portal pilot + screenshot-vendor decisions.
+
+**Blocker count is now 2 of 5 fully closed (Meta, PostFlow) and 1 submitted-and-waiting (GBP).**
+The remaining external work is small: one customer ID, one upgrade application, two tokens.
 
 ### Next action
 Awaiting approval on WO-003 before any implementation. Five open questions at the bottom of that doc

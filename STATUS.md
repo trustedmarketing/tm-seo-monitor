@@ -75,7 +75,13 @@ WORKLOG 2026-07-27 lists exactly which streams each one gates.
    do but wait — this is now pure calendar time.**
 3. ⚠️ **Confirm the Meta system-user token is live.** WORKLOG 2026-07-23 records it as generated and
    vaulted; the feasibility review lists it as not generated. **Reconcile — likely already done.**
-4. ⛔ **Yes/no on the PostFlow API.** Open since the original plan. Blocks the Social module.
+4. ✅ **PostFlow API — RESOLVED 2026-07-27. Yes, full REST API.** Verified against their docs +
+   `llms.txt`: create/schedule posts, explicit **draft** set/unset, list + retrieve post groups,
+   per-post and per-group analytics, media upload, activity logging. The design's "drafts land in
+   PostFlow" handoff works as drawn; PostFlow stays the publishing tool. **Module E unblocked on
+   this question.** Small follow-up: generate a PostFlow API token from account settings → vault as
+   `postflow`. Confirm at build time (does not change scope): rate limits · plan-tier gating ·
+   whether post details expose a published permalink.
 5. ⛔ **Decide the call-tracking question** (plan §10, decision 0). Blocks portal headline metrics for
    local-service clients. *An eCommerce portal pilot removes this from the critical path entirely.*
 

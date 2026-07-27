@@ -129,11 +129,12 @@ Two halves:
 ### Module E — Organic social
 **Ingestion:** Meta Graph API covers IG + FB organic (posts, reach, saves, shares, comments, profile actions) through the same Business Portfolio auth as ads. LinkedIn Community Management API for the B2B clients — ⛔ **blocked on app review, not started** (§0). TikTok/YouTube as needed per client. PostFlow remains the publishing tool; this module is the *analysis* layer.
 
-> ⛔ **Blocking question — PostFlow API.** Open since the original plan and still
-> unanswered: does PostFlow expose an API or export? The design's "drafts land in
-> PostFlow" handoff depends on it. If there is no API, that handoff degrades to
-> manual copy-paste, or we replace PostFlow. **Answer this before the Social
-> module is scheduled** — it changes the module's scope, not just its plumbing.
+> ✅ **PostFlow API — resolved 2026-07-27. Yes.** Full REST API at
+> `https://api.postflow.app/v1` (bearer token): create/schedule posts, explicit
+> **draft** set/unset, list + retrieve post groups, per-post and per-group
+> analytics, media upload, activity logging. The "drafts land in PostFlow"
+> handoff works as designed and PostFlow stays the publishing tool. See §10
+> decision 2 for the three build-time details still to confirm.
 
 **Analysis:** `social_posts` + `social_metrics_daily` tables; the same Claude tagging pass as creatives (format, hook, topic, CTA type, post length, native-vs-link). Recommendations engine rules: formats/hooks over- and under-indexing for this account, posting-time windows with highest engagement velocity, series-worthy outliers ("this post did 6x median — make it a recurring series"), link-post penalty detection, response-time gaps on comments.
 
@@ -311,7 +312,7 @@ lead metrics exist at all for local clients, and option 2 is a design change, no
 a config change.
 
 1. Motion integration vs in-house creative tagging (recommendation: in-house, Motion as reference)
-2. **PostFlow API surface — can scheduled posts be ingested/pushed?** ⛔ **Blocks the Social module** (Module E). Unanswered since the original plan. No API ⇒ the "drafts land in PostFlow" handoff becomes manual paste, or PostFlow gets replaced.
+2. ✅ **PostFlow API surface — RESOLVED 2026-07-27. Yes, and it covers the full handoff.** Verified against `postflow.app/docs` + `docs/llms.txt`. Base `https://api.postflow.app/v1`, bearer-token auth, media at `https://media.postflow.app/api/v1`. Confirmed: create + schedule posts, **explicit draft set/unset** (the design's "drafts land in PostFlow" works as drawn), list/filter/retrieve post groups with full data (up to 200/request), **per-post and per-group analytics** incl. per-story breakdowns, media upload (direct + URL), activity logging per post group. **Module E is unblocked on PostFlow** and PostFlow is not being replaced. Left to confirm at build time, none of which changes scope: rate limits · whether API access is plan-tier gated · whether post details expose a published **permalink** (the join key between publishing and our analytics). Needs a token generated from account settings → vault as `postflow`.
 3. Domain: keep seo.* or move to growth.* as scope expands
 4. Which two clients pilot the execution layer (need git-based or WP Engine sites + Dominate-tier trust)
 5. TikTok/YouTube organic: which clients justify the extra ingestion work
