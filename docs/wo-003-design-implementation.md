@@ -159,6 +159,39 @@ Depends on: B (screenshots), C (states/flags). Front-end.
   GBP lags ~3 days. Without this, clients compare to platform UIs and find
   mismatches — which is the accuracy gate failing in public.
 
+> ⚠️ **OPEN DECISION before Wave 2 starts — which platform gets the first
+> execution path?** The feasibility review's step 3 says *WP staging → approval
+> card → publish → ledger → measurement*. But the portal pilot is **Salty Dog,
+> which is Shopify, not WordPress**. So the first end-to-end change type is
+> either:
+>   1. **WordPress on a different client** (Masterpiece is already on WP Engine
+>      with proven git deploys) — follows the review, but splits the pilot across
+>      two clients; or
+>   2. **Shopify on Salty Dog** — keeps everything on one client and matches the
+>      portal pilot, but means building the Shopify adapter first, which the
+>      review sequenced later.
+>
+> Recommend **(2)**: one client end to end is the discipline the spec asks for
+> ("every step proves out on one client before touching a second"), and splitting
+> the first proof across two clients loses exactly that. Needs Tom's call.
+>
+> ⚠️ **Stream E also needs Tom:** WP Engine staging environments and per-site
+> application passwords. Not started.
+
+> 🚨 **Risk found 2026-07-27 — Shopify may block before/after capture.**
+> Verified against ScreenshotOne's request log: `getsaltydog.com` returned **429**
+> to three consecutive capture attempts while `stripe.com` captured fine from the
+> same account in the same minute. Shopify is rate-limiting the capture service's
+> datacenter IPs.
+>
+> This is not a configuration annoyance: the Approval Card's central promise is a
+> **visual** before/after, and the client blocking captures is our eCommerce
+> flagship and portal pilot. Mitigations shipped (browser UA, backoff on 429/5xx,
+> a distinct `HostRefusedError`), but if the block is persistent rather than
+> throttling, **Stream D needs a designed fallback for Shopify clients** — a
+> rendered diff, a staging-only capture, or a text-based before/after. Decide
+> that while designing the card, not after.
+
 ### Stream E · `module/wp-adapter` — WP Engine staging → publish → ledger
 Depends on: B, C.
 - WP Engine staging environment as the staging target; WP REST API + application
