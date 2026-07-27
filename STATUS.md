@@ -95,7 +95,19 @@ per job · Jobs booked) is still uncomputable for most of the portfolio. That's 
 and it needs its own deadline.
 
 ## WO-003 Wave 1 — in progress
-- ✅ **Stream A · `module/auth-rls` — CODE COMPLETE, not merged.** Migration 012 (multi-tenant identity
+- ✅ **Stream A · `module/auth-rls` — SHIPPED TO PRODUCTION 2026-07-27** (merge `75130da`, security
+  fix `247ff2f`). The hard gate is closed: client isolation is now enforced by Postgres, not by
+  application code. Migration 012 applied to staging **and production**. Vercel production env vars
+  set. Live accounts: `thomas@trustedmarketing.com` (**owner**, all clients) and
+  `tom@getsaltydog.com` (**client**, Salty Dog only).
+  **Verified against real production data before merge:** owner sees DAPS.FIT + Salty Dog / 300
+  rankings; the client user sees Salty Dog only / 201 rankings; asking explicitly for DAPS.FIT's
+  UUID returns **zero rows**; neither role can read `platform_secrets`.
+  🔒 **One security defect found and fixed the same day:** push review caught an **open redirect**
+  in the login `next` parameter (`/login?next=https://evil.com` would sign a user in and then hand
+  them to an attacker — credible phishing, since the sign-in itself is genuine). Fixed in
+  `lib/safeNext.ts` with 19 regression tests. Deployed.
+- 〜 superseded detail below — Migration 012 (multi-tenant identity
   + per-client RLS) green on staging; app moved off the two shared passwords onto per-user Supabase
   Auth, and all six dashboard pages read through `userClient()` so RLS is enforced rather than
   bypassed. Proven: agency user sees 2 clients / 258 rankings, client user sees 1 / 129, neither can
