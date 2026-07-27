@@ -54,7 +54,7 @@ export default async function Overview({ params }: { params: { id: string } }) {
 
   if (!client) {
     return (
-      <main style={{ fontFamily: "var(--font-body)", background: "var(--bg)", minHeight: "100vh", padding: 48 }}>
+      <main style={{ padding: "40px 32px 64px" }}>
         Client not found. <Link href="/dashboard">Back to portfolio</Link>
       </main>
     );
@@ -91,8 +91,8 @@ export default async function Overview({ params }: { params: { id: string } }) {
   };
 
   return (
-    <main style={{ fontFamily: "var(--font-body)", background: "var(--bg)", minHeight: "100vh", padding: "48px 24px", color: "var(--fg1)" }}>
-      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+    <main style={{ padding: "40px 32px 64px" }}>
+      <div style={{ maxWidth: 1180 }}>
         <Link href="/dashboard" style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>← Portfolio</Link>
         <div style={{ display: "flex", alignItems: "baseline", gap: 14, margin: "14px 0 4px", flexWrap: "wrap" }}>
           <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 400, fontSize: 48, letterSpacing: "-0.01em", margin: 0 }}>{client.name}</h1>
@@ -103,7 +103,7 @@ export default async function Overview({ params }: { params: { id: string } }) {
           {cur ? `Last collected ${dateShort(cur.captured_at)}` : "No data collected yet"}
         </div>
 
-        <ChannelNav clientId={params.id} active="overview" />
+        <ChannelNav clientId={params.id} active="overview" clientType={(client as any)?.client_type ?? null} />
 
         {/* ── Revenue-first hero ─────────────────────────────────────── */}
         <section style={{ ...card, padding: "28px 28px 24px", marginBottom: 16 }}>

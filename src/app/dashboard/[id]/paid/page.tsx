@@ -27,7 +27,7 @@ const PLATFORMS = [
 export default async function Paid({ params }: { params: { id: string } }) {
   const db = userClient();
   const [{ data: client }, { data: ads }, { data: convs }] = await Promise.all([
-    db.from("clients").select("id, name, domain, tier").eq("id", params.id).single(),
+    db.from("clients").select("id, name, domain, tier, client_type").eq("id", params.id).single(),
     db.from("ad_metrics_daily").select("spend, revenue, platform, conversions").eq("client_id", params.id),
     db.from("conversions_daily").select("source, revenue").eq("client_id", params.id),
   ]);
@@ -48,9 +48,9 @@ export default async function Paid({ params }: { params: { id: string } }) {
   const blendedRoas = spend > 0 && actualRev > 0 ? actualRev / spend : null;
 
   return (
-    <main style={{ fontFamily: "var(--font-body)", background: "var(--bg)", minHeight: "100vh", padding: "48px 24px", color: "var(--fg1)" }}>
-      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
-        <ClientHeader id={params.id} name={client.name} domain={client.domain} tier={client.tier} active="paid"
+    <main style={{ padding: "40px 32px 64px" }}>
+      <div style={{ maxWidth: 1180 }}>
+        <ClientHeader id={params.id} name={client.name} domain={client.domain} tier={client.tier} clientType={(client as any).client_type ?? null} active="paid"
           sub="Paid media — spend, platform ROAS, and how it reconciles to actual revenue" />
 
         <section style={{ ...card, padding: "24px 28px", marginBottom: 16 }}>

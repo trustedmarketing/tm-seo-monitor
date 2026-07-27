@@ -146,7 +146,7 @@ export default async function ClientDetail({
 
   if (!client) {
     return (
-      <main style={{ fontFamily: "var(--font-body)", background: "var(--bg)", minHeight: "100vh", padding: 48 }}>
+      <main style={{ padding: "40px 32px 64px" }}>
         Client not found. <Link href="/dashboard">Back to portfolio</Link>
       </main>
     );
@@ -215,9 +215,9 @@ export default async function ClientDetail({
   const rangeHref = (key: string) => `/dashboard/${params.id}/organic?range=${key}`;
 
   return (
-    <main style={{ fontFamily: "var(--font-body)", background: "var(--bg)", minHeight: "100vh", padding: "48px 24px", color: "var(--fg1)" }}>
+    <main style={{ padding: "40px 32px 64px" }}>
       <InfoStyles />
-      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1180 }}>
         <Link href="/dashboard" style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>
           ← Portfolio
         </Link>
@@ -234,7 +234,7 @@ export default async function ClientDetail({
           {cur ? `Last collected ${dateShort(cur.captured_at)}` : "No data collected yet"}
         </div>
 
-        <ChannelNav clientId={params.id} active="organic" />
+        <ChannelNav clientId={params.id} active="organic" clientType={(client as any)?.client_type ?? null} />
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 24 }}>
           {RANGES.map((r) => {

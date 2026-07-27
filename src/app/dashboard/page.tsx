@@ -4,7 +4,7 @@
 // Overview. Absorbs the old /command surface (which now redirects here).
 import Link from "next/link";
 import { userClient } from "@/lib/supabaseServer";
-import { getProfile, isAgency } from "@/lib/supabaseServer";
+import { getProfile } from "@/lib/supabaseServer";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
@@ -95,24 +95,30 @@ export default async function Portfolio() {
   // attention rail — the morning exception feed
   type Att = { kind: "fail" | "stale" | "declined"; text: string };
   const attention: Att[] = [];
-  for (const r of runs) if (r.status === "error") attention.push({ kind: "fail", text: `Collection failed — ${nameOf.get(r.client_id ?? "") ?? "portfolio"} · ${r.module}` });
-  for (const c of clients) { const f = ago(freshest.get(c.id) ?? null); if (f.stale) attention.push({ kind: "stale", text: `Stale data — ${c.name} (${f.label})` }); }
-  for (const ch of (chRes.data ?? []) as Change[]) if (ch.verdict === "declined") attention.push({ kind: "declined", text: `Change declined — ${nameOf.get(ch.client_id) ?? ""}: ${ch.title}` });
+  // Dedup by client+module. The cron fires per client, so a single broken
+  // collector produced one attention row per invocation and "NEEDS ATTENTION · 2"
+  // for one problem. A count that overstates erodes trust in the count.
+  const seenFail = new Set<string>();
+  for (const r of runs) {
+    if (r.status !== "error") continue;
+    const key = `${r.client_id ?? "portfolio"}:${r.module}`;
+    if (seenFail.has(key)) continue;
+    seenFail.add(key);
+    attention.push({ kind: "fail", text: `Collection failed · ${nameOf.get(r.client_id ?? "") ?? "portfolio"} · ${r.module}` });
+  }
+  for (const c of clients) { const f = ago(freshest.get(c.id) ?? null); if (f.stale) attention.push({ kind: "stale", text: `Stale data · ${c.name} (${f.label})` }); }
+  for (const ch of (chRes.data ?? []) as Change[]) if (ch.verdict === "declined") attention.push({ kind: "declined", text: `Change declined · ${nameOf.get(ch.client_id) ?? ""}: ${ch.title}` });
 
   const collectionsToday = runs.filter((r) => r.status === "success" && Date.now() - new Date(r.started_at).getTime() < 24 * 3600000).length;
   const markColor: Record<string, string> = { fail: "var(--danger)", declined: "var(--danger)", stale: "#B8860B" };
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 
   return (
-    <main style={{ fontFamily: "var(--font-body)", background: "var(--bg)", minHeight: "100vh", padding: "48px 24px", color: "var(--fg1)" }}>
-      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+    <main style={{ padding: "40px 32px 64px" }}>
+      <div style={{ maxWidth: 1180 }}>
         <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg2)", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--tm-performance-green)" }} />
           Portfolio · {today}
-          <span style={{ marginLeft: "auto", display: "flex", gap: 18, textTransform: "none", letterSpacing: 0 }}>
-            {isAgency(profile) && <Link href="/research" style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>Research</Link>}
-            {profile?.role === "owner" && <Link href="/admin" style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>Admin</Link>}
-          </span>
         </div>
         <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 400, fontSize: 56, letterSpacing: "-0.01em", margin: "10px 0 32px" }}>
           Every client, <em style={{ color: "var(--tm-green-deep)" }}>one screen</em>
@@ -125,7 +131,7 @@ export default async function Portfolio() {
           {attention.length === 0 ? (
             <div style={{ display: "flex", alignItems: "center", gap: 14, color: "var(--tm-stone-100)" }}>
               <span style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--tm-performance-green)", flexShrink: 0 }} />
-              <div style={{ fontSize: 15, fontWeight: 600 }}>All clear — every client healthy and fresh.</div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>All clear. Every client healthy and fresh.</div>
               <div style={{ marginLeft: "auto", fontSize: 12.5, color: "#9AA0A6" }}>{clients.length} clients · {collectionsToday} collections today · 0 failures</div>
             </div>
           ) : (
