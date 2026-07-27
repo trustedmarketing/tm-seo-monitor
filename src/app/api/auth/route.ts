@@ -13,9 +13,12 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-export async function POST() {
+export async function POST(req: Request) {
   const store = cookies();
-  const res = NextResponse.json({ ok: true });
+  // Redirect rather than JSON: this is posted from a plain <form> on the portal,
+  // and a JSON body would render as raw text in the browser. 303 forces the
+  // follow-up to be a GET.
+  const res = NextResponse.redirect(new URL("/login", req.url), { status: 303 });
 
   const key = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY;
   if (!key) return NextResponse.json({ error: "not configured" }, { status: 500 });
