@@ -14,6 +14,7 @@ import { userClient } from "@/lib/supabaseServer";
 import { ClientHeader } from "@/components/ClientHeader";
 import { workspaceTabs, type ClientType } from "@/lib/workspaceTabs";
 import "@/styles/tm-tokens.css";
+import { fmtDate } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -147,7 +148,7 @@ export default async function Changes({
                   borderTop: i === 0 ? "none" : "1px solid var(--border)", flexWrap: "wrap",
                 }}>
                   <div style={{ minWidth: 92, fontSize: 12.5, color: "var(--fg3)", fontVariantNumeric: "tabular-nums", paddingTop: 2 }}>
-                    {new Date(c.changed_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    {fmtDate(c.changed_at)}
                   </div>
 
                   <div style={{ flex: 1, minWidth: 260 }}>

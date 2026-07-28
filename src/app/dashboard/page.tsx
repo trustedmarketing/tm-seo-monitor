@@ -6,6 +6,7 @@ import Link from "next/link";
 import { userClient } from "@/lib/supabaseServer";
 import { getProfile } from "@/lib/supabaseServer";
 import "@/styles/tm-tokens.css";
+import { fmtDateFull } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -111,7 +112,7 @@ export default async function Portfolio() {
 
   const collectionsToday = runs.filter((r) => r.status === "success" && Date.now() - new Date(r.started_at).getTime() < 24 * 3600000).length;
   const markColor: Record<string, string> = { fail: "var(--danger)", declined: "var(--danger)", stale: "#B8860B" };
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+  const today = fmtDateFull(new Date());
 
   return (
     <main style={{ padding: "40px 32px 64px" }}>

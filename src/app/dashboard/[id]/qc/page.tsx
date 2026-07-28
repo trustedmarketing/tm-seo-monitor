@@ -12,6 +12,7 @@ import { ClientHeader } from "@/components/ClientHeader";
 import { workspaceTabs, type ClientType } from "@/lib/workspaceTabs";
 import { classifyChecks, issueCounts, grade, type Severity } from "@/lib/qc";
 import "@/styles/tm-tokens.css";
+import { fmtDate, fmtTime, fmtDateTime } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ const MSG: Record<string, string> = {
   done: "Crawl complete. Results below.",
   "done-critical": "Crawl complete — critical issues found, and a Slack alert has already gone out.",
   "already-running": "A crawl is already in progress for this client.",
-  cooldown: "A crawl ran here recently. Crawls cost money, so manual runs are limited to one every six hours.",
+  cooldown: "A crawl ran here recently. Repeat crawls of the same site return the same result, so manual runs are limited to one every six hours.",
   "nothing-running": "No crawl is in progress.",
   failed: "Could not queue the crawl. Check the domain is reachable.",
 };
@@ -78,7 +79,7 @@ export default async function Qc({
           id={params.id} name={client.name} domain={client.domain} tier={client.tier}
           clientType={type} active="qc" pending={pending ?? 0}
           sub={latest
-            ? `Last crawl ${new Date(latest.scanned_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · ${latest.pages_crawled} pages`
+            ? `Last crawl ${fmtDateTime(latest.scanned_at)} ET · ${latest.pages_crawled} pages`
             : "No crawl recorded yet"}
         />
 
@@ -100,7 +101,7 @@ export default async function Qc({
                 <button type="submit" style={btnStyle(true)}>Check for results</button>
               </form>
               <span style={{ fontSize: 12.5, color: "var(--fg3)" }}>
-                Crawling since {startedAt ? new Date(startedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "recently"}
+                Crawling since {startedAt ? `${fmtTime(startedAt)} ET` : "recently"}
                 {startedBy ? ` · started by ${startedBy}` : ""}
               </span>
             </>
@@ -112,7 +113,7 @@ export default async function Qc({
                 <button type="submit" style={btnStyle(false)}>Run scan now</button>
               </form>
               <span style={{ fontSize: 12.5, color: "var(--fg3)" }}>
-                Crawls cost money, so manual runs are limited to one every six hours.
+                Repeat crawls return the same result, so manual runs are limited to one every six hours.
               </span>
             </>
           )}
@@ -191,7 +192,7 @@ export default async function Qc({
                       padding: "10px 14px", minWidth: 116,
                     }}>
                       <div style={{ fontSize: 11.5, color: "var(--fg3)" }}>
-                        {new Date(s.scanned_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        {fmtDate(s.scanned_at)}
                       </div>
                       <div style={{ fontFamily: "var(--font-display)", fontSize: 24, lineHeight: 1.2 }}>
                         {s.score != null ? Math.round(Number(s.score)) : "—"}

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { userClient } from "@/lib/supabaseServer";
 import { ChannelNav } from "@/components/ChannelNav";
 import "@/styles/tm-tokens.css";
+import { fmtDate } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ function moneyFull(n: number): string {
 }
 function pct(n: number | null): string { return n == null ? "–" : `${Math.round(n * 10) / 10}%`; }
 function dateShort(s: string): string {
-  return new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return fmtDate(s);
 }
 
 const card: React.CSSProperties = {

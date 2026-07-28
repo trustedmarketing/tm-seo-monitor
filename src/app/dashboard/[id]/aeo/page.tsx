@@ -15,6 +15,7 @@ import { userClient } from "@/lib/supabaseServer";
 import { ClientHeader } from "@/components/ClientHeader";
 import { workspaceTabs, type ClientType } from "@/lib/workspaceTabs";
 import "@/styles/tm-tokens.css";
+import { fmtDate, fmtDateTime } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +98,7 @@ export default async function Aeo({ params }: { params: { id: string } }) {
           id={params.id} name={client.name} domain={client.domain} tier={client.tier}
           clientType={type} active="aeo" pending={pending ?? 0}
           sub={lastCheck
-            ? `Checked ${new Date(lastCheck).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ChatGPT only`
+            ? `Checked ${fmtDate(lastCheck)} · ChatGPT only`
             : "No checks recorded yet"}
         />
 
@@ -168,7 +169,7 @@ export default async function Aeo({ params }: { params: { id: string } }) {
                       {r.hist.map((h, j) => {
                         const s = statusOf(h);
                         return (
-                          <span key={j} title={new Date(h.checked_at).toLocaleDateString()} style={{
+                          <span key={j} title={fmtDateTime(h.checked_at)} style={{
                             width: 7, height: 14, borderRadius: 2,
                             background: s === "cited" ? "#2F8F4E" : s === "mentioned" ? "#D9A441" : "var(--border)",
                           }} />

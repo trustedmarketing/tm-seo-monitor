@@ -6,6 +6,7 @@ import { getProfile, isAgency } from "@/lib/supabaseServer";
 import { RecActions, ChangeLogger } from "@/components/Tracking";
 import { ChannelNav } from "@/components/ChannelNav";
 import "@/styles/tm-tokens.css";
+import { fmtDate } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,7 @@ function pct(cur: number, prev: number): string | null {
   return `${p > 0 ? "+" : ""}${p.toFixed(1)}%`;
 }
 function dateShort(s: string): string {
-  return new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return fmtDate(s);
 }
 
 function Delta({ value, suffix = "" }: { value: number | null; suffix?: string }) {

@@ -74,6 +74,42 @@ export async function serpPosition(
   return { position: hit?.rank_absolute ?? null, url: hit?.url ?? null };
 }
 
+// ── Account: balance and spend ────────────────────────────────────
+//
+// Added because "crawls cost money" was asserted in the UI without anyone
+// being able to see the number. A cost warning nobody can verify is just
+// anxiety; this makes it a figure.
+export type AccountStatus = {
+  balance: number | null;
+  currency: string;
+  /** Money spent in the current billing period, where the API reports it. */
+  spentThisMonth: number | null;
+  rates: Record<string, unknown> | null;
+};
+
+export async function accountStatus(): Promise<AccountStatus> {
+  if (mockApis()) {
+    return { balance: 123.45, currency: "USD", spentThisMonth: 41.2, rates: null };
+  }
+
+  // GET, not POST — this endpoint does not take a payload.
+  const res = await fetch(`${BASE}/appendix/user_data`, {
+    headers: { Authorization: authHeader() },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`DataForSEO user_data failed: ${res.status}`);
+
+  const json = await res.json();
+  const r = json?.tasks?.[0]?.result?.[0] ?? {};
+
+  return {
+    balance: typeof r.money?.balance === "number" ? r.money.balance : null,
+    currency: r.money?.currency ?? "USD",
+    spentThisMonth: typeof r.money?.spent === "number" ? r.money.spent : null,
+    rates: r.price ?? null,
+  };
+}
+
 // ── On-page crawl: post task, fetch score later ───────────────────
 export async function onPageTaskPost(domain: string, maxPages = 300): Promise<string> {
   if (mockApis()) return "mock-task-000";
