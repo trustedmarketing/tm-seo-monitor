@@ -25,6 +25,7 @@ import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
 import { listSocialAccounts, createDraft, uploadMediaFromUrl } from "@/lib/postflow";
 import { draftPost } from "@/lib/caption";
+import { generateImage, imagePromptFor } from "@/lib/bloom";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -74,6 +75,39 @@ export async function POST(req: Request) {
       .update({ caption, status: item.status === "planned" ? "drafted" : item.status })
       .eq("id", itemId);
     return back(req, clientId, "caption-saved");
+  }
+
+  // ── generate artwork ───────────────────────────────────────────────────────
+  // Bloom holds the brand's visual identity, so the prompt describes the SUBJECT
+  // and leaves styling to them. A steer is additive, the same as on copy.
+  if (action === "generate-image") {
+    try {
+      const { data: client } = await db
+        .from("clients").select("bloom_brand_id, name").eq("id", clientId).single();
+      if (!client?.bloom_brand_id) throw new Error("no Bloom brand id set for this client — add it in Settings");
+
+      const key = await readSecret(db, "bloom");
+      if (!key) throw new Error("no Bloom key stored — add it under Agency credentials");
+
+      const steerImg = String(form.get("steer") ?? "").trim();
+      const prompt = imagePromptFor({
+        brief: String(item.brief),
+        caption: item.caption ? String(item.caption) : null,
+        format: item.format ? String(item.format) : null,
+        steer: steerImg || null,
+      });
+
+      const img = await generateImage(key, client.bloom_brand_id, prompt);
+
+      // Stored, not uploaded. Upload happens at send, so a rejected image never
+      // becomes something to clean up in PostFlow.
+      await db.from("content_plan_items")
+        .update({ image_url: img.imageUrl, media_id: null }).eq("id", itemId);
+
+      return back(req, clientId, "image-generated");
+    } catch (e) {
+      return back(req, clientId, `item-failed:${(e as Error).message.slice(0, 90)}`);
+    }
   }
 
   // ── attach an image ────────────────────────────────────────────────────────

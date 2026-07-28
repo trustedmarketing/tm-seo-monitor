@@ -54,6 +54,7 @@ const PLAN_MSG: Record<string, string> = {
   regenerated: "Rewritten.",
   "caption-saved": "Your copy saved.",
   "image-saved": "Image attached. It uploads when you send.",
+  "image-generated": "Artwork generated. Regenerate with a note if it is not right.",
   "image-not-https": "Image URL must start with https://.",
   sent: "Sent to PostFlow.",
   "already-sent": "That slot is already in PostFlow.",
@@ -385,17 +386,33 @@ export default async function Social({
                             )}
 
                             {String(it.status) !== "sent" && (
-                              <form action="/api/content-plan/item" method="post" style={{ marginTop: 6 }}>
-                                <input type="hidden" name="client_id" value={params.id} />
-                                <input type="hidden" name="item_id" value={it.id as number} />
-                                <input type="hidden" name="action" value="image" />
-                                <input name="image_url" placeholder="Paste an image URL"
-                                       defaultValue={String(it.image_url ?? "")}
-                                       style={{ ...INP, fontSize: 11.5, padding: "6px 8px" }} />
-                                <button type="submit" style={{ ...ITEM_BTN(false), marginTop: 5, width: "100%" }}>
-                                  {it.image_url ? "Replace image" : "Attach image"}
-                                </button>
-                              </form>
+                              <>
+                                {/* Generate with Bloom, or bring your own. Both
+                                    end in the same field, so neither is the
+                                    "proper" path. */}
+                                <form action="/api/content-plan/item" method="post" style={{ marginTop: 6 }}>
+                                  <input type="hidden" name="client_id" value={params.id} />
+                                  <input type="hidden" name="item_id" value={it.id as number} />
+                                  <input type="hidden" name="action" value="generate-image" />
+                                  <input name="steer" placeholder={it.image_url ? "What to change" : "Optional direction"}
+                                         style={{ ...INP, fontSize: 11.5, padding: "6px 8px" }} />
+                                  <button type="submit" style={{ ...ITEM_BTN(true), marginTop: 5, width: "100%" }}>
+                                    {it.image_url ? "Regenerate" : "Generate with Bloom"}
+                                  </button>
+                                </form>
+
+                                <form action="/api/content-plan/item" method="post" style={{ marginTop: 8 }}>
+                                  <input type="hidden" name="client_id" value={params.id} />
+                                  <input type="hidden" name="item_id" value={it.id as number} />
+                                  <input type="hidden" name="action" value="image" />
+                                  <input name="image_url" placeholder="…or paste your own URL"
+                                         defaultValue={String(it.image_url ?? "")}
+                                         style={{ ...INP, fontSize: 11.5, padding: "6px 8px" }} />
+                                  <button type="submit" style={{ ...ITEM_BTN(false), marginTop: 5, width: "100%" }}>
+                                    Use this image
+                                  </button>
+                                </form>
+                              </>
                             )}
                           </div>
 
