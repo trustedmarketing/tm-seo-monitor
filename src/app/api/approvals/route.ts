@@ -20,18 +20,46 @@ import { readSecret } from "@/lib/vault";
 import { writeAudit, canDecide, UNDO_WINDOW_MS } from "@/lib/audit";
 import { policyFor, suppressUntil } from "@/lib/declinePolicy";
 import { connect, publish, revert as revertChange, type ShopifyChangeType } from "@/lib/shopifyAdapter";
+import * as wp from "@/lib/wordpressAdapter";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 type Payload = {
   adapter: "shopify" | "wordpress";
-  changeType: ShopifyChangeType;
+  /** Shopify change type, or a WordPress one — the adapter field disambiguates. */
+  changeType: string;
+  /** Shopify GID, or a JSON {postType,id} for WordPress. */
   targetGid: string;
   targetLabel?: string;
   before: string;
   after: string;
 };
+
+/** WordPress targets are stored as JSON because they need two fields, not one. */
+function wpTarget(siteUrl: string, targetGid: string): wp.WpTarget {
+  const parsed = JSON.parse(targetGid) as { postType: "posts" | "pages"; id: number };
+  return { siteUrl, postType: parsed.postType, id: parsed.id };
+}
+
+/**
+ * Resolve a client's platform credentials.
+ *
+ * Both adapters store the same shape in client_stores, so this is one lookup
+ * rather than a branch per platform at every call site.
+ */
+async function credentials(db: ReturnType<typeof dbClient>, clientId: string, platform: string) {
+  const { data: store } = await db
+    .from("client_stores")
+    .select("domain, api_client_id, auth_ref")
+    .eq("client_id", clientId).eq("platform", platform).maybeSingle();
+  if (!store?.api_client_id || !store.auth_ref) throw new Error(`${platform} store not configured for this client`);
+
+  const secret = await readSecret(db, store.auth_ref);
+  if (!secret) throw new Error(`${platform} credentials missing from vault`);
+
+  return { domain: store.domain, user: store.api_client_id, secret };
+}
 
 function back(req: Request, msg?: string) {
   const url = new URL("/dashboard/approvals", req.url);
@@ -176,23 +204,26 @@ export async function POST(req: Request) {
     const mode = withinUndoWindow ? "undo" : "revert";
 
     try {
-      const { data: store } = await db
-        .from("client_stores")
-        .select("domain, api_client_id, auth_ref")
-        .eq("client_id", row.client_id).eq("platform", "shopify").maybeSingle();
-      if (!store?.api_client_id || !store.auth_ref) throw new Error("shopify store not configured");
-
-      const secret = await readSecret(db, store.auth_ref);
-      if (!secret) throw new Error("shopify credentials missing from vault");
-
-      const token = await connect(store.domain, store.api_client_id, secret);
+      const cred = await credentials(db, row.client_id, payload0.adapter);
 
       // Restore the value captured at stage time — the true original.
-      await revertChange(
-        store.domain, token,
-        { targetGid: payload0.targetGid, type: payload0.changeType, value: payload0.before },
-        { dryRun: false }
-      );
+      if (payload0.adapter === "shopify") {
+        const token = await connect(cred.domain, cred.user, cred.secret);
+        await revertChange(
+          cred.domain, token,
+          { targetGid: payload0.targetGid, type: payload0.changeType as ShopifyChangeType, value: payload0.before },
+          { dryRun: false }
+        );
+      } else if (payload0.adapter === "wordpress") {
+        const pre = await wp.preflight(cred.domain, cred.user, cred.secret);
+        await wp.revert(
+          cred.domain, cred.user, cred.secret,
+          { target: wpTarget(cred.domain, payload0.targetGid), type: payload0.changeType as wp.WpChangeType, value: payload0.before },
+          { dryRun: false, plugin: pre.seoPlugin }
+        );
+      } else {
+        throw new Error(`adapter not implemented: ${payload0.adapter}`);
+      }
 
       const now = new Date().toISOString();
       await db.from("approvals").update({
@@ -292,31 +323,43 @@ async function publishOne(
   }
 
   try {
-    if (payload.adapter !== "shopify") throw new Error(`adapter not implemented: ${payload.adapter}`);
+    const cred = await credentials(db, row.client_id, payload.adapter);
 
-    const { data: store } = await db
-      .from("client_stores")
-      .select("domain, api_client_id, auth_ref")
-      .eq("client_id", row.client_id).eq("platform", "shopify").maybeSingle();
-    if (!store?.api_client_id || !store.auth_ref) throw new Error("shopify store not configured for this client");
+    // dryRun: false below is the ONLY place in the codebase that writes to a
+    // client property, and it happens after a human has said yes to this card.
+    let result: { before: string; after: string };
 
-    const secret = await readSecret(db, store.auth_ref);
-    if (!secret) throw new Error("shopify credentials missing from vault");
-
-    const token = await connect(store.domain, store.api_client_id, secret);
-
-    // dryRun: false is the ONLY place in the codebase that writes to a client
-    // property, and it happens after a human has said yes to this exact card.
-    const result = await publish(
-      store.domain, token,
-      {
-        type: payload.changeType, targetGid: payload.targetGid,
-        proposed: payload.after, current: payload.before,
-        targetLabel: payload.targetLabel ?? payload.targetGid,
-        stagedAt: row.created_at,
-      },
-      { dryRun: false }
-    );
+    if (payload.adapter === "shopify") {
+      const token = await connect(cred.domain, cred.user, cred.secret);
+      result = await publish(
+        cred.domain, token,
+        {
+          type: payload.changeType as ShopifyChangeType, targetGid: payload.targetGid,
+          proposed: payload.after, current: payload.before,
+          targetLabel: payload.targetLabel ?? payload.targetGid,
+          stagedAt: row.created_at,
+        },
+        { dryRun: false }
+      );
+    } else if (payload.adapter === "wordpress") {
+      // Re-check that the SEO meta is still REST-writable. A plugin update or a
+      // removed mu-plugin between staging and approval would otherwise fail
+      // mid-write with a confusing error.
+      const pre = await wp.preflight(cred.domain, cred.user, cred.secret);
+      result = await wp.publish(
+        cred.domain, cred.user, cred.secret,
+        {
+          type: payload.changeType as wp.WpChangeType,
+          target: wpTarget(cred.domain, payload.targetGid),
+          proposed: payload.after, current: payload.before,
+          targetLabel: payload.targetLabel ?? payload.targetGid,
+          stagedAt: row.created_at,
+        },
+        { dryRun: false, plugin: pre.seoPlugin }
+      );
+    } else {
+      throw new Error(`adapter not implemented: ${payload.adapter}`);
+    }
 
     const now = new Date().toISOString();
     await db.from("approvals").update({
