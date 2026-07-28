@@ -5,6 +5,64 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-07-28 · Session 2 · QC crawl reliability — branch `module/qc-crawl-reliability`
+
+Raised by Tom: manual QC scans run that morning and the findings never appeared in the panel.
+Diagnosed against production; nothing was broken in the way it looked, but three real defects
+sat underneath it.
+
+### What was actually happening
+- The two crawls queued 12:49 ET (Salty Dog, Alpha Zeta) were still holding `onpage_task_id`.
+  Findings only land when something *collects* a finished crawl: the "Check for results" button,
+  or the daily cron. The cron had already run at 06:01 ET, hours before the scans were queued,
+  so the next automatic pickup was the following morning. Working as built, not as expected.
+- **`qc_scans` had zero rows, for any client, ever.** The one crawl on record (Salty Dog, 7/23,
+  `site_health=92.5`) predates the code that writes the table — its `collector_runs` detail lacks
+  the `· N check types flagged` suffix the current code appends. The findings path had never
+  executed in production. Untested there, not proven broken.
+
+### Fixed
+- **Every "Run scan now" queued two crawls and billed for both.** `onPageTaskPost` called `post()`
+  for the task, discarded the result, then made a second raw call to read the id — so the first
+  crawl was orphaned and paid for. The kept call also dropped `load_resources` /
+  `enable_javascript`, making it the expensive config. Now one call, with the cheap flags and
+  proper HTTP + `status_code` error handling. This is what the six-hour rate limit on
+  `/api/qc/scan` was protecting, and it was leaking straight past it.
+- **A wedged task pinned a client forever.** The cron's collect branch polled `onpage_task_id`
+  every run and the queue branch never got a turn, so a task that never finishes silently ends
+  crawling for that client. DAPS.FIT sat on a leftover `mock-task-000` for five days, logging
+  "crawl still running" daily. Added `isCrawlStale` / `STALE_CRAWL_HOURS` (48h) in `lib/qc.ts`;
+  past the cutoff the cron abandons the id, logs a `collector_runs` error, and falls through to
+  requeue in the same run.
+  - 48h, not the manual route's 12h: the cron queues on one run and collects on the next, so a
+    healthy crawl is already ~24h old the first time it is checked. A lower cutoff would abandon
+    every crawl before it was ever collected. Test covers that boundary.
+  - A missing `onpage_task_started_at` reads as stale, so rows predating the fix heal themselves.
+- **The cron never wrote `onpage_task_started_at`** when queueing, only the manual route did.
+  It does now, which is what makes the staleness cutoff measurable.
+- Requeue is guarded by `collectedThisRun`: `c.last_crawl_at` is the value read at the top of the
+  loop, so `isDue()` would otherwise say yes for a crawl scored moments earlier and pay twice.
+
+### Production data touched
+- Cleared DAPS.FIT's `mock-task-000` (`onpage_task_id` + `onpage_task_started_at` → null). Its
+  `last_crawl_at` is null and frequency is monthly, so the next cron queues a real crawl. The
+  staleness fix would also have healed it on deploy; cleared by hand so it is not waiting on one.
+
+### Tests
+`tests/unit/onPageTask.test.ts` (new, 7) asserts the call count and request body, not just the
+returned id — the old bug was invisible to a return-value assertion. `tests/unit/qc.test.ts` +6
+for the staleness boundary. Full suite green: 262 passed, 11 skipped. `tsc --noEmit` clean.
+
+### Still open for Tom
+- **`MOCK_APIS` is set on the Production environment** in Vercel, not just Preview. It appears to
+  be off (this morning's task ids are real), but its presence in production is how DAPS got a
+  `mock-task-000` in the first place. Recommend removing it from Production entirely.
+- The two crawls from this morning are still uncollected. "Check for results" on each QC page
+  pulls them in now; otherwise the next cron takes them. Either way they will be the first rows
+  `qc_scans` has ever held, so the panel's render path gets its first real exercise then.
+
+---
+
 ## 2026-07-27 · Session 1 · WO-003 Wave 1 — Stream A shipped, Stream M shell built
 
 ### Stream A · Supabase Auth + per-client RLS — SHIPPED TO PRODUCTION

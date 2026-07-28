@@ -17,6 +17,7 @@ import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
 import { listSocialAccounts } from "@/lib/postflow";
 import { normaliseNetwork } from "@/lib/platformPlaybook";
+import { collectPendingImages } from "@/lib/collectImages";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
@@ -156,6 +157,18 @@ export default async function Social({
   const pendingSlots = slots.filter((i) => ["planned", "failed"].includes(String(i.status))).length;
   const draftedSlots = slots.filter((i) => String(i.status) === "sent").length;
   const skippedSlots = slots.filter((i) => String(i.status) === "skipped").length;
+  // Collect anything Bloom has finished, then decide whether to keep waiting.
+  // Bloom takes about 90 seconds; a person should not be the polling mechanism.
+  const svc = dbClient();
+  const bloomBrand = (client as { bloom_brand_id?: string | null }).bloom_brand_id ?? null;
+  await collectPendingImages(svc, params.id, bloomBrand);
+
+  const { count: stillGenerating } = await svc
+    .from("content_plan_items")
+    .select("id, content_plans!inner(client_id)", { count: "exact", head: true })
+    .eq("content_plans.client_id", params.id)
+    .eq("image_status", "generating");
+
   const rawMsg = searchParams.msg ?? "";
   const planMsg = rawMsg.startsWith("built:")
     ? `Plan built: ${rawMsg.split(":")[1]} posts. Review below, then approve.`
@@ -206,6 +219,9 @@ export default async function Social({
   return (
     <main style={{ padding: "40px 32px 64px" }}>
       <div style={{ maxWidth: 1180 }}>
+        {/* Refresh only while something is actually generating. A page that
+            reloads on a timer regardless is a page nobody can read. */}
+        {!!stillGenerating && <meta httpEquiv="refresh" content="20" />}
         <ClientHeader
           id={params.id} name={client.name} domain={client.domain} tier={client.tier}
           clientType={type} active="social" pending={pending ?? 0}

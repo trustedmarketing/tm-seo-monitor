@@ -155,8 +155,7 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
             )}
 
             {generating ? (
-              <form action="/api/content-plan/item" method="post">
-                <Hidden clientId={clientId} itemId={item.id} action="check-image" />
+              <div>
                 <div style={{
                   width: "100%", aspectRatio: "4/5", borderRadius: 10,
                   border: "1px dashed var(--border-strong)", display: "flex", flexDirection: "column",
@@ -164,10 +163,15 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
                   color: "var(--fg3)", fontSize: 13.5, textAlign: "center", padding: 12,
                 }}>
                   <span>Generating…</span>
-                  <span style={{ fontSize: 12 }}>About a minute</span>
+                  <span style={{ fontSize: 12 }}>About 90 seconds</span>
                 </div>
-                <button type="submit" style={{ ...BTN(true), width: "100%", marginTop: 10 }}>Check</button>
-              </form>
+                {/* No Check button: the page collects it and refreshes itself.
+                    A button whose only job is to work around our own plumbing is
+                    a chore we invented. */}
+                <div style={{ fontSize: 11.5, color: "var(--fg3)", textAlign: "center", marginTop: 8 }}>
+                  This page updates itself
+                </div>
+              </div>
             ) : item.image_url ? (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
