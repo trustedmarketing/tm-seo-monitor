@@ -28,7 +28,19 @@ type Metric = {
 
 function n(v: number | null | undefined): number { return v ?? 0; }
 
-export default async function Social({ params }: { params: { id: string } }) {
+const PLAN_MSG: Record<string, string> = {
+  approved: "Plan approved. Run the drafting job to write the captions and push them to PostFlow.",
+  "already-approved": "That month is already approved. Build a different month, or edit the plan in PostFlow.",
+  "build-failed": "Could not build a plan. Check the client has collected social posts.",
+  "no-plan": "No plan found for that month.",
+};
+
+export default async function Social({
+  params, searchParams,
+}: {
+  params: { id: string };
+  searchParams: { msg?: string };
+}) {
   const db = userClient();
   const { data: client } = await db
     .from("clients").select("id, name, domain, tier, client_type, postflow_group_id").eq("id", params.id).single();
@@ -44,6 +56,27 @@ export default async function Social({ params }: { params: { id: string } }) {
     db.from("approvals").select("id", { count: "exact", head: true })
       .eq("client_id", params.id).in("status", ["staged", "failed"]),
   ]);
+
+  // Next month's plan, if one has been built.
+  const now = new Date();
+  const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+    .toISOString().slice(0, 10);
+
+  const { data: plan } = await db
+    .from("content_plans")
+    .select("id, month, status, target_posts, rationale")
+    .eq("client_id", params.id).eq("month", nextMonth).maybeSingle();
+
+  const { data: planItems } = plan
+    ? await db.from("content_plan_items")
+        .select("slot, scheduled_for, platform, format, theme, brief, why, source_post_id, status")
+        .eq("plan_id", plan.id).order("slot")
+    : { data: [] };
+
+  const rawMsg = searchParams.msg ?? "";
+  const planMsg = rawMsg.startsWith("built:")
+    ? `Plan built: ${rawMsg.split(":")[1]} posts. Review below, then approve.`
+    : PLAN_MSG[rawMsg.split(":")[0]] ?? null;
 
   const posts = (postRows ?? []) as Post[];
 
@@ -90,6 +123,120 @@ export default async function Social({ params }: { params: { id: string } }) {
           clientType={type} active="social" pending={pending ?? 0}
           sub={posts.length ? `${posts.length} posts collected via PostFlow` : "No posts collected yet"}
         />
+
+        {planMsg && (
+          <div style={{ padding: "12px 16px", borderRadius: 8, background: "#fff",
+                        border: "1px solid var(--border)", fontSize: 14, marginBottom: 20, maxWidth: 900 }}>
+            {planMsg}
+          </div>
+        )}
+
+        {/* ── next month's plan ─────────────────────────────────────────── */}
+        {groupId && (
+          <section style={{ marginBottom: 36 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap", marginBottom: 10 }}>
+              <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 400, fontSize: 26, margin: 0 }}>
+                Next month
+              </h2>
+              <span style={{ fontSize: 13, color: "var(--fg3)" }}>
+                {new Date(nextMonth + "T00:00:00Z").toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}
+              </span>
+
+              <form action="/api/content-plan" method="post" style={{ marginLeft: "auto" }}>
+                <input type="hidden" name="client_id" value={params.id} />
+                <input type="hidden" name="action" value="build" />
+                <button type="submit" style={{
+                  fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13.5,
+                  padding: "9px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+                  background: plan ? "#fff" : "var(--tm-performance-green)",
+                  color: "#080808",
+                  boxShadow: plan ? "inset 0 0 0 1px var(--border-strong)" : "none",
+                }}>
+                  {plan ? "Rebuild plan" : "Build next month"}
+                </button>
+              </form>
+            </div>
+
+            {!plan ? (
+              <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 12, padding: "24px 22px", maxWidth: 900 }}>
+                <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--fg2)", margin: 0 }}>
+                  Build a month and the planner deals slots across this client&#39;s networks using what
+                  their own posts have proven, then fills the rest with evergreen angles. Building costs
+                  nothing and can be re-run until it looks right. Nothing is written or drafted until you
+                  approve it.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div style={{
+                  background: "#fff", border: "1px solid var(--border)", borderRadius: 12,
+                  padding: "16px 20px", marginBottom: 14, maxWidth: 900, fontSize: 13.5,
+                  color: "var(--fg2)", lineHeight: 1.6,
+                }}>
+                  {plan.rationale}
+                </div>
+
+                <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                  {(planItems ?? []).map((it: Record<string, unknown>, i: number) => (
+                    <div key={it.slot as number} style={{
+                      display: "flex", alignItems: "flex-start", gap: 14, padding: "13px 20px",
+                      borderTop: i === 0 ? "none" : "1px solid var(--border)", flexWrap: "wrap",
+                    }}>
+                      <div style={{ minWidth: 70, fontSize: 12.5, color: "var(--fg3)", paddingTop: 2 }}>
+                        {fmtDate(it.scheduled_for as string)}
+                      </div>
+                      <div style={{ minWidth: 96, fontSize: 12, color: "var(--fg3)", paddingTop: 3 }}>
+                        {String(it.platform)} · {String(it.format)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 260 }}>
+                        <div style={{ fontSize: 14, color: "var(--fg1)" }}>{String(it.brief)}</div>
+                        <div style={{ fontSize: 12, color: "var(--fg3)", marginTop: 3 }}>{String(it.why)}</div>
+                      </div>
+                      {/* Evidence-backed slots are marked. A filler slot that looks
+                          identical to a proven one is how a calendar gets mistaken
+                          for a strategy. */}
+                      <div style={{
+                        fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
+                        padding: "3px 8px", borderRadius: 999, whiteSpace: "nowrap",
+                        background: it.source_post_id ? "#E5FFB8" : "var(--bg)",
+                        color: it.source_post_id ? "#2F8F4E" : "var(--fg3)",
+                        border: `1px solid ${it.source_post_id ? "#C7E89A" : "var(--border)"}`,
+                      }}>
+                        {it.source_post_id ? "Proven" : "Evergreen"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {plan.status === "draft" && (
+                  <form action="/api/content-plan" method="post" style={{ marginTop: 16 }}>
+                    <input type="hidden" name="client_id" value={params.id} />
+                    <input type="hidden" name="plan_id" value={plan.id} />
+                    <input type="hidden" name="action" value="approve" />
+                    <button type="submit" style={{
+                      fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 14,
+                      padding: "11px 20px", borderRadius: 8, border: "none", cursor: "pointer",
+                      background: "var(--tm-performance-green)", color: "#080808",
+                    }}>
+                      Approve plan &amp; draft {(planItems ?? []).length} posts
+                    </button>
+                    <span style={{ fontSize: 12.5, color: "var(--fg3)", marginLeft: 12 }}>
+                      Drafts land in PostFlow for client approval. Nothing publishes on a schedule.
+                    </span>
+                  </form>
+                )}
+
+                {plan.status !== "draft" && (
+                  <div style={{ marginTop: 14, fontSize: 13.5, color: "var(--fg2)" }}>
+                    Plan {plan.status}. Drafting runs at
+                    <code style={{ margin: "0 5px" }}>/api/content-plan/draft?plan={plan.id}</code>
+                    and is safe to re-run — slots already in PostFlow are skipped.
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+        )}
 
         {!groupId ? (
           <div style={{ background: "#FFF9EC", border: "1px solid #EAD9A6", borderRadius: 12, padding: "28px 26px", maxWidth: 760 }}>

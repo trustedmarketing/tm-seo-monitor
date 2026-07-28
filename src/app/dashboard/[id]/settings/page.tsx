@@ -149,6 +149,12 @@ export default async function Settings({
               <div style={HINT}>Required for social analytics.</div>
             </div>
             <div>
+              <label style={L}>Social posts per month</label>
+              <input name="social_posts_per_month" type="number" min="0" max="200"
+                     defaultValue={client.social_posts_per_month ?? ""} placeholder="12" style={I} />
+              <div style={HINT}>The cadence this client is on. Leave blank and the planner uses the platform minimum and says so.</div>
+            </div>
+            <div>
               <label style={L}>ClickUp list ID</label>
               <input name="clickup_list_id" defaultValue={client.clickup_list_id ?? ""} style={I} />
             </div>
