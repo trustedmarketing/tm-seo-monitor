@@ -23,6 +23,7 @@ import { collectMicrosoftAds } from "@/lib/microsoftAdsCollector";
 import { collectShopify } from "@/lib/shopifyCollector";
 import { syncApprovedRecs } from "@/lib/clickupSync";
 import { checkTokenExpiry } from "@/lib/tokenExpiry";
+import { findBreaches, reportBreaches } from "@/lib/slaEscalation";
 
 export const maxDuration = 300;
 
@@ -271,10 +272,22 @@ export async function GET(req: Request) {
   // surface any module failures to the ops Slack channel (no-op if none)
   await alertOnFailures(ranAt, failures);
 
+  // Punch list #9: the SLA gets a consequence rather than a colour. Never fatal —
+  // a queue-health check must not be able to fail the collection it rides on.
+  let slaBreaches = 0;
+  try {
+    const breaches = await findBreaches();
+    slaBreaches = breaches.length;
+    await reportBreaches(breaches);
+  } catch (e) {
+    console.error("[sla] check failed:", (e as Error).message);
+  }
+
   return Response.json({
     ran_at: ranAt,
     measured_changes: measured,
     failures: failures.length,
+    sla_breaches: slaBreaches,
     report,
   });
 }
