@@ -13,11 +13,12 @@ export const dynamic = "force-dynamic";
 
 const MESSAGES: Record<string, string> = {
   published: "Published. The change is live and now being measured.",
-  declined: "Declined. That rule is suppressed for this target for 60 days.",
+  declined: "Declined. How long it stays suppressed depends on the reason you gave.",
   failed: "Publish failed. The card stayed in the queue with the error.",
   "already-in-progress": "Someone else is already working that card.",
   "needs-higher-role": "That card needs a higher role. Approval requested.",
   "reason-required": "Decline needs a reason.",
+  "note-required": "Declining as Other needs a note — it is the one decline we cannot learn from otherwise.",
   "approval-requested": "Approval requested.",
   undone: "Undone. It was not live long enough to measure, so no verdict is pending.",
   reverted: "Reverted. Both the change and the reversal stay in the record.",

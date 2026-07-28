@@ -14,6 +14,7 @@
 //   · #7 every card carries its own freshness line.
 import { diffWords, serpWarning, type DiffOp } from "@/lib/textDiff";
 import { canDecide, withinUndoWindow } from "@/lib/audit";
+import { policyFor } from "@/lib/declinePolicy";
 
 export type ApprovalRow = {
   id: string;
@@ -29,6 +30,7 @@ export type ApprovalRow = {
   requires_role: string;
   sla_due_at: string | null;
   decline_reason: string | null;
+  decline_note?: string | null;
   error_detail: string | null;
   created_at: string;
   published_at?: string | null;
@@ -183,7 +185,16 @@ export function ApprovalCard({
 
       {row.status === "declined" && row.decline_reason && (
         <div style={{ marginTop: 14, fontSize: 13.5, color: C.mid }}>
-          Declined — <strong style={{ color: C.ink }}>{row.decline_reason}</strong>
+          <div>Declined · <strong style={{ color: C.ink }}>{row.decline_reason}</strong></div>
+          {/* What the decline actually did, so the next person is not guessing. */}
+          <div style={{ fontSize: 12.5, color: C.faint, marginTop: 3 }}>
+            {policyFor(row.decline_reason).label}
+          </div>
+          {row.decline_note && (
+            <div style={{ fontSize: 13, color: C.mid, marginTop: 6, fontStyle: "italic" }}>
+              &ldquo;{row.decline_note}&rdquo;
+            </div>
+          )}
         </div>
       )}
 
@@ -249,11 +260,17 @@ export function ApprovalCard({
                   borderRadius: 8, border: `1px solid ${C.strong}`, background: "#fff", color: C.ink,
                 }}>
                   <option value="" disabled>Decline reason…</option>
-                  <option value="wrong direction">Wrong direction</option>
-                  <option value="bad timing">Bad timing</option>
-                  <option value="client said no">Client said no</option>
-                  <option value="other">Other</option>
+                  <option value="wrong direction">Wrong direction — try another angle</option>
+                  <option value="bad timing">Bad timing — ask again in two weeks</option>
+                  <option value="client said no">Client said no — do not re-suggest</option>
+                  <option value="other">Other (needs a note)</option>
                 </select>
+                {/* "Other" is the only decline we cannot learn from without one. */}
+                <input name="note" placeholder="Note (required for Other)" maxLength={500} style={{
+                  fontFamily: "var(--font-body)", fontSize: 13, padding: "9px 10px",
+                  borderRadius: 8, border: `1px solid ${C.strong}`, background: "#fff",
+                  color: C.ink, minWidth: 200,
+                }} />
                 <button type="submit" style={btn("ghost")}>Decline</button>
               </form>
             </>

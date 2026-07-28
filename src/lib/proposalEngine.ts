@@ -17,8 +17,10 @@
 // 3. Touch a client's site. Staging READS the live value and writes only to our
 //    own database. Nothing reaches the platform until a human approves.
 import { dbClient } from "@/lib/db";
+import type { ContentLike } from "@/lib/proposals";
 import { readSecret } from "@/lib/vault";
 import { proposalsFor, type Proposal } from "@/lib/proposals";
+import { policyFor } from "@/lib/declinePolicy";
 import * as shopify from "@/lib/shopifyAdapter";
 import * as wordpress from "@/lib/wordpressAdapter";
 
@@ -44,31 +46,69 @@ const WP_TYPE: Record<Proposal["kind"], wordpress.WpChangeType> = {
 
 const SLA_HOURS = 24;
 
+type Decision =
+  | { act: "stage"; variant: 0 | 1; redraftOf?: string }
+  | { act: "skip"; why: "open_or_done" | "suppressed" };
+
 /**
- * Has a human already refused this exact fix recently?
+ * What should happen to this proposal, given what a human has already said?
  *
- * Checks the suppression date written at decline time rather than counting
- * declines, so extending the window later is a one-line change and existing
- * suppressions keep working.
+ * This is where the decline reason stops being a stored string and starts
+ * changing behaviour. Three distinct outcomes:
+ *
+ *   nothing said yet          → stage it
+ *   still inside suppression  → stay quiet
+ *   "wrong direction", window │ the INTENT was fine, the value was not. Offer a
+ *   passed, no re-draft tried │ genuinely different angle, once.
+ *
+ * A rule that re-proposes the same string after a refusal is not learning, and
+ * one that keeps generating alternatives forever is nagging. Hence exactly one
+ * re-draft.
  */
-async function isSuppressed(
+async function decide(
   db: ReturnType<typeof dbClient>,
   clientId: string,
-  idempotencyKey: string
-): Promise<boolean> {
+  baseKey: string,
+  redraftKey: string
+): Promise<Decision> {
   const { data } = await db
     .from("approvals")
-    .select("id, status, suppress_until")
+    .select("id, status, suppress_until, decline_reason, idempotency_key")
     .eq("client_id", clientId)
-    .eq("idempotency_key", idempotencyKey)
-    .in("status", ["declined", "staged", "publishing", "published"])
-    .limit(1);
+    .in("idempotency_key", [baseKey, redraftKey])
+    .in("status", ["declined", "staged", "publishing", "published"]);
 
-  const row = data?.[0] as { status: string; suppress_until: string | null } | undefined;
-  if (!row) return false;
-  if (row.status !== "declined") return true;                       // already open or done
-  if (!row.suppress_until) return true;
-  return new Date(row.suppress_until).getTime() > Date.now();       // still inside the window
+  const rows = (data ?? []) as {
+    id: string; status: string; suppress_until: string | null;
+    decline_reason: string | null; idempotency_key: string;
+  }[];
+
+  if (rows.length === 0) return { act: "stage", variant: 0 };
+
+  // Anything still open, or already published, means leave it alone.
+  if (rows.some((r) => r.status !== "declined")) return { act: "skip", why: "open_or_done" };
+
+  const redrafted = rows.find((r) => r.idempotency_key === redraftKey);
+  const original  = rows.find((r) => r.idempotency_key === baseKey);
+
+  // The re-draft was also refused. That is two humans-worth of "no" on this fix.
+  if (redrafted) {
+    const until = redrafted.suppress_until;
+    if (!until || new Date(until).getTime() > Date.now()) return { act: "skip", why: "suppressed" };
+    return { act: "skip", why: "suppressed" };
+  }
+
+  if (!original) return { act: "stage", variant: 0 };
+
+  const stillSuppressed =
+    !original.suppress_until || new Date(original.suppress_until).getTime() > Date.now();
+  if (stillSuppressed) return { act: "skip", why: "suppressed" };
+
+  // Window has passed. What comes back depends on WHY it was refused.
+  const policy = policyFor(original.decline_reason ?? "other");
+  return policy.redraft
+    ? { act: "stage", variant: 1, redraftOf: original.id }
+    : { act: "stage", variant: 0 };
 }
 
 export async function runForClient(clientId: string, limit = 25): Promise<EngineResult> {
@@ -97,7 +137,7 @@ export async function runForClient(clientId: string, limit = 25): Promise<Engine
   const brand = client.name;
 
   try {
-    type Staged = { targetRef: string; label: string; proposal: Proposal; changeType: string };
+    type Staged = { targetRef: string; label: string; proposal: Proposal; changeType: string; item: ContentLike };
     const staged: Staged[] = [];
 
     if (platform === "shopify") {
@@ -105,8 +145,8 @@ export async function runForClient(clientId: string, limit = 25): Promise<Engine
       const items = await shopify.listContent(store.domain, token, limit);
       base.scanned = items.length;
       for (const item of items) {
-        for (const p of proposalsFor(item, brand)) {
-          staged.push({ targetRef: item.gid, label: item.title, proposal: p, changeType: SHOPIFY_TYPE[p.kind] });
+        for (const p of proposalsFor(item, brand, 0)) {
+          staged.push({ targetRef: item.gid, label: item.title, proposal: p, changeType: SHOPIFY_TYPE[p.kind], item });
         }
       }
     } else {
@@ -119,24 +159,29 @@ export async function runForClient(clientId: string, limit = 25): Promise<Engine
       const items = await wordpress.listContent(store.domain, store.api_client_id, secret, pre.seoPlugin, limit);
       base.scanned = items.length;
       for (const item of items) {
-        for (const p of proposalsFor(item, brand)) {
+        for (const p of proposalsFor(item, brand, 0)) {
           staged.push({
             targetRef: JSON.stringify({ postType: item.postType, id: item.id }),
-            label: item.title, proposal: p, changeType: WP_TYPE[p.kind],
+            label: item.title, proposal: p, changeType: WP_TYPE[p.kind], item,
           });
         }
       }
     }
 
     for (const s of staged) {
-      const key = `auto:${s.proposal.ruleKey}:${s.targetRef}`.slice(0, 200);
+      const baseKey    = `auto:${s.proposal.ruleKey}:${s.targetRef}`.slice(0, 200);
+      const redraftKey = `${baseKey}:v2`.slice(0, 200);
 
-      if (await isSuppressed(db, clientId, key)) {
-        // Distinguish "a human said no" from "already queued" only in the count;
-        // both mean do not stage, and neither is an error.
-        base.suppressed++;
-        continue;
-      }
+      const decision = await decide(db, clientId, baseKey, redraftKey);
+      if (decision.act === "skip") { base.suppressed++; continue; }
+
+      // A re-draft is a genuinely different suggestion, not the same one retried.
+      const proposal = decision.variant === 1
+        ? proposalsFor(s.item, brand, 1).find((p) => p.kind === s.proposal.kind)
+        : s.proposal;
+      if (!proposal) { base.suppressed++; continue; }
+
+      const key = decision.variant === 1 ? redraftKey : baseKey;
 
       const sla = new Date();
       sla.setHours(sla.getHours() + SLA_HOURS);
@@ -145,22 +190,25 @@ export async function runForClient(clientId: string, limit = 25): Promise<Engine
         client_id: clientId,
         variant: "site",
         status: "staged",
-        severity: s.proposal.severity,
-        title: `${s.proposal.kind === "seo_title" ? "Search engine listing title" : "Search engine listing description"} — ${s.label}`,
-        why: s.proposal.why,
+        severity: proposal.severity,
+        title: `${proposal.kind === "seo_title" ? "Search engine listing title" : "Search engine listing description"} — ${s.label}`,
+        why: decision.variant === 1
+          ? `${proposal.why} A previous suggestion was declined as the wrong direction, so this takes a different angle.`
+          : proposal.why,
         staged_by: "Growth OS · proposal engine",
         qc_passed: 1, qc_total: 1,
         requires_role: "specialist",
         sla_due_at: sla.toISOString(),
         idempotency_key: key,
+        redraft_of: decision.variant === 1 ? decision.redraftOf ?? null : null,
         payload: {
           adapter: platform,
           changeType: s.changeType,
           targetGid: s.targetRef,
           targetLabel: s.label,
-          before: s.proposal.before,
-          after: s.proposal.after,
-          serpKind: s.proposal.kind === "seo_title" ? "title" : "description",
+          before: proposal.before,
+          after: proposal.after,
+          serpKind: proposal.kind === "seo_title" ? "title" : "description",
         },
       });
 

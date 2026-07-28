@@ -63,20 +63,27 @@ export function trimToWord(s: string, max: number): string {
  * dropped rather than truncated if it would push past the limit — a cut-off
  * brand name looks like a bug on a search result.
  */
-export function proposeSeoTitle(item: ContentLike, brand: string): Proposal | null {
+export function proposeSeoTitle(item: ContentLike, brand: string, variant = 0): Proposal | null {
   if (item.seoTitle.trim()) return null;               // already set — leave it alone
   const base = item.title.trim();
   if (!base) return null;
 
-  const suffix = brand.trim() ? ` | ${brand.trim()}` : "";
-  const withBrand = base + suffix;
+  const b = brand.trim();
+  // variant 1 is the RE-DRAFT: used only after a human declined the first
+  // suggestion as "wrong direction". Brand-first reads better for some pages,
+  // and offering a genuinely different shape is the point — re-proposing the
+  // same string with a new id would be pretending to listen.
+  const withBrand =
+    variant === 0 ? (b ? `${base} | ${b}` : base)
+                  : (b ? `${b} — ${base}` : base);
+
   const after = withBrand.length <= TITLE_MAX ? withBrand : trimToWord(base, TITLE_MAX);
 
   if (!after || after === item.seoTitle) return null;
 
   return {
     kind: "seo_title",
-    ruleKey: "missing_seo_title",
+    ruleKey: variant === 0 ? "missing_seo_title" : "missing_seo_title_v2",
     before: item.seoTitle,
     after,
     why:
@@ -97,7 +104,7 @@ export function proposeSeoTitle(item: ContentLike, brand: string): Proposal | nu
  * Returns null when the page has too little copy to describe itself — a
  * 40-character description is worse than letting the search engine choose.
  */
-export function proposeMetaDescription(item: ContentLike): Proposal | null {
+export function proposeMetaDescription(item: ContentLike, variant = 0): Proposal | null {
   if (item.metaDescription.trim()) return null;
 
   const body = item.bodyText.replace(/\s+/g, " ").trim();
@@ -105,8 +112,12 @@ export function proposeMetaDescription(item: ContentLike): Proposal | null {
 
   // Prefer whole sentences, so the result reads as prose rather than a fragment.
   const sentences = body.match(/[^.!?]+[.!?]+/g) ?? [];
+  // The re-draft skips the opening sentence. A first line is often a greeting or
+  // a heading fragment, and "wrong direction" on a description usually means it
+  // opened badly rather than that the page cannot be described.
+  const pool = variant === 0 ? sentences : sentences.slice(1);
   let out = "";
-  for (const s of sentences) {
+  for (const s of pool) {
     if ((out + s).trim().length > DESC_MAX) break;
     out += s;
   }
@@ -118,7 +129,7 @@ export function proposeMetaDescription(item: ContentLike): Proposal | null {
 
   return {
     kind: "meta_description",
-    ruleKey: "missing_meta_description",
+    ruleKey: variant === 0 ? "missing_meta_description" : "missing_meta_description_v2",
     before: item.metaDescription,
     after: out,
     why:
@@ -129,7 +140,17 @@ export function proposeMetaDescription(item: ContentLike): Proposal | null {
   };
 }
 
-/** Run every rule against one content item. */
-export function proposalsFor(item: ContentLike, brand: string): Proposal[] {
-  return [proposeSeoTitle(item, brand), proposeMetaDescription(item)].filter(Boolean) as Proposal[];
+/**
+ * Run every rule against one content item.
+ *
+ * `variant` is the re-draft pass: 0 is the first suggestion, 1 is the different
+ * angle offered after a human declined as "wrong direction". There is no
+ * variant 2 — a rule that keeps generating alternatives after two refusals is
+ * not learning, it is nagging.
+ */
+export function proposalsFor(item: ContentLike, brand: string, variant = 0): Proposal[] {
+  return [
+    proposeSeoTitle(item, brand, variant),
+    proposeMetaDescription(item, variant),
+  ].filter(Boolean) as Proposal[];
 }

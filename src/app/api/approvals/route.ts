@@ -18,6 +18,7 @@ import { getProfile, isAgency, type Profile } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
 import { writeAudit, canDecide, UNDO_WINDOW_MS } from "@/lib/audit";
+import { policyFor, suppressUntil } from "@/lib/declinePolicy";
 import { connect, publish, revert as revertChange, type ShopifyChangeType } from "@/lib/shopifyAdapter";
 
 export const dynamic = "force-dynamic";
@@ -113,20 +114,28 @@ export async function POST(req: Request) {
   if (action === "decline") {
     if (!reason) return back(req, "reason-required");
 
-    // 60-day suppression so the same rule stops re-proposing what was refused.
-    const suppress = new Date();
-    suppress.setDate(suppress.getDate() + 60);
+    const note = form.get("note") ? String(form.get("note")).slice(0, 500) : null;
+    const policy = policyFor(reason);
 
+    // "Other" without a note is a decline we cannot learn anything from, which
+    // is the one kind the spec's learning layer specifically needs.
+    if (policy.requiresNote && !note) return back(req, "note-required");
+
+    // The reason decides the window. "Ask me next month" and "the client refused
+    // this" are not the same statement, and treating them identically either
+    // kills good proposals or nags a client on a schedule.
     await db.from("approvals").update({
-      status: "declined", decline_reason: reason,
+      status: "declined", decline_reason: reason, decline_note: note,
       decided_by: profile!.id, decided_at: new Date().toISOString(),
-      suppress_until: suppress.toISOString().slice(0, 10),
+      suppress_until: suppressUntil(reason),
       updated_at: new Date().toISOString(),
     }).eq("id", id);
 
     await writeAudit(
       { action: "decline", targetType: "approval", targetId: id, clientId: row.client_id,
-        before: { status: row.status }, after: { status: "declined", reason }, detail: reason, ip },
+        before: { status: row.status },
+        after: { status: "declined", reason, note, suppress_days: policy.suppressDays, redraft: policy.redraft },
+        detail: note ? `${reason}: ${note}` : reason, ip },
       profile
     );
     return back(req, "declined");
