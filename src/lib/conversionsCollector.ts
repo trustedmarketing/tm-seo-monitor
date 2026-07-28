@@ -28,7 +28,25 @@ export async function collectConversions(
       throw new Error(`client ${client.domain} has no ga4_property_id configured`);
     }
 
-    const rows = await dailyConversions(client.ga4_property_id, days);
+    // Name the identifier we are asking for, in the error itself.
+    //
+    // This collector failed daily for six days (2026-07-22 → 07-28) with GA4's
+    // bare "User does not have sufficient permissions for this property". The
+    // permission was fine throughout; the property ID in our database was wrong.
+    // Three separate access grants were applied to fix a problem that was never
+    // about access, because the error never said WHICH property it wanted.
+    //
+    // Any collector reading a hand-entered external ID should assume that ID is
+    // the suspect and say so.
+    let rows;
+    try {
+      rows = await dailyConversions(client.ga4_property_id, days);
+    } catch (e) {
+      throw new Error(
+        `GA4 property ${client.ga4_property_id} (client ${client.domain}): ${(e as Error).message} ` +
+        `— verify this property ID matches GA4 → Admin → Property Settings before assuming it is a permissions issue`
+      );
+    }
     let written = 0;
 
     for (const r of rows) {

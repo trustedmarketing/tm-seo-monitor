@@ -19,7 +19,13 @@ _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `do
 ## Live on a real client
 - **Salty Dog** (getsaltydog.com): real data in prod, 28-day — SEO 7,696 traffic / 229 kw / 976 backlinks ·
   Shopify revenue **$42,190.58** · Meta spend **$22,878.96** · **MER 1.84×**.
-- Daily cron firing and completing (last verified run 2026-07-27 10:01 UTC, no errors).
+- Daily cron firing and completing (10:00 UTC = 6am ET).
+- ✅ **GA4 conversions fixed 2026-07-28** after six days of daily failures. Root cause was **not**
+  permissions: `clients.ga4_property_id` held **451445566**, a property that is not Salty Dog's. The
+  real property is **539468239** ("Salty Dog Website", account 396237580). Three access grants were
+  applied to fix a problem that was never about access, because GA4's error never named the property
+  it was refusing. Verified via `/api/ops/ga4-check` → `ok: true`. First GA4 rows land on the next
+  run, which backfills 28 days.
 
 ## Design deliverables — ✅ DONE
 - **Growth OS design export** committed at `docs/design/` — 16 screens across agency + client portal,
