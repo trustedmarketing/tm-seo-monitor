@@ -17,7 +17,7 @@ import {
 import { syncRecommendations, measureChanges } from "@/lib/recSync";
 import { recordRun } from "@/lib/collectorRuns";
 import { alertOnFailures, slackAlert, type CollectorFailure } from "@/lib/slack";
-import { classifyChecks, criticalIssues } from "@/lib/qc";
+import { classifyChecks, criticalIssues, isCrawlStale, STALE_CRAWL_HOURS } from "@/lib/qc";
 import { collectConversions } from "@/lib/conversionsCollector";
 import { collectMetaAds } from "@/lib/metaAdsCollector";
 import { collectGoogleAds } from "@/lib/googleAdsCollector";
@@ -187,10 +187,15 @@ export async function GET(req: Request) {
     // ── On-page crawl: post task now, score next run ──────────────
     const tCrawl = Date.now();
     try {
-      if (c.onpage_task_id) {
+      // Held open across both branches: a crawl we abandon as stale falls
+      // through and requeues in the same run rather than waiting another day.
+      let pendingTask: string | null = c.onpage_task_id ?? null;
+      let collectedThisRun = false;
+
+      if (pendingTask) {
         // The full summary, not just the score. A score says the site got worse;
         // the checks say what to fix, which is the only actionable half.
-        const summary = await onPageSummary(c.onpage_task_id);
+        const summary = await onPageSummary(pendingTask);
         const score = summary?.score ?? null;
         if (summary !== null) {
           snapshot.site_health = score;
@@ -201,7 +206,7 @@ export async function GET(req: Request) {
             score,
             pages_crawled: summary.crawledPages,
             checks: summary.checks,
-            task_id: c.onpage_task_id,
+            task_id: pendingTask,
           });
 
           // Spec §6: critical issues BYPASS the approval queue and alert
@@ -217,12 +222,31 @@ export async function GET(req: Request) {
           }
 
           await db.from("clients")
-            .update({ onpage_task_id: null, last_crawl_at: new Date().toISOString() })
+            .update({
+              onpage_task_id: null, onpage_task_started_at: null,
+              last_crawl_at: new Date().toISOString(),
+            })
             .eq("id", c.id);
+          pendingTask = null;
+          collectedThisRun = true;
           done.push("crawl scored");
           await recordRun(db, "crawl", c.id, {
             status: "success",
             detail: `site_health=${score} · ${Object.keys(summary.checks).length} check types flagged`,
+            duration_ms: Date.now() - tCrawl,
+          });
+        } else if (isCrawlStale(c.onpage_task_started_at)) {
+          // Give up on it. Left alone this task blocks every future crawl for
+          // the client, and silence is the worst failure mode here — the QC
+          // panel just keeps showing an ageing scan with nothing to explain it.
+          await db.from("clients")
+            .update({ onpage_task_id: null, onpage_task_started_at: null })
+            .eq("id", c.id);
+          pendingTask = null;
+          done.push("crawl abandoned (stale)");
+          await recordRun(db, "crawl", c.id, {
+            status: "error",
+            error: `task ${c.onpage_task_id} never finished after ${STALE_CRAWL_HOURS}h — abandoned, requeueing`,
             duration_ms: Date.now() - tCrawl,
           });
         } else {
@@ -231,9 +255,17 @@ export async function GET(req: Request) {
             status: "skipped", detail: "crawl still running", duration_ms: Date.now() - tCrawl,
           });
         }
-      } else if (force || isDue(c.crawl_frequency, c.last_crawl_at)) {
+      }
+
+      // `collectedThisRun` guards against an immediate requeue: c.last_crawl_at
+      // is the value read at the top of the loop, so isDue() would still say
+      // yes for a crawl we scored moments ago and we would pay for it twice.
+      if (!pendingTask && !collectedThisRun && (force || isDue(c.crawl_frequency, c.last_crawl_at))) {
         const taskId = await onPageTaskPost(c.domain);
-        await db.from("clients").update({ onpage_task_id: taskId }).eq("id", c.id);
+        await db.from("clients").update({
+          onpage_task_id: taskId,
+          onpage_task_started_at: new Date().toISOString(),
+        }).eq("id", c.id);
         done.push("crawl queued");
         await recordRun(db, "crawl", c.id, {
           status: "success", detail: `queued task ${taskId}`, duration_ms: Date.now() - tCrawl,

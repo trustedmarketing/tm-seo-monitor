@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { classifyChecks, criticalIssues, issueCounts, grade } from "@/lib/qc";
+import {
+  classifyChecks, criticalIssues, issueCounts, grade,
+  isCrawlStale, crawlAgeHours, STALE_CRAWL_HOURS,
+} from "@/lib/qc";
 
 // WO-003. DataForSEO returns ~90 named checks with a count each. Rendering that
 // raw implies "canonical_to_redirect: 2" and "is_5xx_code: 40" are comparable
@@ -67,5 +70,44 @@ describe("grade", () => {
     expect(grade(60)).toBe("Poor");
     expect(grade(20)).toBe("Critical");
     expect(grade(null)).toBe("—");
+  });
+});
+
+// ── crawl staleness ─────────────────────────────────────────────────────────
+// A task id that never finishes used to pin a client forever: the cron's
+// collect branch polled it every run and the queue branch never got a turn.
+// DAPS.FIT sat on a leftover `mock-task-000` for five days that way.
+describe("isCrawlStale", () => {
+  const NOW = new Date("2026-07-28T12:00:00Z").getTime();
+  const hoursAgo = (h: number) => new Date(NOW - h * 3_600_000).toISOString();
+
+  it("leaves a crawl queued by the previous cron run alone", () => {
+    // The cron queues on one run and collects on the next, so a healthy crawl
+    // is already ~24h old the first time it is checked. A cutoff below that
+    // would abandon every crawl before it was ever collected.
+    expect(isCrawlStale(hoursAgo(25), NOW)).toBe(false);
+  });
+
+  it("abandons a crawl that has missed two full cron cycles", () => {
+    expect(isCrawlStale(hoursAgo(49), NOW)).toBe(true);
+  });
+
+  it("does not abandon exactly at the cutoff", () => {
+    expect(isCrawlStale(hoursAgo(STALE_CRAWL_HOURS), NOW)).toBe(false);
+  });
+
+  it("treats a missing timestamp as stale so old rows heal themselves", () => {
+    // The cron path did not always write onpage_task_started_at. A task without
+    // one predates that fix and, given a daily cron, is at least a day old.
+    expect(isCrawlStale(null, NOW)).toBe(true);
+    expect(isCrawlStale(undefined, NOW)).toBe(true);
+  });
+
+  it("treats an unparseable timestamp as stale rather than never expiring", () => {
+    expect(isCrawlStale("not a date", NOW)).toBe(true);
+  });
+
+  it("reports age in hours", () => {
+    expect(crawlAgeHours(hoursAgo(6), NOW)).toBe(6);
   });
 });

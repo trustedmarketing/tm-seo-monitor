@@ -87,7 +87,7 @@ export async function startImage(
   prompt: string,
   /** e.g. "9:16". Sent as a field AND stated in the prompt — see below. */
   aspectRatio?: string | null
-): Promise<string> {
+): Promise<string | null> {
   if (mockApis()) return "mock-image";
 
   // Bloom documents only brandSessionId and prompt. Their image objects carry an
@@ -95,7 +95,11 @@ export async function startImage(
   // has been wrong four times on this integration today, so the ratio is ALSO
   // stated in the prompt. An ignored field costs nothing; a silently square image
   // in a 9:16 slot costs a repost.
-  const created = await call<unknown>("/images/generations", key, {
+  // POST /images is the documented generation endpoint. /images/generations also
+  // accepts the request — it is what produced the images sitting in Tom's Bloom
+  // library — but its response shape carried no id we could recognise, and the
+  // documented endpoint is the one to build on.
+  const created = await call<unknown>("/images", key, {
     method: "POST",
     body: JSON.stringify({
       brandSessionId: brandId,
@@ -104,28 +108,36 @@ export async function startImage(
     }),
   });
 
-  const id = findImageId(created);
-  if (id) return id;
+  // An id if we can find one — but its absence is NOT a failure. The generation
+  // has started either way, and the first version threw here, which meant Bloom
+  // produced a perfectly good image while the slot recorded nothing at all.
+  return findImageId(created);
+}
 
-  // The POST response does not carry an id in any shape we recognise, but the
-  // generation itself has started — Tom watched one complete in Bloom while this
-  // was erroring. So ask the brand for its newest image instead. Bounded to
-  // images created within the last two minutes so a much older one can never be
-  // mistaken for the one we just requested.
-  const cutoff = Date.now() - 2 * 60_000;
-  const recent = await listImages(key, brandId, 5);
-  const mine = recent.find((i) => {
-    const t = i.createdAt ? new Date(i.createdAt).getTime() : 0;
-    return t >= cutoff;
-  });
+/**
+ * Find a generation we started but have no id for.
+ *
+ * Matches on brand, on being created after we asked, and on the prompt, so two
+ * slots generating at once cannot collect each other's artwork.
+ */
+export async function findStartedImage(
+  key: string,
+  brandId: string,
+  since: Date,
+  prompt: string
+): Promise<BloomImage | null> {
+  const recent = await listImages(key, brandId, 10);
+  // A minute of slack: their created_at and our clock will not agree exactly.
+  const cutoff = since.getTime() - 60_000;
+  const head = prompt.slice(0, 80);
 
-  if (!mine) {
-    throw new Error(
-      `Bloom started a generation but returned no id, and no new image appeared for this brand. ` +
-      `Response was: ${describeShape(created, 300)}`
-    );
-  }
-  return mine.id;
+  return (
+    recent.find((i) => {
+      const t = i.createdAt ? new Date(i.createdAt).getTime() : 0;
+      if (t < cutoff) return false;
+      return !i.prompt || i.prompt.slice(0, 80) === head;
+    }) ?? null
+  );
 }
 
 /**
@@ -159,7 +171,7 @@ function findImageId(body: unknown): string | null {
 
 export type BloomImage = {
   id: string; status: string | null; imageUrl: string | null;
-  prompt: string | null; createdAt: string | null;
+  prompt: string | null; createdAt: string | null; brandId: string | null;
 };
 
 /**
@@ -173,13 +185,13 @@ export type BloomImage = {
 export async function listImages(key: string, brandId: string, limit = 5): Promise<BloomImage[]> {
   if (mockApis()) {
     return [{ id: "mock-image", status: "completed", imageUrl: "https://example.test/mock.png",
-              prompt: null, createdAt: new Date().toISOString() }];
+              prompt: null, createdAt: new Date().toISOString(), brandId: "mock-brand" }];
   }
 
-  const body = await call<unknown>(
-    `/images?brandSessionId=${encodeURIComponent(brandId)}&limit=${limit}`,
-    key
-  );
+  // No brand query param is documented, and guessing one has already cost this
+  // integration several rounds. Each image carries brand_session_id, so the
+  // filter happens here on a field we have actually seen in a live response.
+  const body = await call<unknown>(`/images?limit=${limit * 4}`, key);
   const arr = findArray(body);
   if (!arr) throw new Error(`Bloom returned images in an unrecognised shape: ${describeShape(body)}`);
 
@@ -194,8 +206,11 @@ export async function listImages(key: string, brandId: string, limit = 5): Promi
         imageUrl: ((i.image_url ?? i.imageUrl ?? i.url) as string) ?? null,
         prompt: (i.prompt as string) ?? null,
         createdAt: (i.created_at as string) ?? (i.createdAt as string) ?? null,
+        brandId: ((i.brand_session_id ?? i.brandSessionId) as string) ?? null,
       };
-    });
+    })
+    .filter((i) => !i.brandId || i.brandId === brandId)
+    .slice(0, limit);
 }
 
 export type ImageState =

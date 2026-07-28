@@ -18,7 +18,8 @@ type Item = {
   platform: string | null; format: string | null; theme: string | null;
   brief: string; why: string | null; source_post_id: number | null;
   status: string; caption: string | null; hashtags: string[] | null; headline: string | null;
-  image_url: string | null; bloom_image_id: string | null; postflow_id: string | null;
+  image_url: string | null; bloom_image_id: string | null; image_status: string | null;
+  postflow_id: string | null;
 };
 
 const SOURCE = {
@@ -68,7 +69,9 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
   const src = SOURCE[(item.theme ?? "Evergreen angle") as keyof typeof SOURCE] ?? SOURCE["Evergreen angle"];
   const sent = item.status === "sent";
   const skipped = item.status === "skipped";
-  const generating = !!item.bloom_image_id;
+  // Keyed on status, not the id: a generation can be in flight without us having
+  // an id for it, which is exactly the case that produced a silently empty slot.
+  const generating = item.image_status === "generating";
   const aspect = aspectFor(item.platform, item.format);
 
   // A headline, not a sentence of instructions. The brief carries "Platform: x.

@@ -120,3 +120,39 @@ export function grade(score: number | null): string {
   if (score >= 50) return "Poor";
   return "Critical";
 }
+
+/**
+ * How long the scheduled collector waits on a crawl before giving up on it.
+ *
+ * A task id that never finishes used to pin a client forever: the collect
+ * branch polled it every run and the queue branch never got a turn, so the
+ * client silently stopped being crawled. DAPS.FIT sat on a leftover
+ * `mock-task-000` for five days that way, logging "crawl still running" daily.
+ *
+ * 48 hours, not the 12 the manual route uses. The cron queues a crawl on one
+ * run and collects it on the next, so a perfectly healthy crawl is already ~24
+ * hours old the first time it is checked. A cutoff below that would abandon
+ * every crawl before it was ever collected. The manual route can use 12 because
+ * a human is standing there watching it.
+ */
+export const STALE_CRAWL_HOURS = 48;
+
+/**
+ * Hours since a crawl was queued, for the staleness cutoff.
+ *
+ * A missing timestamp reads as infinitely old on purpose. The cron path did not
+ * always write `onpage_task_started_at`, so a task without one was queued by
+ * the older code — which, given a daily cron, means at least a day ago. Calling
+ * those stale is what lets the fleet heal itself on the next run.
+ */
+export function crawlAgeHours(startedAt: string | null | undefined, now: number = Date.now()): number {
+  if (!startedAt) return Infinity;
+  const t = new Date(startedAt).getTime();
+  if (Number.isNaN(t)) return Infinity;
+  return (now - t) / 3_600_000;
+}
+
+/** True when a queued crawl has gone quiet long enough to abandon and requeue. */
+export function isCrawlStale(startedAt: string | null | undefined, now: number = Date.now()): boolean {
+  return crawlAgeHours(startedAt, now) > STALE_CRAWL_HOURS;
+}

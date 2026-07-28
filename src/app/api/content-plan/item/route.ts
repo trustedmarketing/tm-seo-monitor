@@ -25,7 +25,7 @@ import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
 import { listSocialAccounts, createDraft, uploadMediaFromUrl } from "@/lib/postflow";
 import { draftPost } from "@/lib/caption";
-import { startImage, checkImage, imagePromptFor } from "@/lib/bloom";
+import { startImage, checkImage, findStartedImage, imagePromptFor } from "@/lib/bloom";
 import { aspectFor } from "@/lib/platformPlaybook";
 
 export const dynamic = "force-dynamic";
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
 
   const { data: item } = await db
     .from("content_plan_items")
-    .select("id, plan_id, slot, brief, platform, format, scheduled_for, source_post_id, postflow_id, status, caption, hashtags, headline, image_url, bloom_image_id, image_status")
+    .select("id, plan_id, slot, brief, platform, format, scheduled_for, source_post_id, postflow_id, status, caption, hashtags, headline, image_url, bloom_image_id, image_status, image_requested_at, image_prompt")
     .eq("id", itemId).maybeSingle();
   if (!item) return back(req, clientId, "item-not-found");
 
@@ -108,10 +108,13 @@ export async function POST(req: Request) {
 
       const imageId = await startImage(key, client.bloom_brand_id, prompt, ratio);
 
-      // Record the job and return. Holding the request open for the whole
-      // generation blocked the browser and would hit the function timeout.
+      // Record the request whether or not we got an id back. The generation has
+      // started either way, and an earlier version threw when no id was found -
+      // so Bloom produced a good image while the slot recorded nothing at all
+      // and offered no way to collect it.
       await db.from("content_plan_items").update({
         bloom_image_id: imageId,
+        image_prompt: prompt,
         image_status: "generating",
         image_requested_at: new Date().toISOString(),
       }).eq("id", itemId);
@@ -124,12 +127,31 @@ export async function POST(req: Request) {
 
   // ── collect a finished generation ──────────────────────────────────────────
   if (action === "check-image") {
-    if (!item.bloom_image_id) return back(req, clientId, "nothing-generating");
+    if (item.image_status !== "generating") return back(req, clientId, "nothing-generating");
     try {
       const key = await readSecret(db, "bloom");
       if (!key) throw new Error("no Bloom key stored");
 
-      const state = await checkImage(key, String(item.bloom_image_id));
+      // Without an id, find the generation by brand, time and prompt. Two slots
+      // generating at once cannot collect each other's artwork this way.
+      let imageId = item.bloom_image_id ? String(item.bloom_image_id) : null;
+      if (!imageId) {
+        const { data: c } = await db
+          .from("clients").select("bloom_brand_id").eq("id", clientId).single();
+        const found = c?.bloom_brand_id
+          ? await findStartedImage(
+              key, c.bloom_brand_id,
+              new Date(String(item.image_requested_at ?? Date.now())),
+              String(item.image_prompt ?? "")
+            )
+          : null;
+
+        if (!found) return back(req, clientId, "image-still-generating");
+        imageId = found.id;
+        await db.from("content_plan_items").update({ bloom_image_id: imageId }).eq("id", itemId);
+      }
+
+      const state = await checkImage(key, imageId);
 
       if (state.status === "completed") {
         // Stored, not uploaded. Upload happens at send, so a rejected image
