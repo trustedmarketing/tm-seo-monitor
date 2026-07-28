@@ -337,8 +337,51 @@ export async function createDraft(
  * Four guesses, four wrong, and the post shipped without its artwork while every
  * layer reported success. Reading the spec took two minutes.
  */
+/**
+ * Follow redirects to the URL that actually serves the bytes.
+ *
+ * Bloom hands out /img/{id}, which 302s to a signed storage object. Anything
+ * fetching it has to follow that, and PostFlow's uploader does not — it returned
+ * a 500 with a body of `{`, having failed before it could write a response.
+ *
+ * The resolved URL also carries a real .png extension, which matters because
+ * their upload endpoint documents allowed extensions and the /img/{id} form has
+ * none.
+ *
+ * Capped at three hops. Any failure returns the original: an unresolvable URL is
+ * better handed to PostFlow to reject with a clear message than turned into an
+ * error before we have tried.
+ */
+async function resolveRedirects(url: string, hops = 3): Promise<string> {
+  let current = url;
+
+  for (let i = 0; i < hops; i++) {
+    try {
+      const res = await fetch(current, { method: "HEAD", redirect: "manual", cache: "no-store" });
+      const location = res.headers.get("location");
+      if (res.status >= 300 && res.status < 400 && location) {
+        current = new URL(location, current).toString();
+        continue;
+      }
+      return current;
+    } catch {
+      return current;
+    }
+  }
+  return current;
+}
+
 export async function uploadMediaFromUrl(token: string, url: string): Promise<{ id: string | null }> {
   if (mockApis()) return { id: "mock-media-1" };
+
+  // Resolve redirects first. A Bloom image URL is a 302 to a signed storage
+  // object, and PostFlow's downloader does not follow it — it returned a 500
+  // with a body of `{`, having failed before it could write a response.
+  //
+  // The resolved URL also carries a real .png extension, which matters because
+  // their upload endpoint documents allowed extensions and the /img/{id} form
+  // has none.
+  const direct = await resolveRedirects(url);
 
   const res = await fetch(`${MEDIA_BASE}/upload/url/sync`, {
     method: "POST",
@@ -347,7 +390,7 @@ export async function uploadMediaFromUrl(token: string, url: string): Promise<{ 
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify({ file_url: url }),
+    body: JSON.stringify({ file_url: direct }),
   });
 
   if (res.status === 422) {
@@ -365,7 +408,7 @@ export async function uploadMediaFromUrl(token: string, url: string): Promise<{ 
     const detail = (await res.text()).slice(0, 600);
     throw new Error(
       `PostFlow media upload failed ${res.status} at ${MEDIA_BASE}/upload/url/sync ` +
-      `for ${url} — ${detail}`
+      `for ${direct.slice(0, 120)}… — ${detail}`
     );
   }
 
