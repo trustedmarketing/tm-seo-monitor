@@ -41,7 +41,7 @@ const LABELS: Record<TabKey, string> = {
 // What is actually built today. Everything else renders an honest holding state
 // rather than an empty zero — the discipline the feasibility review demanded for
 // GBP, LinkedIn and Google, applied to our own unfinished tabs.
-const BUILT: TabKey[] = ["overview", "organic", "paid", "search", "changes", "aeo"];
+const BUILT: TabKey[] = ["overview", "organic", "paid", "search", "changes", "aeo", "qc"];
 
 const BLOCKED: Partial<Record<TabKey, string>> = {
   gbp: "Waiting on Google Business Profile API access, submitted 27 Jul.",
@@ -49,7 +49,6 @@ const BLOCKED: Partial<Record<TabKey, string>> = {
   automation: "Being built.",
   playbook: "Being built.",
   settings: "Being built.",
-  qc: "Being built.",
 };
 
 export function isLocal(type: ClientType): boolean {

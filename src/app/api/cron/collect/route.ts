@@ -10,12 +10,14 @@ import {
   serpPosition,
   onPageTaskPost,
   onPageScore,
+  onPageSummary,
   visibilityScore,
   aiPromptCheck,
 } from "@/lib/dataforseo";
 import { syncRecommendations, measureChanges } from "@/lib/recSync";
 import { recordRun } from "@/lib/collectorRuns";
-import { alertOnFailures, type CollectorFailure } from "@/lib/slack";
+import { alertOnFailures, slackAlert, type CollectorFailure } from "@/lib/slack";
+import { classifyChecks, criticalIssues } from "@/lib/qc";
 import { collectConversions } from "@/lib/conversionsCollector";
 import { collectMetaAds } from "@/lib/metaAdsCollector";
 import { collectGoogleAds } from "@/lib/googleAdsCollector";
@@ -185,16 +187,42 @@ export async function GET(req: Request) {
     const tCrawl = Date.now();
     try {
       if (c.onpage_task_id) {
-        const score = await onPageScore(c.onpage_task_id);
-        if (score !== null) {
+        // The full summary, not just the score. A score says the site got worse;
+        // the checks say what to fix, which is the only actionable half.
+        const summary = await onPageSummary(c.onpage_task_id);
+        const score = summary?.score ?? null;
+        if (summary !== null) {
           snapshot.site_health = score;
           hasData = true;
+
+          await db.from("qc_scans").insert({
+            client_id: c.id,
+            score,
+            pages_crawled: summary.crawledPages,
+            checks: summary.checks,
+            task_id: c.onpage_task_id,
+          });
+
+          // Spec §6: critical issues BYPASS the approval queue and alert
+          // immediately. Waiting 24 hours for a decision on a site that is down,
+          // or noindexed, is not a workflow — it is an outage with paperwork.
+          const critical = criticalIssues(classifyChecks(summary.checks));
+          if (critical.length) {
+            const lines = critical.slice(0, 6).map((i) => `• ${i.label}: ${i.count} page(s)`);
+            await slackAlert(
+              `:rotating_light: *Critical site issues — ${c.name}*\n${lines.join("\n")}` +
+              (critical.length > 6 ? `\n…and ${critical.length - 6} more` : "")
+            );
+          }
+
           await db.from("clients")
             .update({ onpage_task_id: null, last_crawl_at: new Date().toISOString() })
             .eq("id", c.id);
           done.push("crawl scored");
           await recordRun(db, "crawl", c.id, {
-            status: "success", detail: `site_health=${score}`, duration_ms: Date.now() - tCrawl,
+            status: "success",
+            detail: `site_health=${score} · ${Object.keys(summary.checks).length} check types flagged`,
+            duration_ms: Date.now() - tCrawl,
           });
         } else {
           done.push("crawl still running");

@@ -103,6 +103,53 @@ export async function onPageScore(taskId: string): Promise<number | null> {
   return row?.items?.[0]?.onpage_score ?? null;
 }
 
+export type OnPageSummary = {
+  score: number | null;
+  crawledPages: number;
+  /** DataForSEO's check name → how many pages fail it. */
+  checks: Record<string, number>;
+};
+
+/**
+ * The full crawl summary, not just the headline score.
+ *
+ * A score alone tells a pod lead the site got worse without saying what to fix.
+ * The `checks` map is the actionable half — DataForSEO returns a count per named
+ * problem (broken links, missing titles, pages with no h1, and so on).
+ */
+export async function onPageSummary(taskId: string): Promise<OnPageSummary | null> {
+  if (mockApis()) {
+    return {
+      score: 88.4, crawledPages: 42,
+      checks: { no_description: 6, duplicate_title: 2, broken_links: 1, no_h1: 3 },
+    };
+  }
+
+  type Row = {
+    crawl_progress?: string;
+    crawl_status?: { pages_crawled?: number };
+    items?: { onpage_score?: number; page_metrics?: { checks?: Record<string, number> } }[];
+  };
+
+  const result = await post<Row>("/on_page/summary/" + taskId, []);
+  const row = result?.[0];
+  if (row?.crawl_progress !== "finished") return null;
+
+  const item = row.items?.[0];
+  const raw = item?.page_metrics?.checks ?? {};
+
+  // Drop the zero counts. A check that nothing fails is not an issue, and
+  // carrying ~90 zeroes makes the stored row unreadable.
+  const checks: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw)) if (typeof v === "number" && v > 0) checks[k] = v;
+
+  return {
+    score: item?.onpage_score ?? null,
+    crawledPages: row.crawl_status?.pages_crawled ?? 0,
+    checks,
+  };
+}
+
 // ── Visibility % — CTR-weighted, comparable to Semrush's ─────────
 // Sum of estimated CTR at each keyword's position, normalized to the
 // score a domain would get if it ranked #1 for every tracked keyword.
