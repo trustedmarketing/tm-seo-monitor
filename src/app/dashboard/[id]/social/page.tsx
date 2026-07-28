@@ -15,6 +15,7 @@ import { fmtDate } from "@/lib/time";
 import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
 import { listSocialAccounts } from "@/lib/postflow";
+import { normaliseNetwork } from "@/lib/platformPlaybook";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
@@ -114,7 +115,11 @@ export default async function Social({
       if (token) {
         const accounts = await listSocialAccounts(token, groupId);
         connectedNets = Array.from(
-          new Set(accounts.map((a) => a.network?.toLowerCase()).filter(Boolean) as string[])
+          new Set(
+            accounts
+              .map((a) => (a.network ? normaliseNetwork(a.network) : null))
+              .filter(Boolean) as string[]
+          )
         );
       }
     } catch (e) {

@@ -12,7 +12,26 @@
 // the only measured facts we have are in social_metrics_daily, and the planner
 // weights those ABOVE anything in this file.
 
-export type Network = "instagram" | "facebook" | "linkedin" | "tiktok" | "twitter" | "youtube" | "pinterest";
+export type Network =
+  | "instagram" | "facebook" | "linkedin" | "tiktok" | "twitter" | "youtube"
+  | "pinterest" | "google_business_profile";
+
+/**
+ * PostFlow names some networks differently from the playbook.
+ *
+ * `linkedin_page` is still LinkedIn; planning for it under a null playbook meant
+ * every slot fell back to a plain image on default days, silently losing the
+ * format mix and the "no links in the body" rule that make LinkedIn work.
+ */
+const ALIASES: Record<string, Network> = {
+  linkedin_page: "linkedin",
+  linkedin_profile: "linkedin",
+  facebook_page: "facebook",
+  instagram_business: "instagram",
+  x: "twitter",
+  gbp: "google_business_profile",
+  google_my_business: "google_business_profile",
+};
 
 export type Format = "image" | "carousel" | "video" | "short" | "text" | "link" | "story";
 
@@ -99,6 +118,21 @@ const PLAYBOOK: Record<Network, NetworkPlaybook> = {
     captionHint: "The title does the work. Description carries the detail.",
   },
 
+  google_business_profile: {
+    network: "google_business_profile", label: "Google Business Profile",
+    // GBP What's New posts expire after 7 days, so a steady low cadence beats
+    // bursts — an empty profile between bursts is a worse signal than fewer posts.
+    cadence: { min: 4, max: 8 },
+    mix: { image: 7, link: 3 },
+    bestDays: [1, 3, 5],
+    rewards: "Local intent. Posts surface directly in the map pack and on the profile.",
+    avoid: [
+      "Reposting an Instagram caption verbatim — GBP readers are already looking for you",
+      "Posting without an image, which reduces how prominently it renders",
+    ],
+    captionHint: "Short, local, and specific. Name the service and the area. One clear next step.",
+  },
+
   pinterest: {
     network: "pinterest", label: "Pinterest",
     cadence: { min: 8, max: 25 },
@@ -112,8 +146,15 @@ const PLAYBOOK: Record<Network, NetworkPlaybook> = {
 
 export function playbookFor(network: string | null | undefined): NetworkPlaybook | null {
   if (!network) return null;
-  const k = network.toLowerCase() as Network;
+  const raw = network.toLowerCase().trim();
+  const k = (ALIASES[raw] ?? raw) as Network;
   return PLAYBOOK[k] ?? null;
+}
+
+/** Canonical name for a network as the vendor spelled it. */
+export function normaliseNetwork(network: string): string {
+  const raw = network.toLowerCase().trim();
+  return ALIASES[raw] ?? raw;
 }
 
 export function allNetworks(): Network[] {

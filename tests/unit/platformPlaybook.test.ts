@@ -58,3 +58,21 @@ describe("playbookFor", () => {
     expect(playbookFor(null)).toBeNull();
   });
 });
+
+describe("vendor network names", () => {
+  it("maps PostFlow's linkedin_page to the LinkedIn playbook", () => {
+    // Without this, every LinkedIn slot fell back to a plain image on default
+    // days, losing the format mix and the no-links-in-body rule.
+    expect(playbookFor("linkedin_page")?.network).toBe("linkedin");
+  });
+
+  it("knows Google Business Profile", () => {
+    const gbp = playbookFor("google_business_profile");
+    expect(gbp).not.toBeNull();
+    expect(gbp!.cadence.min).toBeLessThan(gbp!.cadence.max);
+  });
+
+  it("still returns null for something genuinely unknown", () => {
+    expect(playbookFor("bebo")).toBeNull();
+  });
+});

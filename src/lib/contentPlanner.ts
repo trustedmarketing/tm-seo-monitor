@@ -28,7 +28,7 @@
 // exactly when someone reaches for a planner. Levels 2 and 3 exist so that case
 // produces something specific to the business rather than a page of filler.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { playbookFor, formatSequence, defaultCadence, type Format } from "@/lib/platformPlaybook";
+import { playbookFor, formatSequence, defaultCadence, normaliseNetwork, type Format } from "@/lib/platformPlaybook";
 import { readSecret } from "@/lib/vault";
 import { connect as shopifyConnect, listContent as shopifyList } from "@/lib/shopifyAdapter";
 import { listSocialAccounts } from "@/lib/postflow";
@@ -163,7 +163,11 @@ export async function buildPlan(
       if (token) {
         const accounts = await listSocialAccounts(token, client.postflow_group_id);
         connected = Array.from(
-          new Set(accounts.map((a) => a.network?.toLowerCase()).filter(Boolean) as string[])
+          new Set(
+            accounts
+              .map((a) => (a.network ? normaliseNetwork(a.network) : null))
+              .filter(Boolean) as string[]
+          )
         );
       }
     }
