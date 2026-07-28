@@ -67,6 +67,7 @@ const PLAN_MSG: Record<string, string> = {
   sent: "Sent to PostFlow.",
   "already-sent": "That slot is already in PostFlow.",
   "nothing-to-send": "Write a caption before sending.",
+  "needs-image": "This platform will not accept a post without an image. Generate one or paste a URL first.",
   "empty-caption": "Caption cannot be empty.",
   "item-skipped": "Slot skipped. It stays in the plan and can be restored.",
   "item-restored": "Slot restored.",

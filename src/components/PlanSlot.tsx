@@ -11,7 +11,7 @@
 // Every control posts a form to /api/content-plan/item. No client-side state, so
 // a half-finished edit cannot be lost to a refresh.
 import { fmtDate } from "@/lib/time";
-import { aspectFor } from "@/lib/platformPlaybook";
+import { aspectFor, requiresMedia } from "@/lib/platformPlaybook";
 
 type Item = {
   id: number; slot: number; scheduled_for: string | null;
@@ -74,6 +74,7 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
   // an id for it, which is exactly the case that produced a silently empty slot.
   const generating = item.image_status === "generating";
   const aspect = aspectFor(item.platform, item.format);
+  const blockedForMedia = !item.image_url && requiresMedia(item.platform);
 
   // A headline, not a sentence of instructions. The brief carries "Platform: x.
   // Format: y." for the model's benefit; a human already has that in the eyebrow.
@@ -305,14 +306,22 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
         }}>
           <form action="/api/content-plan/item" method="post">
             <Hidden clientId={clientId} itemId={item.id} action="send" />
-            <button type="submit" style={BTN(true)}>Send to PostFlow</button>
+            <button type="submit" disabled={blockedForMedia} style={{
+              ...BTN(true),
+              opacity: blockedForMedia ? 0.45 : 1,
+              cursor: blockedForMedia ? "not-allowed" : "pointer",
+            }}>Send to PostFlow</button>
           </form>
           <div style={{ fontSize: 12.5, color: "var(--fg3)", lineHeight: 1.5 }}>
-            Lands as an unscheduled draft. Nothing posts until someone schedules it.
-            {!item.image_url && (
-              // Not a blocker — a post can be sent and have its image added in
-              // PostFlow — but it is worth knowing before you send twelve of them.
-              <><br />No image yet, so it cannot be scheduled as it stands.</>
+            Goes to the {item.platform} account only, as an unscheduled draft.
+            Nothing posts until someone schedules it.
+            {blockedForMedia && (
+              // A hard stop rather than a warning: a text-only post sent to
+              // Instagram lands unpublishable — done in our queue, broken in
+              // theirs — which is worse than not sending it.
+              <><br /><span style={{ color: "var(--danger)" }}>
+                {item.platform} will not accept a post without an image.
+              </span></>
             )}
           </div>
         </div>

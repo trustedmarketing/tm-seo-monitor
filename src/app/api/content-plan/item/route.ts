@@ -26,7 +26,7 @@ import { readSecret } from "@/lib/vault";
 import { listSocialAccounts, createDraft, uploadMediaFromUrl } from "@/lib/postflow";
 import { draftPost } from "@/lib/caption";
 import { startImage, checkImage, findStartedImage, imagePromptFor, normaliseImageUrl } from "@/lib/bloom";
-import { aspectFor } from "@/lib/platformPlaybook";
+import { aspectFor, normaliseNetwork, requiresMedia } from "@/lib/platformPlaybook";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -214,6 +214,13 @@ export async function POST(req: Request) {
   if (action === "send") {
     if (item.postflow_id) return back(req, clientId, "already-sent");
     if (!item.caption) return back(req, clientId, "nothing-to-send");
+
+    // Instagram will not accept a post without media, and TikTok needs video.
+    // Sending anyway produces a draft nobody can publish, which is worse than
+    // not sending: it looks done in our queue and is broken in theirs.
+    if (!item.image_url && requiresMedia(item.platform ? String(item.platform) : null)) {
+      return back(req, clientId, "needs-image");
+    }
     try {
       const sent = await sendToPostFlow(db, clientId, item);
       return back(req, clientId, sent ? "sent" : "send-failed");
@@ -305,8 +312,24 @@ async function sendToPostFlow(
   const token = await readSecret(db, "postflow");
   if (!token) throw new Error("no PostFlow token in vault");
 
-  const accounts = await listSocialAccounts(token, client.postflow_group_id);
-  if (accounts.length === 0) throw new Error("PostFlow group has no connected accounts");
+  const all = await listSocialAccounts(token, client.postflow_group_id);
+  if (all.length === 0) throw new Error("PostFlow group has no connected accounts");
+
+  // Target ONLY the network this slot was planned for. Sending to every account
+  // in the group put an Instagram carousel in front of TikTok, which then
+  // demanded a video the post was never going to have. The plan already decided
+  // the platform; the send has to honour it.
+  const want = item.platform ? normaliseNetwork(String(item.platform)) : null;
+  const accounts = want
+    ? all.filter((a) => a.network && normaliseNetwork(a.network) === want)
+    : all;
+
+  if (accounts.length === 0) {
+    throw new Error(
+      `No ${want} account is connected to this PostFlow group. ` +
+      `Connected: ${all.map((a) => a.network).filter(Boolean).join(", ") || "none"}.`
+    );
+  }
 
   let mediaIds: string[] = [];
   let mediaNote = "";

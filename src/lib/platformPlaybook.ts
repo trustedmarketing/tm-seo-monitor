@@ -186,6 +186,19 @@ export function aspectFor(network: string | null | undefined, format: string | n
   return "4:5";
 }
 
+/**
+ * Networks that reject a post with no media attached.
+ *
+ * Instagram and TikTok both do. A text-only draft sent to either lands
+ * unpublishable — done in our queue, broken in theirs — so the send is blocked
+ * rather than warned about.
+ */
+export function requiresMedia(network: string | null | undefined): boolean {
+  if (!network) return false;
+  const n = normaliseNetwork(network);
+  return n === "instagram" || n === "tiktok" || n === "pinterest" || n === "youtube";
+}
+
 export function allNetworks(): Network[] {
   return Object.keys(PLAYBOOK) as Network[];
 }
