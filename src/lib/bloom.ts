@@ -90,14 +90,27 @@ export async function startImage(key: string, brandId: string, prompt: string): 
   });
 
   const id = findImageId(created);
-  if (!id) {
-    // Report the payload rather than the absence of a field. "Returned no image
-    // id" is unactionable; the shape is the fix.
+  if (id) return id;
+
+  // The POST response does not carry an id in any shape we recognise, but the
+  // generation itself has started — Tom watched one complete in Bloom while this
+  // was erroring. So ask the brand for its newest image instead. Bounded to
+  // images created within the last two minutes so a much older one can never be
+  // mistaken for the one we just requested.
+  const cutoff = Date.now() - 2 * 60_000;
+  const recent = await listImages(key, brandId, 5);
+  const mine = recent.find((i) => {
+    const t = i.createdAt ? new Date(i.createdAt).getTime() : 0;
+    return t >= cutoff;
+  });
+
+  if (!mine) {
     throw new Error(
-      `Bloom accepted the request but no image id was found in its response: ${describeShape(created, 400)}`
+      `Bloom started a generation but returned no id, and no new image appeared for this brand. ` +
+      `Response was: ${describeShape(created, 300)}`
     );
   }
-  return id;
+  return mine.id;
 }
 
 /**
@@ -127,6 +140,47 @@ function findImageId(body: unknown): string | null {
   const first = arr?.[0] as Record<string, unknown> | undefined;
   const fromList = first?.id ?? first?.imageId ?? first?.image_id;
   return fromList != null ? String(fromList) : null;
+}
+
+export type BloomImage = {
+  id: string; status: string | null; imageUrl: string | null;
+  prompt: string | null; createdAt: string | null;
+};
+
+/**
+ * Recent images for a brand, newest first.
+ *
+ * Exists because the POST response shape is not what the docs describe and we
+ * could not find an id in it. Rather than keep guessing that shape, generation
+ * can fall back to "find the newest image for this brand created after I asked",
+ * which depends only on the LIST response — a shape we have actually seen.
+ */
+export async function listImages(key: string, brandId: string, limit = 5): Promise<BloomImage[]> {
+  if (mockApis()) {
+    return [{ id: "mock-image", status: "completed", imageUrl: "https://example.test/mock.png",
+              prompt: null, createdAt: new Date().toISOString() }];
+  }
+
+  const body = await call<unknown>(
+    `/images?brandSessionId=${encodeURIComponent(brandId)}&limit=${limit}`,
+    key
+  );
+  const arr = findArray(body);
+  if (!arr) throw new Error(`Bloom returned images in an unrecognised shape: ${describeShape(body)}`);
+
+  return arr
+    .filter((i) => i && (i as { id?: unknown }).id != null)
+    .map((raw) => {
+      const i = raw as Record<string, unknown>;
+      return {
+        id: String(i.id),
+        status: (i.status as string) ?? null,
+        // Their own field is snake_case; camelCase accepted in case it varies.
+        imageUrl: ((i.image_url ?? i.imageUrl ?? i.url) as string) ?? null,
+        prompt: (i.prompt as string) ?? null,
+        createdAt: (i.created_at as string) ?? (i.createdAt as string) ?? null,
+      };
+    });
 }
 
 export type ImageState =
@@ -182,9 +236,17 @@ export function imagePromptFor(args: {
     .replace(/\s+as an? \w+ for \w+\.?/i, "")
     .trim();
 
+  // First sentence only. The earlier version passed 400 characters of caption,
+  // which put four paragraphs of advice into an image prompt and pushed the
+  // model toward rendering the question as a text overlay. An image prompt wants
+  // a subject, not the post.
+  const gist = caption
+    ? caption.split(/(?<=[.!?])\s/)[0].slice(0, 160)
+    : "";
+
   return [
     `Social media image for this post: ${subject}`,
-    caption ? `The post says: ${caption.slice(0, 400)}` : "",
+    gist ? `Context: ${gist}` : "",
     format === "carousel" ? "Design as the first slide of a carousel." : "",
     format === "short" || format === "video" ? "Design as a video thumbnail or opening frame." : "",
     "No text overlay unless it is a single short phrase. Photographic where possible.",
