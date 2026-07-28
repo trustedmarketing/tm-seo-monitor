@@ -16,6 +16,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+// Roles and the Profile shape live in lib/roles.ts so client components can use
+// them without dragging next/headers into the browser bundle. Re-exported here
+// because every existing caller imports them from this module.
+export { AGENCY_ROLES, isAgency } from "@/lib/roles";
+export type { Role, Profile } from "@/lib/roles";
+import type { Profile } from "@/lib/roles";
+
 function anonKey() {
   const key = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY;
   if (!key) throw new Error("SUPABASE_ANON_KEY missing");
@@ -46,16 +53,7 @@ export function userClient() {
   });
 }
 
-export type Role = "owner" | "pod_lead" | "specialist" | "client";
 
-export type Profile = {
-  id: string;
-  organization_id: string;
-  email: string;
-  full_name: string | null;
-  role: Role;
-  is_active: boolean;
-};
 
 /** The signed-in user's profile, or null when signed out / deactivated. */
 export async function getProfile(): Promise<Profile | null> {
@@ -76,8 +74,3 @@ export async function getProfile(): Promise<Profile | null> {
   return data as Profile;
 }
 
-export const AGENCY_ROLES: Role[] = ["owner", "pod_lead", "specialist"];
-
-export function isAgency(profile: Profile | null): boolean {
-  return !!profile && AGENCY_ROLES.includes(profile.role);
-}

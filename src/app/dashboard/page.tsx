@@ -7,6 +7,7 @@ import { userClient } from "@/lib/supabaseServer";
 import { getProfile } from "@/lib/supabaseServer";
 import "@/styles/tm-tokens.css";
 import { fmtDateFull } from "@/lib/time";
+import { PageHeader, AttentionRail } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -46,13 +47,52 @@ function Delta({ value, unit = "" }: { value: number | null; unit?: string }) {
   );
 }
 
-function Channel({ label, value, sub, accent }: { label: string; value: string; sub: React.ReactNode; accent?: boolean }) {
+/**
+ * A metric cell: serif numeral over a small delta or qualifier.
+ *
+ * The numeral is Instrument Serif at 28px, which is the design's device for
+ * making a table scannable without colour-coding every cell.
+ */
+function Cell({ value, sub, accent, muted }: {
+  value: string; sub?: React.ReactNode; accent?: boolean; muted?: boolean;
+}) {
   return (
-    <div style={{ flex: 1, minWidth: 116, padding: "0 20px", borderLeft: "1px solid var(--border)" }}>
-      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--fg3)" }}>{label}</div>
-      <div style={{ fontFamily: "var(--font-display)", fontSize: 40, lineHeight: 1.05, letterSpacing: "-0.02em", margin: "4px 0 3px", color: value === "–" ? "var(--fg3)" : accent ? "var(--tm-green-deep)" : "var(--fg1)" }}>{value}</div>
-      <div>{sub}</div>
-    </div>
+    <td style={{ padding: "var(--space-4) var(--space-5)", verticalAlign: "middle", whiteSpace: "nowrap" }}>
+      <div style={{
+        fontFamily: "var(--font-display)", fontSize: 28, lineHeight: 1.1, letterSpacing: "-0.01em",
+        color: muted || value === "–" ? "var(--fg3)" : accent ? "var(--tm-green-deep)" : "var(--fg1)",
+      }}>{value}</div>
+      {sub && <div style={{ marginTop: 2 }}>{sub}</div>}
+    </td>
+  );
+}
+
+function Th({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
+  return (
+    <th className="eyebrow" style={{
+      textAlign: align, padding: "var(--space-3) var(--space-5)",
+      color: "var(--fg3)", fontWeight: 700, borderBottom: "1px solid var(--border)",
+    }}>{children}</th>
+  );
+}
+
+/**
+ * Tier pill.
+ *
+ * Scale is the dark chip with green text — the design reserves the inverted
+ * treatment for the top tier so it reads as the exception in a column of pills.
+ */
+function TierPill({ tier }: { tier: string }) {
+  const t = tier.toLowerCase();
+  const style =
+    t === "scale"  ? { background: "var(--tm-deep-charcoal)", color: "var(--tm-performance-green)" } :
+    t === "growth" ? { background: "var(--tm-green-soft)", color: "var(--tm-green-deep)" } :
+                     { background: "var(--tm-stone-200)", color: "var(--fg2)" };
+  return (
+    <span style={{
+      ...style, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
+      padding: "3px 8px", borderRadius: "var(--radius-pill)", flexShrink: 0,
+    }}>{tier}</span>
   );
 }
 
@@ -114,84 +154,166 @@ export default async function Portfolio() {
   const markColor: Record<string, string> = { fail: "var(--danger)", declined: "var(--danger)", stale: "#B8860B" };
   const today = fmtDateFull(new Date());
 
+  // The rail counts by kind. Each number links somewhere it can be acted on;
+  // a count with no destination is a dead end dressed as a signal.
+  const byKind = (k: string) => attention.filter((a) => a.kind === k).length;
+
   return (
-    <main style={{ padding: "40px 32px 64px" }}>
-      <div style={{ maxWidth: 1180 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg2)", display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--tm-performance-green)" }} />
-          Portfolio · {today}
-        </div>
-        <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 400, fontSize: 56, letterSpacing: "-0.01em", margin: "10px 0 32px" }}>
-          Every client, <em style={{ color: "var(--tm-green-deep)" }}>one screen</em>
-        </h1>
+    <main>
+      <PageHeader
+        eyebrow={`Agency · Morning page · ${today}`}
+        title="Portfolio"
+        subtitle={
+          clients.length === 0
+            ? "No active clients yet."
+            : `Every client on one screen. ${clients.length} active, ${collectionsToday} collections in the last 24 hours.`
+        }
+      />
 
-        {error && <div style={{ padding: 16, borderRadius: 8, background: "#FBE7E4", color: "var(--danger)", fontSize: 14, marginBottom: 24 }}>Query failed: {error.message}</div>}
+      <div style={{ padding: "var(--space-6) var(--space-8) var(--space-10)", maxWidth: 1280 }}>
+        {error && (
+          <div style={{
+            padding: "var(--space-4)", borderRadius: "var(--radius-md)",
+            background: "#FBE7E4", color: "var(--danger)", marginBottom: "var(--space-6)",
+          }} className="body-sm">Query failed: {error.message}</div>
+        )}
 
-        {/* attention rail */}
-        <section style={{ background: attention.length ? "#FFF9EC" : "var(--tm-deep-charcoal)", border: `1px solid ${attention.length ? "#EAD9A6" : "var(--tm-deep-charcoal)"}`, borderRadius: "var(--radius-lg)", padding: "18px 22px", marginBottom: 28 }}>
-          {attention.length === 0 ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 14, color: "var(--tm-stone-100)" }}>
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--tm-performance-green)", flexShrink: 0 }} />
-              <div style={{ fontSize: 15, fontWeight: 600 }}>All clear. Every client healthy and fresh.</div>
-              <div style={{ marginLeft: "auto", fontSize: 12.5, color: "#9AA0A6" }}>{clients.length} clients · {collectionsToday} collections today · 0 failures</div>
-            </div>
-          ) : (
-            <>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#8A6D1F", marginBottom: 10 }}>Needs attention · {attention.length}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                {attention.map((a, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: markColor[a.kind], flexShrink: 0 }} />
-                    {a.text}
-                  </div>
-                ))}
-              </div>
-            </>
+        {/* ── attention rail ──────────────────────────────────────────────── */}
+        <div style={{ marginBottom: "var(--space-6)" }}>
+          <AttentionRail
+            items={[
+              {
+                label: "Collections failing",
+                value: byKind("fail"),
+                meaning: byKind("fail") === 0 ? "all collectors green" : "need a look today",
+                tone: byKind("fail") > 0 ? "danger" : "normal",
+              },
+              {
+                label: "Data going stale",
+                value: byKind("stale"),
+                meaning: byKind("stale") === 0 ? "everything fresh" : "over 36 hours old",
+                tone: byKind("stale") > 0 ? "warning" : "normal",
+              },
+              {
+                label: "Changes declined",
+                value: byKind("declined"),
+                meaning: byKind("declined") === 0 ? "no negative verdicts" : "shipped and went backwards",
+                tone: byKind("declined") > 0 ? "danger" : "normal",
+              },
+            ]}
+          />
+
+          {/* The design stops at the numerals. Kept the detail underneath because
+              a count you cannot expand tells you a problem exists and nothing
+              about which client has it. */}
+          {attention.length > 0 && (
+            <ul style={{
+              listStyle: "none", margin: "var(--space-3) 0 0", padding: 0,
+              display: "flex", flexDirection: "column", gap: "var(--space-2)",
+            }}>
+              {attention.map((a, i) => (
+                <li key={i} className="body-sm" style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", color: "var(--fg2)" }}>
+                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: markColor[a.kind], flexShrink: 0 }} />
+                  {a.text}
+                </li>
+              ))}
+            </ul>
           )}
-        </section>
+        </div>
 
-        {/* per-client scorecards — revenue-first */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {clients.map((c) => {
-            const [cur, prev] = snaps.get(c.id) ?? [];
-            const src = revBySrc.get(c.id) ?? {};
-            const shop = src["shopify"]; const ga4rev = src["ga4"];
-            const actualRev = (shop?.rev ?? 0) > 0 ? shop!.rev : (ga4rev?.rev ?? 0);
-            const revSrc = (shop?.rev ?? 0) > 0 ? "Shopify" : (ga4rev?.rev ?? 0) > 0 ? "GA4" : null;
-            const orders = (shop?.rev ?? 0) > 0 ? shop!.orders : (ga4rev?.orders ?? 0);
-            const pd = paid.get(c.id);
-            const spend = pd?.spend ?? 0;
-            const claimed = pd?.revenue ?? 0;
-            const mer = spend > 0 && actualRev > 0 ? actualRev / spend : null;
-            const over = actualRev > 0 && claimed > 0 && claimed / actualRev > 0.85;
-            const f = ago(freshest.get(c.id) ?? null);
-            return (
-              <section key={c.id} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
-                <header style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
-                  <span title={f.stale ? "Data is stale" : "Data is fresh"} style={{ width: 8, height: 8, borderRadius: "50%", background: f.stale ? "#B8860B" : "var(--tm-performance-green)", flexShrink: 0 }} />
-                  <Link href={`/dashboard/${c.id}`} style={{ fontSize: 17, fontWeight: 600, color: "var(--fg1)", textDecoration: "none" }}>{c.name}</Link>
-                  <span style={{ fontSize: 13, color: "var(--fg3)" }}>{c.domain}</span>
-                  {c.tier && <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 9px", borderRadius: "var(--radius-pill)", background: "var(--tm-deep-charcoal)", color: "var(--tm-performance-green)" }}>{c.tier}</span>}
-                  <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
-                    <span style={{ fontSize: 12, color: "var(--fg3)" }}>{f.label}</span>
-                    <Link href={`/dashboard/${c.id}`} style={{ fontSize: 13, fontWeight: 600, color: "var(--fg2)", textDecoration: "none" }}>Overview →</Link>
-                  </div>
-                </header>
-                <div style={{ display: "flex", padding: "18px 4px 20px", flexWrap: "wrap", rowGap: 16 }}>
-                  <Channel label="MER · blended" value={mer != null ? mer.toFixed(2) + "×" : "–"} accent={mer != null}
-                    sub={mer != null
-                      ? <span style={{ fontSize: 12, color: "var(--fg3)" }}>{money(spend)} spend{over && <span style={{ color: "#B8860B", fontWeight: 600 }}> · ⚑</span>}</span>
-                      : <span style={{ fontSize: 12, color: "var(--fg3)" }}>{spend > 0 ? "no revenue" : "no ad spend"}</span>} />
-                  <Channel label="Revenue" value={revSrc ? money(actualRev) : "–"}
-                    sub={revSrc ? <span style={{ fontSize: 12, color: "var(--fg3)" }}>{revSrc} · {orders} orders</span> : <span style={{ fontSize: 12, color: "var(--fg3)" }}>{c.ga4_property_id ? "collecting" : "not linked"}</span>} />
-                  <Channel label="Ad spend" value={spend > 0 ? money(spend) : "–"} sub={<span style={{ fontSize: 12, color: "var(--fg3)" }}>{spend > 0 ? "total · period" : "no paid"}</span>} />
-                  <Channel label="Organic" value={pct(cur?.visibility ?? null)} sub={<Delta value={delta(cur?.visibility ?? null, prev?.visibility ?? null)} unit="pt" />} />
-                  <Channel label="AI answers" value={pct(cur?.ai_visibility ?? null)} sub={<Delta value={delta(cur?.ai_visibility ?? null, prev?.ai_visibility ?? null)} unit="pt" />} />
-                </div>
-              </section>
-            );
-          })}
-          {clients.length === 0 && !error && <div style={{ fontSize: 14, color: "var(--fg3)" }}>No active clients yet.</div>}
+        {/* ── client table ────────────────────────────────────────────────── */}
+        <div style={{
+          background: "var(--surface)", border: "1px solid var(--border)",
+          borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-xs)", overflowX: "auto",
+        }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+            <thead>
+              <tr>
+                <Th>Client</Th>
+                <Th>Revenue</Th>
+                <Th>MER</Th>
+                <Th>Ad spend</Th>
+                <Th>Organic</Th>
+                <Th>AI answers</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {clients.map((c, i) => {
+                const [cur, prev] = snaps.get(c.id) ?? [];
+                const src = revBySrc.get(c.id) ?? {};
+                const shop = src["shopify"]; const ga4rev = src["ga4"];
+                const actualRev = (shop?.rev ?? 0) > 0 ? shop!.rev : (ga4rev?.rev ?? 0);
+                const revSrc = (shop?.rev ?? 0) > 0 ? "Shopify" : (ga4rev?.rev ?? 0) > 0 ? "GA4" : null;
+                const orders = (shop?.rev ?? 0) > 0 ? shop!.orders : (ga4rev?.orders ?? 0);
+                const pd = paid.get(c.id);
+                const spend = pd?.spend ?? 0;
+                const claimed = pd?.revenue ?? 0;
+                const mer = spend > 0 && actualRev > 0 ? actualRev / spend : null;
+                // Paid claiming most of total revenue means the platforms are
+                // almost certainly double-counting. Flagged, not silently shown.
+                const over = actualRev > 0 && claimed > 0 && claimed / actualRev > 0.85;
+                const f = ago(freshest.get(c.id) ?? null);
+
+                return (
+                  <tr key={c.id} style={{
+                    borderTop: "1px solid var(--divider)",
+                    background: i % 2 ? "var(--tm-stone-100)" : "transparent",
+                  }}>
+                    <td style={{ padding: "var(--space-4) var(--space-5)", minWidth: 250 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                        <span
+                          title={f.stale ? `Data is stale (${f.label})` : `Fresh, ${f.label}`}
+                          style={{
+                            width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+                            background: f.stale ? "var(--warning)" : "var(--tm-performance-green)",
+                          }}
+                        />
+                        <Link href={`/dashboard/${c.id}`} style={{
+                          fontSize: 15, fontWeight: 600, color: "var(--fg1)", textDecoration: "none",
+                        }}>{c.name}</Link>
+                        {c.tier && <TierPill tier={c.tier} />}
+                      </div>
+                      <div className="caption" style={{ color: "var(--fg3)", marginTop: 3, marginLeft: 15 }}>
+                        {c.domain} · {f.label}
+                      </div>
+                    </td>
+
+                    <Cell
+                      value={revSrc ? money(actualRev) : "–"}
+                      sub={<span className="caption" style={{ color: "var(--fg3)" }}>
+                        {revSrc ? `${revSrc} · ${orders} orders` : c.ga4_property_id ? "collecting" : "not linked"}
+                      </span>}
+                    />
+                    <Cell
+                      value={mer != null ? mer.toFixed(2) + "×" : "–"}
+                      accent={mer != null}
+                      sub={over
+                        ? <span className="caption" style={{ color: "var(--warning)", fontWeight: 600 }}>⚑ paid over-claiming</span>
+                        : <span className="caption" style={{ color: "var(--fg3)" }}>{spend > 0 ? "blended" : "no ad spend"}</span>}
+                    />
+                    <Cell
+                      value={spend > 0 ? money(spend) : "–"}
+                      sub={<span className="caption" style={{ color: "var(--fg3)" }}>{spend > 0 ? "period total" : "no paid"}</span>}
+                    />
+                    <Cell
+                      value={pct(cur?.visibility ?? null)}
+                      sub={<Delta value={delta(cur?.visibility ?? null, prev?.visibility ?? null)} unit="pt" />}
+                    />
+                    <Cell
+                      value={pct(cur?.ai_visibility ?? null)}
+                      sub={<Delta value={delta(cur?.ai_visibility ?? null, prev?.ai_visibility ?? null)} unit="pt" />}
+                    />
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {clients.length === 0 && !error && (
+            <div className="body-sm" style={{ padding: "var(--space-8)", color: "var(--fg3)", textAlign: "center" }}>
+              No active clients yet.
+            </div>
+          )}
         </div>
       </div>
     </main>
