@@ -60,3 +60,37 @@ describe("describeShape", () => {
     expect(() => describeShape(circular)).not.toThrow();
   });
 });
+
+import { normaliseImageUrl } from "@/lib/bloom";
+
+// Bloom's UI gives you a SHARE link to copy. Pasted into an image field it
+// renders as nothing — the tag is there, the src is an HTML page, and the slot
+// looks broken with no explanation. Tom hit this within a minute of the field
+// existing, so converting it is the fix rather than a documentation problem.
+describe("normaliseImageUrl", () => {
+  it("converts a Bloom share link to the direct asset", () => {
+    expect(normaliseImageUrl("https://www.trybloom.ai/i/c0c80f00-4b83-4540-8f19-2dfff4969379"))
+      .toBe("https://www.trybloom.ai/img/c0c80f00-4b83-4540-8f19-2dfff4969379");
+  });
+
+  it("handles the link without www, and with trailing content", () => {
+    expect(normaliseImageUrl("https://trybloom.ai/i/abc123?x=1"))
+      .toBe("https://www.trybloom.ai/img/abc123");
+  });
+
+  it("leaves an already-direct Bloom URL alone", () => {
+    const direct = "https://www.trybloom.ai/img/abc123";
+    expect(normaliseImageUrl(direct)).toBe(direct);
+  });
+
+  it("does not touch a URL from anywhere else", () => {
+    // Someone using their own photograph must not have it rewritten.
+    const other = "https://cdn.example.com/i/photo.jpg";
+    expect(normaliseImageUrl(other)).toBe(other);
+  });
+
+  it("trims surrounding whitespace from a paste", () => {
+    expect(normaliseImageUrl("  https://www.trybloom.ai/img/abc  "))
+      .toBe("https://www.trybloom.ai/img/abc");
+  });
+});

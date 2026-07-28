@@ -247,6 +247,23 @@ export async function checkImage(key: string, imageId: string): Promise<ImageSta
 }
 
 /**
+ * Normalise a Bloom URL to something an <img> can actually load.
+ *
+ * Bloom's UI hands you a SHARE link — /i/{id} — which is a viewer page, not an
+ * image. Pasted into an image field it renders as nothing at all: the tag is
+ * there, the src is HTML, and the slot looks broken for no visible reason.
+ *
+ * The direct asset is /img/{id}. Anyone copying from Bloom will paste the share
+ * link, so converting it is the fix rather than telling people to hand-edit a URL.
+ */
+export function normaliseImageUrl(url: string): string {
+  const trimmed = url.trim();
+  const share = trimmed.match(/^https?:\/\/(?:www\.)?trybloom\.ai\/i\/([\w-]+)/i);
+  if (share) return `https://www.trybloom.ai/img/${share[1]}`;
+  return trimmed;
+}
+
+/**
  * Turn a post brief into a visual prompt.
  *
  * Deliberately describes the SUBJECT and leaves styling to Bloom, which already

@@ -25,7 +25,7 @@ import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
 import { listSocialAccounts, createDraft, uploadMediaFromUrl } from "@/lib/postflow";
 import { draftPost } from "@/lib/caption";
-import { startImage, checkImage, findStartedImage, imagePromptFor } from "@/lib/bloom";
+import { startImage, checkImage, findStartedImage, imagePromptFor, normaliseImageUrl } from "@/lib/bloom";
 import { aspectFor } from "@/lib/platformPlaybook";
 
 export const dynamic = "force-dynamic";
@@ -194,7 +194,10 @@ export async function POST(req: Request) {
 
   // ── attach an image ────────────────────────────────────────────────────────
   if (action === "image") {
-    const url = String(form.get("image_url") ?? "").trim();
+    // Bloom's share link (/i/{id}) is a viewer page, not an image. It is what
+    // their UI gives you to copy, so converting it here is the fix — the
+    // alternative is a slot that renders nothing and explains nothing.
+    const url = normaliseImageUrl(String(form.get("image_url") ?? ""));
     if (!url) return back(req, clientId, "empty-image");
     if (!/^https:\/\//i.test(url)) return back(req, clientId, "image-not-https");
     // Also ends any generation in flight. Someone pasting their own image has
