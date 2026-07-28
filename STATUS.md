@@ -88,8 +88,8 @@ WORKLOG 2026-07-27 lists exactly which streams each one gates.
    client it reduces to a Manager invite (runbook step 5b). ⚠️ Still open: GBP may not support
    service accounts (we use one for GSC/GA4); the stream may need its own OAuth flow. **Nothing to
    do but wait — this is now pure calendar time.**
-3. ⚠️ **Confirm the Meta system-user token is live.** WORKLOG 2026-07-23 records it as generated and
-   vaulted; the feasibility review lists it as not generated. **Reconcile — likely already done.**
+3. ✅ **Meta system-user token — CONFIRMED LIVE.** Verified from `collector_runs`: `meta_ads` is
+   collecting 690–723 rows daily. The feasibility review's claim was stale.
 4. ✅ **PostFlow API — RESOLVED 2026-07-27. Yes, full REST API.** Verified against their docs +
    `llms.txt`: create/schedule posts, explicit **draft** set/unset, list + retrieve post groups,
    per-post and per-group analytics, media upload, activity logging. The design's "drafts land in
@@ -130,8 +130,18 @@ and it needs its own deadline.
   ⛔ **Not deployable yet** — needs `SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
   `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel **and real user accounts**. No users exist, so merging
   as-is locks everyone out. First accounts to be created deliberately with Tom.
-- ⏭ Stream B · `module/screenshots` — not started. Vendor decided (Browserless/ScreenshotOne).
-- ⏭ Stream C · `module/audit-log` — not started. Reserved migration 013.
+- ✅ **Stream B · `module/screenshots` — VERIFIED END TO END 2026-07-28.** Full pipeline proven in
+  production via `/api/ops/screenshot-check`: capture → upload to the private `screenshots` bucket →
+  signed URL → 145,946 bytes of PNG returned (HTTP 200). ScreenshotOne, key resolving correctly.
+  🚨 **Confirmed limitation: Shopify blocks capture persistently, not transiently.** `getsaltydog.com`
+  returns **429 after three attempts with backoff**, while `trustedmarketing.com` and `stripe.com`
+  capture fine. Retry does **not** solve it. The Approval Card's visual before/after therefore needs a
+  **designed fallback for Shopify clients** — and Salty Dog is both the eCommerce flagship and the
+  portal pilot. This is a Wave 2 / Stream D design decision, not a config fix.
+- ✅ **Stream C · `module/audit-log` — SHIPPED (migration 014).** Append-only audit log enforced by
+  trigger (UPDATE and DELETE refused even as service_role, proven against staging), plus the
+  `approvals` table carrying the SLA clock, decline reason + 60-day suppression, `requires_role` for
+  locked cards, a `failed` status, and a unique idempotency key.
 
 ## Next (unblocked, not started)
 - Scale Shopify + Meta wiring across the remaining clients.
