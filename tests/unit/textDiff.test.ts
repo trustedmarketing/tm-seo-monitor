@@ -73,3 +73,33 @@ describe("serpWarning", () => {
     expect(serpWarning("description", "x".repeat(200))).toContain("155");
   });
 });
+
+describe("diffWords · whitespace must not create false anchors", () => {
+  it("an unrelated rewrite reads as one removal then one addition", () => {
+    // Regression from the first live card: shared SPACES matched even though no
+    // words did, interleaving the two strings into an unreadable result.
+    const ops = diffWords("Test Page", "Salt Remover Pods for Boats");
+    const kinds = ops.map((o) => o.kind);
+    expect(kinds).toEqual(["remove", "add"]);
+    expect(ops[0].text.trim()).toBe("Test Page");
+    expect(ops[1].text.trim()).toBe("Salt Remover Pods for Boats");
+  });
+
+  it("still reassembles both sides exactly", () => {
+    const before = "Test Page";
+    const after = "Salt Remover Pods for Boats";
+    const ops = diffWords(before, after);
+    expect(ops.filter((o) => o.kind !== "add").map((o) => o.text).join("")).toBe(before);
+    expect(ops.filter((o) => o.kind !== "remove").map((o) => o.text).join("")).toBe(after);
+  });
+
+  it("genuine shared words are still recognised", () => {
+    const ops = diffWords(
+      "Marine Salt Remover Works",
+      "Marine Salt Remover Works Fast"
+    );
+    expect(ops.some((o) => o.kind === "same" && o.text.includes("Marine"))).toBe(true);
+    expect(ops.some((o) => o.kind === "add" && o.text.includes("Fast"))).toBe(true);
+    expect(ops.some((o) => o.kind === "remove")).toBe(false);
+  });
+});
