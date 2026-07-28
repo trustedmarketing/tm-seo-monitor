@@ -28,8 +28,23 @@ type Metric = {
 
 function n(v: number | null | undefined): number { return v ?? 0; }
 
+function ITEM_BTN(primary: boolean): React.CSSProperties {
+  return {
+    fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 12.5,
+    padding: "6px 12px", borderRadius: 7, cursor: "pointer",
+    border: primary ? "none" : "1px solid var(--border-strong)",
+    background: primary ? "var(--tm-performance-green)" : "#fff",
+    color: "#080808",
+  };
+}
+
 const PLAN_MSG: Record<string, string> = {
   approved: "Plan approved. Run the drafting job to write the captions and push them to PostFlow.",
+  "item-drafted": "Drafted and sent to PostFlow.",
+  "item-skipped": "Slot skipped. It stays in the plan and can be restored.",
+  "item-restored": "Slot restored.",
+  "already-drafted": "That slot is already in PostFlow.",
+  "item-failed": "Could not draft that slot. The brief is unchanged, so it is safe to retry.",
   "already-approved": "That month is already approved. Build a different month, or edit the plan in PostFlow.",
   "build-failed": "Could not build a plan. Check the client has collected social posts.",
   "no-plan": "No plan found for that month.",
@@ -69,9 +84,14 @@ export default async function Social({
 
   const { data: planItems } = plan
     ? await db.from("content_plan_items")
-        .select("slot, scheduled_for, platform, format, theme, brief, why, source_post_id, status")
+        .select("id, slot, scheduled_for, platform, format, theme, brief, why, source_post_id, status, caption, postflow_id")
         .eq("plan_id", plan.id).order("slot")
     : { data: [] };
+
+  const slots = (planItems ?? []) as Record<string, unknown>[];
+  const pendingSlots = slots.filter((i) => ["planned", "failed"].includes(String(i.status))).length;
+  const draftedSlots = slots.filter((i) => String(i.status) === "drafted").length;
+  const skippedSlots = slots.filter((i) => String(i.status) === "skipped").length;
 
   const rawMsg = searchParams.msg ?? "";
   const planMsg = rawMsg.startsWith("built:")
@@ -213,11 +233,57 @@ export default async function Social({
                           }}>{style.label}</div>
                         );
                       })()}
+
+                      {/* Each slot decides for itself. Reviewing a month means
+                          keeping most of it and killing a couple, not one yes. */}
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 150, justifyContent: "flex-end" }}>
+                        {String(it.status) === "drafted" ? (
+                          <span style={{ fontSize: 12.5, color: "#2F8F4E", fontWeight: 600 }}>In PostFlow ✓</span>
+                        ) : String(it.status) === "skipped" ? (
+                          <form action="/api/content-plan/item" method="post">
+                            <input type="hidden" name="client_id" value={params.id} />
+                            <input type="hidden" name="item_id" value={it.id as number} />
+                            <input type="hidden" name="action" value="unskip" />
+                            <button type="submit" style={ITEM_BTN(false)}>Restore</button>
+                          </form>
+                        ) : (
+                          <>
+                            <form action="/api/content-plan/item" method="post">
+                              <input type="hidden" name="client_id" value={params.id} />
+                              <input type="hidden" name="item_id" value={it.id as number} />
+                              <input type="hidden" name="action" value="draft" />
+                              <button type="submit" style={ITEM_BTN(true)}>
+                                {String(it.status) === "failed" ? "Retry" : "Draft"}
+                              </button>
+                            </form>
+                            <form action="/api/content-plan/item" method="post">
+                              <input type="hidden" name="client_id" value={params.id} />
+                              <input type="hidden" name="item_id" value={it.id as number} />
+                              <input type="hidden" name="action" value="skip" />
+                              <button type="submit" style={ITEM_BTN(false)}>Skip</button>
+                            </form>
+                          </>
+                        )}
+                      </div>
+
+                      {/* The drafted words, in place. Reviewing a caption on the
+                          same row as the brief it came from is the only way to
+                          tell whether it answered the brief. */}
+                      {it.caption ? (
+                        <div style={{
+                          flexBasis: "100%", marginTop: 4, padding: "10px 12px",
+                          background: "var(--bg)", borderRadius: 8, fontSize: 13.5,
+                          color: "var(--fg2)", lineHeight: 1.55, whiteSpace: "pre-wrap",
+                        }}>{String(it.caption)}</div>
+                      ) : null}
                     </div>
                   ))}
                 </div>
 
-                {plan.status === "draft" && (
+                {/* Bulk is the shortcut, not the primary path — it only offers to
+                    do what is still undecided, so it can never re-draft or
+                    resurrect something already skipped. */}
+                {pendingSlots > 0 && (
                   <form action="/api/content-plan" method="post" style={{ marginTop: 16 }}>
                     <input type="hidden" name="client_id" value={params.id} />
                     <input type="hidden" name="plan_id" value={plan.id} />
@@ -227,19 +293,17 @@ export default async function Social({
                       padding: "11px 20px", borderRadius: 8, border: "none", cursor: "pointer",
                       background: "var(--tm-performance-green)", color: "#080808",
                     }}>
-                      Approve plan &amp; draft {(planItems ?? []).length} posts
+                      Draft all {pendingSlots} remaining
                     </button>
                     <span style={{ fontSize: 12.5, color: "var(--fg3)", marginLeft: 12 }}>
-                      Drafts land in PostFlow for client approval. Nothing publishes on a schedule.
+                      Or decide slot by slot above. Drafts land in PostFlow unscheduled.
                     </span>
                   </form>
                 )}
 
-                {plan.status !== "draft" && (
+                {pendingSlots === 0 && (
                   <div style={{ marginTop: 14, fontSize: 13.5, color: "var(--fg2)" }}>
-                    Plan {plan.status}. Drafting runs at
-                    <code style={{ margin: "0 5px" }}>/api/content-plan/draft?plan={plan.id}</code>
-                    and is safe to re-run — slots already in PostFlow are skipped.
+                    Every slot decided — {draftedSlots} drafted, {skippedSlots} skipped.
                   </div>
                 )}
               </>

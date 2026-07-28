@@ -63,11 +63,14 @@ export async function GET(req: Request) {
     .map((p: { content: string | null; title: string | null }) => (p.content ?? p.title ?? "").trim())
     .filter(Boolean).slice(0, 3);
 
-  // Resumable: anything already in PostFlow is skipped, not redone.
+  // Resumable, and it respects per-slot decisions: anything already in PostFlow
+  // is skipped, and so is anything a human deliberately skipped. A bulk action
+  // that resurrects a killed slot would quietly overrule the person reviewing.
   const { data: items } = await db
     .from("content_plan_items")
     .select("id, slot, brief, platform, format, scheduled_for, source_post_id, postflow_id")
-    .eq("plan_id", planId).is("postflow_id", null).order("slot");
+    .eq("plan_id", planId).is("postflow_id", null)
+    .in("status", ["planned", "failed"]).order("slot");
 
   const done: number[] = [];
   const failed: { slot: number; error: string }[] = [];
@@ -124,9 +127,10 @@ export async function GET(req: Request) {
 
   // Only fully drafted counts as approved. A partial run stays "approving" so
   // it is visibly unfinished and re-running is the obvious next step.
+  // Outstanding means undecided. A skipped slot is decided, not remaining work.
   const { count: remaining } = await db
     .from("content_plan_items").select("id", { count: "exact", head: true })
-    .eq("plan_id", planId).is("postflow_id", null);
+    .eq("plan_id", planId).eq("status", "planned");
 
   if ((remaining ?? 0) === 0) {
     await db.from("content_plans")
