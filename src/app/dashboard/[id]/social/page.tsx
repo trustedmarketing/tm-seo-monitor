@@ -88,6 +88,16 @@ export default async function Social({
         .eq("plan_id", plan.id).order("slot")
     : { data: [] };
 
+  // What this client can actually publish to. Offering a network with no
+  // connected profile would be offering a plan nobody can execute.
+  const { data: acctRows } = await db
+    .from("social_posts").select("platform").eq("client_id", params.id).not("platform", "is", null);
+  const historicalNets = Array.from(
+    new Set((acctRows ?? []).map((r: { platform: string | null }) => r.platform).filter(Boolean) as string[])
+  );
+  const planNets = ((plan as { networks?: string[] } | null)?.networks ?? []) as string[];
+  const pickable = Array.from(new Set([...planNets, ...historicalNets]));
+
   const slots = (planItems ?? []) as Record<string, unknown>[];
   const pendingSlots = slots.filter((i) => ["planned", "failed"].includes(String(i.status))).length;
   const draftedSlots = slots.filter((i) => String(i.status) === "drafted").length;
@@ -168,9 +178,24 @@ export default async function Social({
                 {new Date(nextMonth + "T00:00:00Z").toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}
               </span>
 
-              <form action="/api/content-plan" method="post" style={{ marginLeft: "auto" }}>
+              <form action="/api/content-plan" method="post" style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                 <input type="hidden" name="client_id" value={params.id} />
                 <input type="hidden" name="action" value="build" />
+
+                {/* Leave every box unticked to plan for whatever is connected.
+                    Ticking narrows it — useful when a client is Facebook-only
+                    this quarter, or when LinkedIn is handled by someone else. */}
+                {pickable.length > 1 && (
+                  <span style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 12.5, color: "var(--fg2)" }}>
+                    {pickable.map((n) => (
+                      <label key={n} style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                        <input type="checkbox" name="network" value={n} />
+                        {n}
+                      </label>
+                    ))}
+                  </span>
+                )}
+
                 <button type="submit" style={{
                   fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13.5,
                   padding: "9px 16px", borderRadius: 8, border: "none", cursor: "pointer",

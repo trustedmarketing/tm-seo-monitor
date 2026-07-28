@@ -42,12 +42,15 @@ export type PlanItem = {
   brief: string;
   why: string;
   sourcePostId: number | null;
+  /** Stable id for the idea, so later months can exclude what is already used. */
+  seedRef: string | null;
 };
 
 export type Plan = {
   month: string;          // yyyy-mm-01
   targetPosts: number;
   rationale: string;
+  networks: string[];
   items: PlanItem[];
 };
 
@@ -134,7 +137,9 @@ function shortLabel(p: ProvenPost): string {
 export async function buildPlan(
   db: SupabaseClient,
   clientId: string,
-  monthStart: Date
+  monthStart: Date,
+  /** Plan for these networks only. Empty means every connected network. */
+  onlyNetworks: string[] = []
 ): Promise<Plan> {
   const { data: client } = await db
     .from("clients")
@@ -174,7 +179,21 @@ export async function buildPlan(
     new Set((posted ?? []).map((p: { platform: string | null }) => p.platform).filter(Boolean) as string[])
   );
 
-  const usable = connected.length ? connected : historical.length ? historical : ["instagram"];
+  const detected = connected.length ? connected : historical.length ? historical : ["instagram"];
+
+  // An explicit choice wins, but only over networks that actually exist. Asking
+  // for LinkedIn when no LinkedIn profile is connected should narrow nothing.
+  const wanted = onlyNetworks.map((n) => n.toLowerCase());
+  const usable = wanted.length
+    ? detected.filter((n) => wanted.includes(n.toLowerCase()))
+    : detected;
+
+  if (usable.length === 0) {
+    throw new Error(
+      `None of the requested networks (${onlyNetworks.join(", ")}) are connected. ` +
+      `Available: ${detected.join(", ")}.`
+    );
+  }
   const networkSource = connected.length
     ? "connected"
     : historical.length
@@ -229,14 +248,29 @@ export async function buildPlan(
         .sort((a, b) => b.multiple - a.multiple)
     : [];
 
+  // ── what previous months already used ──────────────────────────────────────
+  // Without this, next month rebuilds this month: the cursors restart at zero
+  // and the same six questions come back. Seeds are excluded across ALL prior
+  // plans for the client, not just the previous one.
+  const { data: usedRows } = await db
+    .from("content_plan_items")
+    .select("seed_ref, content_plans!inner(client_id)")
+    .eq("content_plans.client_id", clientId)
+    .not("seed_ref", "is", null);
+
+  const used = new Set(
+    (usedRows ?? []).map((r: { seed_ref: string | null }) => r.seed_ref).filter(Boolean) as string[]
+  );
+
   // ── customer questions ─────────────────────────────────────────────────────
   // Written for AEO, useful here for the same reason: they are the things buyers
   // ask in their own words, which is the shortest route to a post that lands.
   const { data: promptRows } = await db
     .from("tracked_prompts").select("prompt").eq("client_id", clientId).eq("active", true).limit(30);
-  const questions = (promptRows ?? [])
+  const allQuestions = (promptRows ?? [])
     .map((p: { prompt: string }) => p.prompt?.trim())
     .filter(Boolean) as string[];
+  const questions = allQuestions.filter((q) => !used.has(`q:${q}`));
 
   // ── what they sell ─────────────────────────────────────────────────────────
   // Read live rather than from a table because we do not store a catalogue, and
@@ -252,7 +286,8 @@ export async function buildPlan(
       if (secret) {
         const token = await shopifyConnect(store.domain, store.api_client_id, secret);
         const content = await shopifyList(store.domain, token, 30);
-        products = content.map((c) => c.title).filter(Boolean).slice(0, 20);
+        products = content.map((c) => c.title).filter(Boolean)
+          .filter((t) => !used.has(`p:${t}`)).slice(0, 20);
       }
     }
   } catch {
@@ -268,7 +303,8 @@ export async function buildPlan(
   let questionCursor = 0;
   let productCursor = 0;
 
-  const evergreen = EVERGREEN[(client.client_type as string) ?? "hybrid"] ?? EVERGREEN.hybrid;
+  const allEvergreen = EVERGREEN[(client.client_type as string) ?? "hybrid"] ?? EVERGREEN.hybrid;
+  const evergreen = allEvergreen.filter((a) => !used.has(`e:${a}`));
 
   /**
    * Deal the sources across the month proportionally.
@@ -351,6 +387,7 @@ export async function buildPlan(
           brief: `Rework "${shortLabel(p)}" as a ${formats[i]} for ${book?.label ?? network}.`,
           why: `That post did ${p.multiple.toFixed(1)}× this account's median. The subject works; the format is being varied to reach a different part of the audience.`,
           sourcePostId: p.id,
+          seedRef: `s:${p.id}`,
         });
       } else if (question) {
         questionCursor++;
@@ -363,6 +400,7 @@ export async function buildPlan(
           brief: `Answer "${question}" as a ${formats[i]} for ${book?.label ?? network}.`,
           why: `This is a question this client's buyers actually ask — it is one of the prompts tracked for AI visibility. Answering it publicly serves the same search intent on a second surface.`,
           sourcePostId: null,
+          seedRef: `q:${question}`,
         });
       } else if (product) {
         productCursor++;
@@ -375,9 +413,15 @@ export async function buildPlan(
           brief: `Feature "${product}" in the situation it was made for. As a ${formats[i]} for ${book?.label ?? network}.`,
           why: `Drawn from the live catalogue, so the post is about something they actually sell rather than a generic angle.`,
           sourcePostId: null,
+          seedRef: `p:${product}`,
         });
       } else {
-        const angle = evergreen[evergreenCursor % evergreen.length];
+        // Modulo only when the list is genuinely exhausted, and the repeat is
+        // then labelled. Silently recycling an angle is how a client notices the
+        // same post twice before we do.
+        const pool = evergreen.length ? evergreen : allEvergreen;
+        const angle = pool[evergreenCursor % pool.length];
+        const isRepeat = evergreenCursor >= pool.length || evergreen.length === 0;
         evergreenCursor++;
         items.push({
           slot,
@@ -388,8 +432,11 @@ export async function buildPlan(
           brief: `${angle}. As a ${formats[i]} for ${book?.label ?? network}.`,
           // Labelled honestly. A filler slot dressed up as a finding is how a
           // content calendar gets mistaken for a strategy.
-          why: `Fills the cadence and keeps the format mix balanced. Not drawn from this account's performance data — worth a human steer on the specifics.`,
+          why: isRepeat
+            ? `Fills the cadence, but this angle has been used before — every fresh angle for this client type is spent. Worth replacing with something specific rather than running it twice.`
+            : `Fills the cadence and keeps the format mix balanced. Not drawn from this account's performance data — worth a human steer on the specifics.`,
           sourcePostId: null,
+          seedRef: `e:${angle}`,
         });
       }
     }
@@ -421,10 +468,19 @@ export async function buildPlan(
       : networkSource === "historical"
       ? `Planned for ${usable.join(", ")}, based on where this client has posted before. No connected accounts could be read from PostFlow, so this may not match what can actually be published to.`
       : `No connected accounts and no posting history, so this assumes Instagram. Connect this client's profiles in PostFlow and rebuild to plan for the right networks.`,
+    used.size > 0
+      ? `${used.size} idea${used.size === 1 ? "" : "s"} used in earlier months ${used.size === 1 ? "was" : "were"} excluded. ${questions.length} unused question${questions.length === 1 ? "" : "s"} and ${products.length} unused product${products.length === 1 ? "" : "s"} remain.`
+      : "",
+    questions.length === 0 && allQuestions.length > 0
+      ? `Every tracked question has now been used. Add more customer-voice prompts in /admin to keep this source producing.`
+      : "",
     client.social_posts_per_month
       ? `Target of ${target} comes from this client's stated cadence.`
       : `No cadence is set for this client, so the target is the playbook minimum for their networks. Set one in Settings to plan against the real commitment.`,
   ].join(" ");
 
-  return { month: ymd(monthStart).slice(0, 8) + "01", targetPosts: target, rationale, items };
+  return {
+    month: ymd(monthStart).slice(0, 8) + "01",
+    targetPosts: target, rationale, networks: usable, items,
+  };
 }

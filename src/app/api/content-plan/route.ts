@@ -44,9 +44,12 @@ export async function POST(req: Request) {
     const now = new Date();
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
 
+    // Networks come in as repeated checkbox values. Empty means "all connected".
+    const onlyNetworks = form.getAll("network").map(String).filter(Boolean);
+
     let plan;
     try {
-      plan = await buildPlan(db, clientId, monthStart);
+      plan = await buildPlan(db, clientId, monthStart, onlyNetworks);
     } catch (e) {
       return back(req, clientId, `build-failed:${(e as Error).message.slice(0, 80)}`);
     }
@@ -63,6 +66,7 @@ export async function POST(req: Request) {
     const { data: created, error } = await db.from("content_plans").insert({
       client_id: clientId, month: plan.month, status: "draft",
       target_posts: plan.targetPosts, rationale: plan.rationale,
+      networks: plan.networks,
       created_by: profile?.id ?? null,
     }).select("id").single();
 
@@ -71,7 +75,8 @@ export async function POST(req: Request) {
     const rows = plan.items.map((i) => ({
       plan_id: created.id, slot: i.slot, scheduled_for: i.scheduledFor,
       platform: i.platform, format: i.format, theme: i.theme,
-      brief: i.brief, why: i.why, source_post_id: i.sourcePostId, status: "planned",
+      brief: i.brief, why: i.why, source_post_id: i.sourcePostId,
+      seed_ref: i.seedRef, status: "planned",
     }));
     await db.from("content_plan_items").insert(rows);
 
