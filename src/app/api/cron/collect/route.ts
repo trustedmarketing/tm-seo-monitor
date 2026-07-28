@@ -23,6 +23,7 @@ import { collectMetaAds } from "@/lib/metaAdsCollector";
 import { collectGoogleAds } from "@/lib/googleAdsCollector";
 import { collectMicrosoftAds } from "@/lib/microsoftAdsCollector";
 import { collectShopify } from "@/lib/shopifyCollector";
+import { collectSocial } from "@/lib/socialCollector";
 import { syncApprovedRecs } from "@/lib/clickupSync";
 import { checkTokenExpiry } from "@/lib/tokenExpiry";
 import { findBreaches, reportBreaches } from "@/lib/slaEscalation";
@@ -281,6 +282,26 @@ export async function GET(req: Request) {
     // ── Shopify revenue (ground truth) → conversions_daily(source='shopify') ─
     const shopN = await collectShopify(db, c);
     done.push(`shopify (${shopN})`);
+
+    // ── Organic social via PostFlow → social_posts + social_metrics_daily ──
+    // Wrapped rather than left to throw: a social failure must not take down the
+    // collection that revenue reporting depends on.
+    const tSocial = Date.now();
+    try {
+      const soc = await collectSocial(db, c as { id: string; domain: string; postflow_group_id?: string | null });
+      done.push(`social (${soc.rows})`);
+      await recordRun(db, "social", c.id, {
+        status: soc.rows > 0 ? "success" : "skipped",
+        detail: soc.detail, rows_written: soc.rows, duration_ms: Date.now() - tSocial,
+      });
+    } catch (e) {
+      const msg = (e as Error).message;
+      done.push(`social failed`);
+      failures.push({ client: c.domain, module: "social", error: msg });
+      await recordRun(db, "social", c.id, {
+        status: "error", error: msg, duration_ms: Date.now() - tSocial,
+      });
+    }
 
     // ── ClickUp sync: approved recs → tasks (skips if no list_id) ──
     const synced = await syncApprovedRecs(db, c);

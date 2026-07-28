@@ -1,37 +1,211 @@
-// app/dashboard/[id]/social/page.tsx — WO-003 Stream M holding page.
-// The tab exists so the workspace has the design's shape; the surface behind it
-// is not built yet and says so rather than rendering an empty zero.
+// app/dashboard/[id]/social/page.tsx — organic social.
+//
+// WO-003 / Module E. The plan's rule for this tab: rank by DISTANCE TO REVENUE.
+// Lead with saves, shares and profile actions — the signals that mean intent —
+// and keep followers and likes as trend only, never a hero number.
+//
+// Source is PostFlow, which covers whatever networks the team actually publishes
+// to. Reach on accounts NOT published through PostFlow needs Meta Graph, which
+// is a later addition rather than a gap being hidden here.
 import { redirect } from "next/navigation";
 import { userClient } from "@/lib/supabaseServer";
 import { ClientHeader } from "@/components/ClientHeader";
-import { BeingBuilt } from "@/components/BeingBuilt";
-import { workspaceTabs } from "@/lib/workspaceTabs";
+import { workspaceTabs, type ClientType } from "@/lib/workspaceTabs";
+import { fmtDate } from "@/lib/time";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
 
+type Post = {
+  id: number; external_id: string; platform: string | null; post_type: string | null;
+  title: string | null; content: string | null; permalink: string | null; posted_at: string | null;
+};
+type Metric = {
+  post_id: number; date: string; views: number | null; reach: number | null;
+  likes: number | null; shares: number | null; saves: number | null; replies: number | null;
+  engagements: number | null; video_views: number | null; link_clicks: number | null;
+};
+
+function n(v: number | null | undefined): number { return v ?? 0; }
+
 export default async function Social({ params }: { params: { id: string } }) {
   const db = userClient();
   const { data: client } = await db
-    .from("clients").select("id, name, domain, tier, client_type").eq("id", params.id).single();
+    .from("clients").select("id, name, domain, tier, client_type, postflow_group_id").eq("id", params.id).single();
   if (!client) redirect("/dashboard");
 
-  const type = (client as any).client_type ?? null;
-  // A tab that does not belong to this client type is not reachable content.
+  const type = ((client as { client_type?: string }).client_type ?? null) as ClientType;
   if (!workspaceTabs(type).some((t) => t.key === "social")) redirect(`/dashboard/${params.id}`);
+
+  const [{ data: postRows }, { count: pending }] = await Promise.all([
+    db.from("social_posts")
+      .select("id, external_id, platform, post_type, title, content, permalink, posted_at")
+      .eq("client_id", params.id).order("posted_at", { ascending: false }).limit(60),
+    db.from("approvals").select("id", { count: "exact", head: true })
+      .eq("client_id", params.id).in("status", ["staged", "failed"]),
+  ]);
+
+  const posts = (postRows ?? []) as Post[];
+
+  // Latest metric row per post.
+  const { data: metricRows } = posts.length
+    ? await db.from("social_metrics_daily")
+        .select("post_id, date, views, reach, likes, shares, saves, replies, engagements, video_views, link_clicks")
+        .in("post_id", posts.map((p) => p.id))
+        .order("date", { ascending: false })
+    : { data: [] };
+
+  const latest = new Map<number, Metric>();
+  for (const m of (metricRows ?? []) as Metric[]) if (!latest.has(m.post_id)) latest.set(m.post_id, m);
+
+  const rows = posts.map((p) => ({ p, m: latest.get(p.id) }));
+
+  const totals = rows.reduce(
+    (a, r) => ({
+      saves: a.saves + n(r.m?.saves),
+      shares: a.shares + n(r.m?.shares),
+      clicks: a.clicks + n(r.m?.link_clicks),
+      engagements: a.engagements + n(r.m?.engagements),
+      reach: a.reach + n(r.m?.reach),
+    }),
+    { saves: 0, shares: 0, clicks: 0, engagements: 0, reach: 0 }
+  );
+
+  // Ranked by intent signals, not by likes. A post with 400 likes and no saves
+  // did not move anyone closer to buying.
+  const best = [...rows]
+    .sort((a, b) =>
+      (n(b.m?.saves) + n(b.m?.shares) + n(b.m?.link_clicks)) -
+      (n(a.m?.saves) + n(a.m?.shares) + n(a.m?.link_clicks))
+    )
+    .slice(0, 5);
+
+  const groupId = (client as { postflow_group_id?: string | null }).postflow_group_id;
 
   return (
     <main style={{ padding: "40px 32px 64px" }}>
       <div style={{ maxWidth: 1180 }}>
-        <ClientHeader id={params.id} name={client.name} domain={client.domain} tier={client.tier}
-          clientType={type} active="social" />
-        <BeingBuilt
-          title="Organic social"
-          reason="Published posts, engagement, and what formats work for this account."
-          waitingOn="The organic-social collector. PostFlow's API is confirmed and its token is vaulted, so this is build time rather than an approval."
-          backHref={`/dashboard/${params.id}`}
+        <ClientHeader
+          id={params.id} name={client.name} domain={client.domain} tier={client.tier}
+          clientType={type} active="social" pending={pending ?? 0}
+          sub={posts.length ? `${posts.length} posts collected via PostFlow` : "No posts collected yet"}
         />
+
+        {!groupId ? (
+          <div style={{ background: "#FFF9EC", border: "1px solid #EAD9A6", borderRadius: 12, padding: "28px 26px", maxWidth: 760 }}>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: 26, marginBottom: 8 }}>Not connected</div>
+            <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "#8A6D1F", margin: 0 }}>
+              This client has no PostFlow group set, so nothing can be collected. Set
+              <code style={{ margin: "0 5px" }}>clients.postflow_group_id</code>
+              to the group that publishes for them, then verify with
+              <code style={{ marginLeft: 5 }}>/api/ops/postflow-check</code>.
+            </p>
+          </div>
+        ) : posts.length === 0 ? (
+          <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 12, padding: "30px 26px", maxWidth: 760 }}>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: 26, marginBottom: 8 }}>Nothing collected yet</div>
+            <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--fg2)", margin: 0 }}>
+              The group is connected but no posts have come back for the last 30 days. Either nothing has
+              published in that window, or the group id points somewhere without posts.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Distance to revenue, in order. Followers and likes are deliberately
+                not here — they are trend material, not a headline. */}
+            <div style={{ display: "flex", gap: 28, flexWrap: "wrap", marginBottom: 30 }}>
+              <Stat label="Saves" value={totals.saves.toLocaleString()} sub="strongest intent signal" accent />
+              <Stat label="Shares" value={totals.shares.toLocaleString()} sub="earned distribution" />
+              <Stat label="Link clicks" value={totals.clicks.toLocaleString()} sub="left the platform for you" />
+              <Stat label="Engagements" value={totals.engagements.toLocaleString()} sub="all interactions" />
+              <Stat label="Reach" value={totals.reach.toLocaleString()} sub="people, not impressions" />
+            </div>
+
+            <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 400, fontSize: 26, margin: "0 0 4px" }}>
+              What actually worked
+            </h2>
+            <p style={{ fontSize: 13.5, color: "var(--fg2)", margin: "0 0 16px" }}>
+              Ranked by saves, shares and clicks rather than likes — a post with plenty of likes and no
+              saves moved nobody closer to buying.
+            </p>
+
+            <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", marginBottom: 34 }}>
+              {best.map((r, i) => (
+                <div key={r.p.id} style={{
+                  display: "flex", alignItems: "flex-start", gap: 16, padding: "15px 20px",
+                  borderTop: i === 0 ? "none" : "1px solid var(--border)", flexWrap: "wrap",
+                }}>
+                  <div style={{ minWidth: 74, fontSize: 12.5, color: "var(--fg3)", paddingTop: 2 }}>
+                    {fmtDate(r.p.posted_at)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 260 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 600, color: "var(--fg1)" }}>
+                      {r.p.title || (r.p.content ? r.p.content.slice(0, 90) + (r.p.content.length > 90 ? "…" : "") : "Untitled post")}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--fg3)", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                      {r.p.post_type && <span>{r.p.post_type}</span>}
+                      {r.p.permalink && (
+                        <a href={r.p.permalink} target="_blank" rel="noreferrer"
+                           style={{ color: "var(--fg2)" }}>View post ↗</a>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 18, fontSize: 12.5, color: "var(--fg2)", whiteSpace: "nowrap" }}>
+                    <Metric2 label="saves" v={n(r.m?.saves)} strong />
+                    <Metric2 label="shares" v={n(r.m?.shares)} />
+                    <Metric2 label="clicks" v={n(r.m?.link_clicks)} />
+                    <Metric2 label="reach" v={n(r.m?.reach)} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 400, fontSize: 26, margin: "0 0 16px" }}>
+              Everything published
+            </h2>
+            <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+              {rows.map((r, i) => (
+                <div key={r.p.id} style={{
+                  display: "flex", alignItems: "center", gap: 16, padding: "12px 20px",
+                  borderTop: i === 0 ? "none" : "1px solid var(--border)", flexWrap: "wrap",
+                }}>
+                  <div style={{ minWidth: 74, fontSize: 12.5, color: "var(--fg3)" }}>{fmtDate(r.p.posted_at)}</div>
+                  <div style={{ flex: 1, minWidth: 240, fontSize: 13.5, color: "var(--fg1)" }}>
+                    {r.p.title || (r.p.content ? r.p.content.slice(0, 80) + "…" : "Untitled")}
+                  </div>
+                  <div style={{ display: "flex", gap: 16, fontSize: 12.5, color: "var(--fg2)" }}>
+                    <Metric2 label="saves" v={n(r.m?.saves)} />
+                    <Metric2 label="shares" v={n(r.m?.shares)} />
+                    <Metric2 label="reach" v={n(r.m?.reach)} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </main>
+  );
+}
+
+function Metric2({ label, v, strong }: { label: string; v: number; strong?: boolean }) {
+  return (
+    <span style={{ fontVariantNumeric: "tabular-nums" }}>
+      <strong style={{ color: strong && v > 0 ? "var(--tm-green-deep)" : "var(--fg1)" }}>{v.toLocaleString()}</strong>{" "}
+      <span style={{ color: "var(--fg3)" }}>{label}</span>
+    </span>
+  );
+}
+
+function Stat({ label, value, sub, accent }: { label: string; value: string; sub: string; accent?: boolean }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--fg3)" }}>{label}</div>
+      <div style={{
+        fontFamily: "var(--font-display)", fontSize: 40, lineHeight: 1.05, margin: "4px 0 2px",
+        color: accent ? "var(--tm-green-deep)" : "var(--fg1)",
+      }}>{value}</div>
+      <div style={{ fontSize: 12, color: "var(--fg3)" }}>{sub}</div>
+    </div>
   );
 }
