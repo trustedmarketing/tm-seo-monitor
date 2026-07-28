@@ -60,9 +60,12 @@ Each is assigned to a WO-003 stream (see that doc); none is unowned.
   **no model training** (they run on Google/OpenAI/Anthropic commercial APIs and do not opt into
   sharing), ownership retained, workspace isolation confirmed, **4:5 supported** plus seven more
   ratios, export via API at any time.
-  **Two conditions before client data is onboarded:** (1) request the **DPA + subprocessor list** —
-  none exist today but Ray offered to put them in place; (2) start **month-to-month at $340/mo**, not
-  the annual $3,672, until the fidelity spike is finished.
+  **Conditions — both actioned 2026-07-28:** ✅ month-to-month confirmed (not annual);
+  📧 **DPA + subprocessor list requested** — email drafted at `docs/bloom-dpa-request-email.md`,
+  send on the existing thread. Proceeding with artwork generation while it is drawn up is a
+  deliberate call: brand assets are client property but not personal data, so the risk is materially
+  lower than it sounds. **The thing to avoid is asking this question in six months on fifteen
+  clients' assets.**
   **Accepted risks, explicitly:** no IP/trademark indemnity (mitigated structurally — every creative
   passes a human approval card before it can run, and ad launches are always human-approved), no
   uptime SLA (generation is batch, not real-time), no fixed post-deletion export window (neutralised
