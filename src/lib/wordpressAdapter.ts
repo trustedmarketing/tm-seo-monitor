@@ -123,9 +123,9 @@ export async function preflight(
   siteUrl: string,
   username: string,
   appPassword: string
-): Promise<{ canWrite: boolean; user: string; seoPlugin: SeoPlugin; seoWritable: boolean; capabilities: string[] }> {
+): Promise<{ canWrite: boolean; user: string; seoPlugin: SeoPlugin; seoWritable: boolean; capabilities: string[]; seoDetail: string }> {
   if (mockApis()) {
-    return { canWrite: true, user: "mock", seoPlugin: "rankmath", seoWritable: true, capabilities: ["edit_posts"] };
+    return { canWrite: true, user: "mock", seoPlugin: "rankmath", seoWritable: true, capabilities: ["edit_posts"], seoDetail: "" };
   }
 
   const auth = authHeader(username, appPassword);
@@ -136,21 +136,48 @@ export async function preflight(
   const capabilities = Object.entries(me.capabilities ?? {}).filter(([, v]) => v).map(([k]) => k);
   const canWrite = capabilities.includes("edit_posts") || capabilities.includes("edit_pages");
 
-  // Detect the SEO plugin from the active plugin list where readable, else from
-  // the REST schema. Failure to detect is not fatal — it just means SEO change
-  // types are unavailable on this site.
+  // ── SEO detection, in two separate questions ────────────────────────────────
+  //
+  // "Is a plugin installed" and "are its fields writable over REST" are
+  // different, and they have different fixes. Conflating them produces a
+  // useless answer: "none" could mean no plugin, or a plugin whose meta simply
+  // is not registered for REST, or — as the first live check showed — a site
+  // with no blog posts, where probing /posts returns nothing and detection
+  // silently reports "none".
+  //
+  // Presence comes from the REST namespace list, which both plugins register
+  // regardless of content. Writability is then probed against real objects,
+  // pages as well as posts.
   let seoPlugin: SeoPlugin = "none";
   let seoWritable = false;
-  try {
-    const probe = await wp<{ meta?: Record<string, unknown> }[]>(
-      { siteUrl }, "/wp/v2/posts?per_page=1&context=edit", auth
-    );
-    const meta = probe?.[0]?.meta ?? {};
-    if ("rank_math_title" in meta) { seoPlugin = "rankmath"; seoWritable = true; }
-    else if ("_yoast_wpseo_title" in meta) { seoPlugin = "yoast"; seoWritable = true; }
-  } catch { /* detection is best-effort */ }
+  let seoDetail = "";
 
-  return { canWrite, user: me.name, seoPlugin, seoWritable, capabilities };
+  try {
+    const root = await wp<{ namespaces?: string[] }>({ siteUrl }, "/", auth);
+    const ns = root.namespaces ?? [];
+    if (ns.some((n) => n.startsWith("rankmath"))) seoPlugin = "rankmath";
+    else if (ns.some((n) => n.startsWith("yoast"))) seoPlugin = "yoast";
+  } catch { /* namespace listing is best-effort */ }
+
+  if (seoPlugin !== "none") {
+    const keys = SEO_META_KEYS[seoPlugin];
+    for (const collection of ["pages", "posts"] as const) {
+      try {
+        const probe = await wp<{ meta?: Record<string, unknown> }[]>(
+          { siteUrl }, `/wp/v2/${collection}?per_page=1&context=edit`, auth
+        );
+        if (!probe?.length) continue;               // nothing to judge from
+        if (keys.title in (probe[0].meta ?? {})) { seoWritable = true; break; }
+      } catch { /* try the next collection */ }
+    }
+    if (!seoWritable) {
+      seoDetail = `${seoPlugin} is installed but its meta is not exposed to REST on this site.`;
+    }
+  } else {
+    seoDetail = "No Rank Math or Yoast REST namespace found.";
+  }
+
+  return { canWrite, user: me.name, seoPlugin, seoWritable, capabilities, seoDetail };
 }
 
 type WpPost = {

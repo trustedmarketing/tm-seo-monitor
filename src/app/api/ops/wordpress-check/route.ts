@@ -65,10 +65,13 @@ export async function GET(req: Request) {
     out.seo_fields_writable = pre.seoWritable;
     out.capabilities = pre.capabilities.slice(0, 12);
 
-    if (pre.seoPlugin === "none") {
+    if (!pre.seoWritable) {
+      out.seo_detail = pre.seoDetail;
       out.note =
-        "No SEO plugin fields exposed to REST. Title, content and excerpt changes work; " +
-        "SEO title and meta description do not until the plugin registers its meta for REST.";
+        "Title, content and excerpt changes work. SEO title and meta description do not yet — " +
+        (pre.seoPlugin === "none"
+          ? "no Rank Math or Yoast REST namespace was found on this site."
+          : `${pre.seoPlugin} is present but its meta is not registered for REST.`);
     }
 
     // Optional read-only probe against a real post, same as the Shopify check.
