@@ -149,6 +149,26 @@ export async function fetchPostsWithMetrics(
   return out;
 }
 
+export type PostFlowGroup = { id: string; name: string | null };
+
+/**
+ * Every group this token can see.
+ *
+ * Exists so nobody has to hunt for a group id in the PostFlow UI. Finding an
+ * opaque identifier by hand is exactly the class of task that produced a wrong
+ * GA4 property id and six days of silent failure.
+ */
+export async function listGroups(token: string): Promise<PostFlowGroup[]> {
+  if (mockApis()) return [{ id: "mock-group", name: "Mock Group" }];
+
+  const body = await get<{ data?: { id?: string | number; name?: string | null }[] }>(
+    "/groups", token, {}
+  );
+  return (body.data ?? [])
+    .filter((g) => g.id != null)
+    .map((g) => ({ id: String(g.id), name: g.name ?? null }));
+}
+
 /** Confirm the token works and the group exists, without pulling a full window. */
 export async function ping(token: string, groupId: string): Promise<{ ok: boolean; posts: number }> {
   if (mockApis()) return { ok: true, posts: MOCK_POSTS.length };
