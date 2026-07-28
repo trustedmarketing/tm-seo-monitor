@@ -60,12 +60,16 @@ Each is assigned to a WO-003 stream (see that doc); none is unowned.
   **no model training** (they run on Google/OpenAI/Anthropic commercial APIs and do not opt into
   sharing), ownership retained, workspace isolation confirmed, **4:5 supported** plus seven more
   ratios, export via API at any time.
-  **Conditions — both actioned 2026-07-28:** ✅ month-to-month confirmed (not annual);
-  📧 **DPA + subprocessor list requested** — email drafted at `docs/bloom-dpa-request-email.md`,
-  send on the existing thread. Proceeding with artwork generation while it is drawn up is a
-  deliberate call: brand assets are client property but not personal data, so the risk is materially
-  lower than it sounds. **The thing to avoid is asking this question in six months on fifteen
-  clients' assets.**
+  **Conditions, resolved 2026-07-28:** ✅ month-to-month confirmed (not annual);
+  ❌ **DPA declined.** Ray replied that Bloom has no DPA or subprocessor process and will not be
+  putting one in place in the near term — an honest no rather than a slipped timeline. He offered a
+  limited path: brand-fidelity pass on the first brands, revisit before wider rollout.
+
+  **Revised position:** take the limited pilot, under our own constraint — **only assets the client
+  has already published publicly** (logos, storefront imagery, live product photography). Nothing
+  unreleased, customer-identifiable, or confidential. **Wider rollout is a CLO decision, not a CTO
+  one**, and worth scoping alternatives before it is forced. See
+  `docs/legal-vendor-data-policy.md`.
   **Accepted risks, explicitly:** no IP/trademark indemnity (mitigated structurally — every creative
   passes a human approval card before it can run, and ad launches are always human-approved), no
   uptime SLA (generation is batch, not real-time), no fixed post-deletion export window (neutralised

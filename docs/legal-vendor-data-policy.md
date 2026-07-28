@@ -68,9 +68,34 @@ existing one written down.
 
 ## What prompted this specifically
 
-Bloom does not currently have a standard DPA or a published subprocessor list.
-Their founder offered to put both in place, and we have asked (see
-`docs/bloom-dpa-request-email.md`). They also do not offer IP or trademark
+**Updated 2026-07-28, after Bloom declined.** We asked for a DPA and subprocessor
+list (`docs/bloom-dpa-request-email.md`). Ray replied that Bloom has neither, and
+that after reviewing the work involved they will not be putting them in place in
+the near term. He was explicit that he did not want to promise a timeline he
+could not meet, and offered a limited path: run the brand-fidelity pass on the
+first brands, then revisit before any wider rollout.
+
+That is an honest answer, and it is also a firm no. The adoption decision was
+recorded as conditional on the DPA arriving, so the condition is now permanently
+unmet and the decision has to be re-made rather than carried forward as if it
+had been satisfied.
+
+**Position taken:** proceed with the limited pilot Ray described, under a
+constraint of our own — **only assets the client has already published publicly**
+go to Bloom. Logos, website imagery, product photography already live on a
+storefront. Nothing unreleased, nothing customer-identifiable, nothing
+confidential. That is a materially lighter exposure than the DPA question implies,
+because the material is already public.
+
+What we do have in writing, from Ray's evaluation answers: customer assets are
+not used for model training, and Bloom runs on commercial APIs that do not train
+on API data by default. An email is weaker than an agreement, but it is a stated
+commitment from the founder rather than an assumption.
+
+**Before any wider rollout**, this needs revisiting with the CLO. A vendor that
+cannot provide a DPA at all is a different proposition at thirteen clients than
+at two, and it is worth knowing what the alternatives look like before that
+decision is forced. They also do not offer IP or trademark
 indemnification, which we have accepted as a known risk and mitigated
 structurally rather than contractually: every generated creative passes a human
 approval before it can run, and ad launches are always human-approved.
@@ -85,7 +110,9 @@ we are absorbing exposure rather than passing it on.
 
 1. Add the subprocessor clause to the standard client agreement template.
 2. Make "signed DPA in place" a gate in vendor onboarding, alongside pricing and
-   security review.
+   security review. Bloom is the live example of why: the question was asked
+   after adoption was already underway, which left us negotiating from a weaker
+   position than if it had been asked during evaluation.
 3. Publish the subprocessor list somewhere a client can be pointed at.
 
 None of this is urgent this week. All of it is much cheaper to do now, at eleven
