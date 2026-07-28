@@ -132,7 +132,9 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
               <span style={EYEBROW}>Image</span>
               {/* Stated up front, because someone sourcing their own needs it
                   before they crop rather than after. */}
-              <span style={{ fontSize: 11.5, color: "var(--fg3)" }}>{aspect} · required</span>
+              <span style={{ fontSize: 11.5, color: "var(--fg3)" }}>
+                {aspect}{item.format === "short" || item.format === "video" ? " · opening frame" : " · required"}
+              </span>
             </div>
 
             {/* The words that will be set across the artwork. Shown because it

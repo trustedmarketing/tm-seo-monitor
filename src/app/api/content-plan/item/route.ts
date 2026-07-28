@@ -26,6 +26,7 @@ import { readSecret } from "@/lib/vault";
 import { listSocialAccounts, createDraft, uploadMediaFromUrl } from "@/lib/postflow";
 import { draftPost } from "@/lib/caption";
 import { startImage, checkImage, imagePromptFor } from "@/lib/bloom";
+import { aspectFor } from "@/lib/platformPlaybook";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -90,15 +91,22 @@ export async function POST(req: Request) {
       if (!key) throw new Error("no Bloom key stored — add it under Agency credentials");
 
       const steerImg = String(form.get("steer") ?? "").trim();
+      // The same ratio the card shows, so the promise and the request match.
+      const ratio = aspectFor(
+        item.platform ? String(item.platform) : null,
+        item.format ? String(item.format) : null
+      );
+
       const prompt = imagePromptFor({
         brief: String(item.brief),
         caption: item.caption ? String(item.caption) : null,
         format: item.format ? String(item.format) : null,
         headline: item.headline ? String(item.headline) : null,
+        aspectRatio: ratio,
         steer: steerImg || null,
       });
 
-      const imageId = await startImage(key, client.bloom_brand_id, prompt);
+      const imageId = await startImage(key, client.bloom_brand_id, prompt, ratio);
 
       // Record the job and return. Holding the request open for the whole
       // generation blocked the browser and would hit the function timeout.

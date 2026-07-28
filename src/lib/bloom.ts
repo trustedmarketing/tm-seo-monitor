@@ -81,12 +81,27 @@ export async function listBrands(key: string): Promise<BloomBrand[]> {
  * have been killed by the platform's function timeout anyway. Bloom hands back
  * an id immediately; the right shape is to store it and check later.
  */
-export async function startImage(key: string, brandId: string, prompt: string): Promise<string> {
+export async function startImage(
+  key: string,
+  brandId: string,
+  prompt: string,
+  /** e.g. "9:16". Sent as a field AND stated in the prompt — see below. */
+  aspectRatio?: string | null
+): Promise<string> {
   if (mockApis()) return "mock-image";
 
+  // Bloom documents only brandSessionId and prompt. Their image objects carry an
+  // `aspect_ratio`, so the field probably exists on generation too — but "probably"
+  // has been wrong four times on this integration today, so the ratio is ALSO
+  // stated in the prompt. An ignored field costs nothing; a silently square image
+  // in a 9:16 slot costs a repost.
   const created = await call<unknown>("/images/generations", key, {
     method: "POST",
-    body: JSON.stringify({ brandSessionId: brandId, prompt }),
+    body: JSON.stringify({
+      brandSessionId: brandId,
+      prompt,
+      ...(aspectRatio ? { aspectRatio, aspect_ratio: aspectRatio } : {}),
+    }),
   });
 
   const id = findImageId(created);
@@ -229,8 +244,10 @@ export function imagePromptFor(args: {
   steer?: string | null;
   /** Two to four words, written alongside the caption. */
   headline?: string | null;
+  /** The ratio the slot needs, e.g. "9:16". */
+  aspectRatio?: string | null;
 }): string {
-  const { brief, caption, format, steer, headline } = args;
+  const { brief, caption, format, steer, headline, aspectRatio } = args;
 
   const subject = brief
     .replace(/\s*(Platform|Format):\s*\w+\.?/gi, "")
@@ -266,6 +283,10 @@ export function imagePromptFor(args: {
         ].join(" ")
       : "No text overlay of any kind.",
 
+    // Stated in words as well as sent as a field. The card promises a ratio to
+    // whoever is reviewing, and an image that does not match it gets cropped by
+    // the platform — usually through the headline.
+    aspectRatio ? `Compose for a ${aspectRatio} frame, and fill it.` : "",
     format === "carousel" ? "Compose as the first slide of a carousel." : "",
     format === "short" || format === "video" ? "Compose as a video thumbnail or opening frame." : "",
     steer ? `Direction: ${steer}` : "",
