@@ -5,6 +5,49 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-07-28 · Session 3 · WO-004 social content planner — `main`
+
+Built the month planner end to end: **build a month → decide slot by slot → write copy →
+generate artwork → send to PostFlow**. Proven live on Salty Dog and DAPS, including a
+six-slide Instagram carousel.
+
+### Shipped
+- **Planner** (migrations 023–024, 030, 033–034). Sources in priority order: campaign brief,
+  proven posts, tracked customer questions, live Shopify catalogue, evergreen. Dealt
+  proportionally, not exhausted in order. Every slot badged with its provenance on screen.
+- **Campaign briefs.** Free-text per month, parsed for dates — "from the 8th to the 15th",
+  "on the 14th" — and those slots re-dated inside the window. The plan shows what it parsed,
+  because a date read wrongly is worse than one not read.
+- **Copy.** Playbook rules per network reach the writer, standing hashtags enforced in code,
+  a 2–4 word headline for the artwork, month context on every caption.
+- **Artwork.** Bloom generation, async with self-collecting refresh. Aspect ratio per
+  network/format, actually sent rather than only displayed.
+- **Carousels.** Slides with their own headline, body and *shot*; treatment chosen per
+  carousel (informational vs photographic); per-slide regeneration; gaps block the send.
+- **Decline detection** (migration 031). PostFlow has no webhooks, so it polls. Alerts carry
+  the client's reason, and the card becomes editable again.
+- **Agency credentials page** and `notify()` (Slack now, email on `RESEND_API_KEY`).
+
+### Two patterns worth carrying forward
+1. **Seven vendor-response failures, all one root cause** — writing the shape I expected
+   rather than reading the one that arrives. Fixed properly by `lib/apiShape.ts` plus the rule
+   that an unrecognised envelope must report the raw payload, never "empty". Reading
+   PostFlow's OpenAPI spec took two minutes and settled what four guesses could not.
+2. **Four dead ends shipped** — states with no action available. Stuck generation, slide-less
+   carousel, slides without a URL field, slides stuck mid-generation. Every state a row can
+   reach needs at least one way out, and *"mid-operation"* is a state.
+
+### Still open
+- **Untested:** campaign dates landing correctly, the decline flow end to end, cross-month dedup.
+- **Config:** `social_posts_per_month` and `hashtag_core` unset on all three clients — both
+  change output. Alpha Zeta has no Bloom brand (correct while the pilot is two brands).
+- **Not built:** UGC reposting (needs Meta Graph `tags` edge, and a rights-permission step),
+  Higgsfield for video slots, Playbook tab.
+- **Known limit:** signed Bloom URLs expire in ~7 days, so old plans will show broken
+  thumbnails. Sent posts are safe — PostFlow keeps its own copy.
+
+---
+
 ## 2026-07-28 · Session 2 · QC crawl reliability — branch `module/qc-crawl-reliability`
 
 Raised by Tom: manual QC scans run that morning and the findings never appeared in the panel.
