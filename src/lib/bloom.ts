@@ -125,18 +125,26 @@ export async function findStartedImage(
   key: string,
   brandId: string,
   since: Date,
-  prompt: string
+  prompt: string,
+  /** Bloom ids already assigned to something else, so two slides cannot share one. */
+  taken: Set<string> = new Set()
 ): Promise<BloomImage | null> {
-  const recent = await listImages(key, brandId, 10);
+  const recent = await listImages(key, brandId, 20);
   // A minute of slack: their created_at and our clock will not agree exactly.
   const cutoff = since.getTime() - 60_000;
   const head = prompt.slice(0, 80);
+  if (!head) return null;
 
   return (
     recent.find((i) => {
+      if (taken.has(i.id)) return false;
       const t = i.createdAt ? new Date(i.createdAt).getTime() : 0;
       if (t < cutoff) return false;
-      return !i.prompt || i.prompt.slice(0, 80) === head;
+      // A MISSING prompt is no longer treated as a match. It used to be, which
+      // meant any recent image satisfied any slide — six slides collecting at
+      // once claimed the same generation and a carousel shipped with four copies
+      // of its cover.
+      return !!i.prompt && i.prompt.slice(0, 80) === head;
     }) ?? null
   );
 }

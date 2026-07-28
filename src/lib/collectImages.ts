@@ -57,7 +57,17 @@ export async function collectPendingImages(
   const key = await readSecret(db, "bloom");
   if (!key) return 0;
 
+  // Ids already stored on other rows. Without this, a slide collected on an
+  // earlier refresh could be claimed again by a different slide on a later one.
+  const { data: usedSlides } = await db
+    .from("content_plan_slides").select("bloom_image_id").not("bloom_image_id", "is", null);
+  const alreadyUsed = new Set(
+    (usedSlides ?? []).map((r: { bloom_image_id: string }) => r.bloom_image_id)
+  );
+
   let collected = 0;
+  // Ids already assigned in this pass, so two rows cannot claim one generation.
+  const taken = new Set<string>(alreadyUsed);
 
   // NOTE: no early return when `rows` is empty. An earlier version returned here,
   // which meant carousel slides were only ever collected when a post-level image
@@ -80,10 +90,11 @@ export async function collectPendingImages(
 
       if (!imageId) {
         const found = await findStartedImage(
-          key, brandId, new Date(requested || Date.now()), row.image_prompt ?? ""
+          key, brandId, new Date(requested || Date.now()), row.image_prompt ?? "", taken
         );
         if (!found) continue;          // still starting; try again next refresh
         imageId = found.id;
+        taken.add(found.id);
         await db.from("content_plan_items").update({ bloom_image_id: imageId }).eq("id", row.id);
       }
 
@@ -111,7 +122,7 @@ export async function collectPendingImages(
     }
   }
 
-  collected += await collectPendingSlides(db, planIds, key, brandId);
+  collected += await collectPendingSlides(db, planIds, key, brandId, taken);
   return collected;
 }
 
@@ -127,7 +138,8 @@ async function collectPendingSlides(
   db: SupabaseClient,
   planIds: number[],
   key: string,
-  brandId: string
+  brandId: string,
+  taken: Set<string>
 ): Promise<number> {
   const { data: items } = await db
     .from("content_plan_items").select("id").in("plan_id", planIds);
@@ -158,10 +170,11 @@ async function collectPendingSlides(
       let imageId = raw.bloom_image_id;
       if (!imageId) {
         const found = await findStartedImage(
-          key, brandId, new Date(requested || Date.now()), raw.image_prompt ?? ""
+          key, brandId, new Date(requested || Date.now()), raw.image_prompt ?? "", taken
         );
         if (!found) continue;
         imageId = found.id;
+        taken.add(found.id);
         await db.from("content_plan_slides").update({ bloom_image_id: imageId }).eq("id", raw.id);
       }
 
