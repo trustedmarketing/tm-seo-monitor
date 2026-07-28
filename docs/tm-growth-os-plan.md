@@ -335,6 +335,8 @@ Repeatable checklist; assign an owner, schedule all 12 remaining clients deliber
 6. **Frequencies** — set core/serp/crawl cadence per tier; Dominate gets the daily SERP option
 7. **First collection** — force-run the collector; verify the report shows core / serp / ai / recs synced with no FAILED lines; spot-check the dashboard card against Search Console
 8. **Paid + social (as Phase B lands)** — link ad accounts via Business Portfolio partner access; confirm token stored in vault with expiry date
+8b. **Shopify write access (eCommerce clients, as the execution layer lands)** — add `write_content` to the store's custom app. ⚠️ **Two-step, and the second is easy to miss:** after editing scopes you must **release the app version** *and then* **update the installed app on the store itself**. Saving the config alone does nothing — tokens keep minting with the old scopes and the admin screen still shows your new list, so it looks done when it isn't. Verify with `/api/ops/shopify-check` → `can_write_content: true`; never assume from the admin UI. Cost us a debugging round on the first store.
+8c. **Audit the app's scopes while you are there.** The Salty Dog collector app carried `write_orders` from initial setup — write access to orders on a live revenue store, for a reporting integration that only ever read them. `/api/ops/shopify-check` flags over-privileged scopes; keep the app to exactly the change classes we have built.
 9. **Log it** — completed onboarding recorded in the client's ClickUp space / monthly work log
 
 ## Appendix B — Recommendation triage cadence (one-pager)

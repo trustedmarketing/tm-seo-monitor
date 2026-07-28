@@ -15,7 +15,7 @@
 import { getProfile } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
-import { connect, preflight } from "@/lib/shopifyAdapter";
+import { connect, preflight, stage } from "@/lib/shopifyAdapter";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -68,6 +68,23 @@ export async function GET(req: Request) {
     const { canWrite, scopes } = await preflight(store.domain, token);
     out.scopes = scopes;
     out.can_write_content = canWrite;
+
+    // Optional: prove stage() against a real object, read-only.
+    // ?page=gid://shopify/Page/123  — validates the GraphQL shape against the
+    // live API before any UI is built on top of it. Reads only; writes nothing.
+    const gid = new URL(req.url).searchParams.get("page");
+    if (gid) {
+      const staged = await stage(store.domain, token, {
+        type: "page_seo_title",
+        targetGid: gid,
+        proposed: "(probe — not written)",
+      });
+      out.staged = {
+        target: staged.targetLabel,
+        current_seo_title: staged.current,
+        note: "read-only probe, nothing written",
+      };
+    }
 
     // Flag anything broader than this app needs. Not a failure — an observation
     // the owner should see, since scope creep on a live revenue store is exactly
