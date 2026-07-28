@@ -13,6 +13,7 @@
 import { NextResponse } from "next/server";
 import { getProfile } from "@/lib/supabaseServer";
 import { runForClient, runAll } from "@/lib/proposalEngine";
+import { runSocialForClient, runSocialAll } from "@/lib/socialEngine";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -27,7 +28,10 @@ export async function GET(req: Request) {
   const clientId = p.get("client");
   const limit = Math.min(Number(p.get("limit") ?? 25), 100);
 
+  // Social runs alongside the site engine rather than in its own route: a pod
+  // lead wants one "what did it find" answer, not two places to look.
   const results = clientId ? [await runForClient(clientId, limit)] : await runAll(limit);
+  const social = clientId ? [await runSocialForClient(clientId)] : await runSocialAll();
 
   const totals = results.reduce(
     (a, r) => ({
@@ -39,11 +43,17 @@ export async function GET(req: Request) {
     { scanned: 0, proposed: 0, suppressed: 0, duplicate: 0 }
   );
 
+  const socialTotals = social.reduce(
+    (a, r) => ({ posts: a.posts + r.posts, proposed: a.proposed + r.proposed, duplicate: a.duplicate + r.duplicate }),
+    { posts: 0, proposed: 0, duplicate: 0 }
+  );
+
   return NextResponse.json({
     ok: true,
     totals,
     results,
-    next: totals.proposed > 0 ? "/dashboard/approvals" : undefined,
+    social: { totals: socialTotals, results: social },
+    next: totals.proposed + socialTotals.proposed > 0 ? "/dashboard/approvals" : undefined,
     note: "Nothing was written to any client site. Cards are staged; approval publishes.",
   });
 }

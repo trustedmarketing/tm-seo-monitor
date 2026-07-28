@@ -21,12 +21,14 @@ import { writeAudit, canDecide, UNDO_WINDOW_MS } from "@/lib/audit";
 import { policyFor, suppressUntil } from "@/lib/declinePolicy";
 import { connect, publish, revert as revertChange, type ShopifyChangeType } from "@/lib/shopifyAdapter";
 import * as wp from "@/lib/wordpressAdapter";
+import { listSocialAccounts, createDraft } from "@/lib/postflow";
+import { draftPost } from "@/lib/caption";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 type Payload = {
-  adapter: "shopify" | "wordpress";
+  adapter: "shopify" | "wordpress" | "postflow";
   /** Shopify change type, or a WordPress one — the adapter field disambiguates. */
   changeType: string;
   /** Shopify GID, or a JSON {postType,id} for WordPress. */
@@ -34,6 +36,15 @@ type Payload = {
   targetLabel?: string;
   before: string;
   after: string;
+
+  // ── social series (adapter: "postflow") ──────────────────────────────────
+  // A social card stages a BRIEF rather than finished copy: the words are
+  // written at approval time, so nobody reviews a caption that was drafted
+  // days earlier against numbers that have since moved.
+  /** One line per instalment, e.g. "Week 3 — the cost of not doing it". */
+  outline?: string[];
+  /** The post that earned the series, for voice and subject continuity. */
+  sourceContent?: string | null;
 };
 
 /** WordPress targets are stored as JSON because they need two fields, not one. */
@@ -323,6 +334,38 @@ async function publishOne(
   }
 
   try {
+    // ── social: draft the series and push it to PostFlow ────────────────────
+    // Handled before credentials() because PostFlow authenticates differently:
+    // one agency-wide token plus a per-client group, not a client_stores row.
+    if (payload.adapter === "postflow") {
+      const summary = await publishSocialSeries(db, row, payload);
+
+      const nowIso = new Date().toISOString();
+      await db.from("approvals").update({
+        status: "published", decided_by: profile?.id ?? null, decided_at: nowIso,
+        published_at: nowIso, error_detail: null, updated_at: nowIso,
+      }).eq("id", id);
+
+      await db.from("changes").insert({
+        client_id: row.client_id,
+        title: row.title,
+        description: summary,
+        changed_at: nowIso.slice(0, 10),
+        source: "growth-os",
+        approval_id: id,
+        decided_by: profile?.id ?? null,
+        decided_by_email: profile?.email ?? null,
+        automatic: false,
+      });
+
+      await writeAudit(
+        { action: "publish", targetType: "approval", targetId: id, clientId: row.client_id,
+          after: { value: summary }, detail: summary, ip },
+        profile
+      );
+      return true;
+    }
+
     const cred = await credentials(db, row.client_id, payload.adapter);
 
     // dryRun: false below is the ONLY place in the codebase that writes to a
@@ -400,6 +443,99 @@ async function publishOne(
     );
     return false;
   }
+}
+
+/**
+ * Draft an approved series and land it in PostFlow, unscheduled.
+ *
+ * Two deliberate properties:
+ *
+ * · Drafts, never scheduled posts. The design is explicit that "scheduling stays
+ *   a human call" — approving here means the idea is good, not that week one goes
+ *   out on Tuesday. Those are different decisions.
+ * · Partial success is reported, not swallowed. If three of four captions draft
+ *   and the fourth fails, the card publishes with three and SAYS three. Failing
+ *   the whole card would throw away work that already cost money and landed
+ *   correctly.
+ */
+async function publishSocialSeries(
+  db: ReturnType<typeof dbClient>,
+  row: { id: string; client_id: string; title: string },
+  payload: Payload
+): Promise<string> {
+  const token = await readSecret(db, "postflow");
+  if (!token) throw new Error("no PostFlow token in vault");
+
+  const { data: client } = await db
+    .from("clients")
+    .select("id, name, domain, client_type, postflow_group_id")
+    .eq("id", row.client_id).maybeSingle();
+
+  if (!client?.postflow_group_id) {
+    throw new Error("client has no postflow_group_id — set it in Settings");
+  }
+
+  const accounts = await listSocialAccounts(token, client.postflow_group_id);
+  if (accounts.length === 0) {
+    throw new Error("PostFlow group has no connected social accounts");
+  }
+
+  // Voice examples come from the client's OWN best posts. Showing the register
+  // beats describing it, and keeps drafts anchored to what already worked.
+  const { data: topPosts } = await db
+    .from("social_posts")
+    .select("content, title")
+    .eq("client_id", row.client_id)
+    .not("content", "is", null)
+    .order("posted_at", { ascending: false })
+    .limit(5);
+
+  const examples = (topPosts ?? [])
+    .map((p: { content: string | null; title: string | null }) => (p.content ?? p.title ?? "").trim())
+    .filter(Boolean)
+    .slice(0, 3);
+
+  const outline: string[] = Array.isArray(payload.outline) ? payload.outline : [];
+  if (outline.length === 0) throw new Error("approval has no series outline");
+
+  const created: string[] = [];
+  const failures: string[] = [];
+
+  for (let i = 0; i < outline.length; i++) {
+    const brief = outline[i];
+    try {
+      const drafted = await draftPost({
+        db,
+        clientId: row.client_id,
+        clientName: client.name,
+        domain: client.domain,
+        clientType: (client as { client_type?: string | null }).client_type ?? null,
+        examples,
+        brief,
+        week: i + 1,
+        sourcePost: payload.sourceContent ?? null,
+      });
+
+      const body = [drafted.caption, drafted.hashtags.join(" ")].filter(Boolean).join("\n\n");
+
+      const res = await createDraft(token, {
+        content: body,
+        accountIds: accounts.map((a) => a.id),
+        name: `${row.title} — week ${i + 1}`.slice(0, 100),
+      });
+
+      created.push(`week ${i + 1}${res.id ? ` (${res.id})` : ""}`);
+    } catch (e) {
+      failures.push(`week ${i + 1}: ${(e as Error).message.slice(0, 120)}`);
+    }
+  }
+
+  if (created.length === 0) {
+    throw new Error(`no drafts created — ${failures.join("; ")}`);
+  }
+
+  const base = `${created.length} unscheduled draft${created.length === 1 ? "" : "s"} created in PostFlow`;
+  return failures.length ? `${base}; ${failures.length} failed (${failures.join("; ")})` : base;
 }
 
 async function fail(db: ReturnType<typeof dbClient>, id: string, detail: string) {
