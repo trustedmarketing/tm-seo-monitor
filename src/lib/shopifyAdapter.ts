@@ -414,3 +414,40 @@ export async function connect(
 ): Promise<string> {
   return mintToken(shopDomain, clientId, clientSecret);
 }
+
+
+/**
+ * Product titles, for content planning.
+ *
+ * listContent() returns PAGES, which is right for SEO work and wrong here: it
+ * produced a content plan promising to "feature Contact in the situation it was
+ * made for". A catalogue source has to list the catalogue.
+ */
+export async function listProducts(
+  shopDomain: string,
+  token: string,
+  limit = 30
+): Promise<{ title: string; description: string | null }[]> {
+  if (mockApis()) {
+    return [{ title: "Mock Product", description: "A mock product for planning." }];
+  }
+
+  const data = await gql<{
+    products: { nodes: { title: string; description: string | null; status: string }[] };
+  }>(
+    shopDomain,
+    token,
+    `query($n: Int!) {
+       products(first: $n, query: "status:active") {
+         nodes { title description status }
+       }
+     }`,
+    { n: Math.min(limit, 50) }
+  );
+
+  return (data?.products?.nodes ?? [])
+    // Only what is actually for sale. Planning a month around a draft product is
+    // planning around something the audience cannot buy.
+    .filter((p) => p.status === "ACTIVE" && p.title?.trim())
+    .map((p) => ({ title: p.title.trim(), description: p.description?.slice(0, 300) ?? null }));
+}

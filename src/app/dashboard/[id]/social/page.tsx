@@ -18,6 +18,7 @@ import { readSecret } from "@/lib/vault";
 import { listSocialAccounts } from "@/lib/postflow";
 import { normaliseNetwork } from "@/lib/platformPlaybook";
 import { collectPendingImages } from "@/lib/collectImages";
+import { AutoRefresh } from "@/components/AutoRefresh";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
@@ -221,7 +222,7 @@ export default async function Social({
       <div style={{ maxWidth: 1180 }}>
         {/* Refresh only while something is actually generating. A page that
             reloads on a timer regardless is a page nobody can read. */}
-        {!!stillGenerating && <meta httpEquiv="refresh" content="20" />}
+        <AutoRefresh active={!!stillGenerating} seconds={15} />
         <ClientHeader
           id={params.id} name={client.name} domain={client.domain} tier={client.tier}
           clientType={type} active="social" pending={pending ?? 0}

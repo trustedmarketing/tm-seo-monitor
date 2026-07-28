@@ -30,7 +30,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { playbookFor, formatSequence, defaultCadence, normaliseNetwork, type Format } from "@/lib/platformPlaybook";
 import { readSecret } from "@/lib/vault";
-import { connect as shopifyConnect, listContent as shopifyList } from "@/lib/shopifyAdapter";
+import { connect as shopifyConnect, listProducts as shopifyList } from "@/lib/shopifyAdapter";
 import { listSocialAccounts } from "@/lib/postflow";
 
 export type PlanItem = {
@@ -289,8 +289,10 @@ export async function buildPlan(
       const secret = await readSecret(db, store.auth_ref);
       if (secret) {
         const token = await shopifyConnect(store.domain, store.api_client_id, secret);
-        const content = await shopifyList(store.domain, token, 30);
-        products = content.map((c) => c.title).filter(Boolean)
+        // Products, not pages. Listing pages produced a plan slot promising to
+        // "feature Contact in the situation it was made for".
+        const catalogue = await shopifyList(store.domain, token, 30);
+        products = catalogue.map((c) => c.title).filter(Boolean)
           .filter((t) => !used.has(`p:${t}`)).slice(0, 20);
       }
     }
