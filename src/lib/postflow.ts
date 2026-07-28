@@ -16,6 +16,8 @@ import { mockApis, readFixture } from "@/lib/apiMock";
 import { findArray } from "@/lib/apiShape";
 
 const BASE = process.env.POSTFLOW_API_URL ?? "https://api.postflow.app/v1";
+/** Media is a separate service on its own host, not a path under the posts API. */
+const MEDIA_BASE = process.env.POSTFLOW_MEDIA_URL ?? "https://media.postflow.app/api/v1";
 
 export type PostFlowPost = {
   externalId: string;
@@ -323,33 +325,46 @@ export async function createDraft(
 /**
  * Hand PostFlow a remote image URL and get a media id back.
  *
- * /upload-url-sync rather than /upload: Bloom returns a URL, so there is no
- * reason to pull bytes through our server just to push them out again.
+ * Every detail below comes from their OpenAPI spec (docs/public/media.json),
+ * because the version I wrote from inference was wrong in four ways at once:
  *
- * The response shape is not documented publicly (the reference page 404s), so
- * this looks for an id in the places vendors put one and reports the raw payload
- * when it finds none. Guessing a shape has cost three fixes on this API already.
+ *   host   media.postflow.app/api/v1  — a SEPARATE service from the posts API,
+ *                                        not the same /v1 host
+ *   path   /upload/url/sync            — not /upload-url-sync
+ *   field  file_url                    — not url
+ *   result MediaData with `id`         — not media_id on this endpoint
+ *
+ * Four guesses, four wrong, and the post shipped without its artwork while every
+ * layer reported success. Reading the spec took two minutes.
  */
 export async function uploadMediaFromUrl(token: string, url: string): Promise<{ id: string | null }> {
   if (mockApis()) return { id: "mock-media-1" };
 
-  const res = await fetch(`${BASE}/upload-url-sync`, {
+  const res = await fetch(`${MEDIA_BASE}/upload/url/sync`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ file_url: url }),
   });
 
+  if (res.status === 422) {
+    // Their documented meaning for this code, and a genuinely different problem
+    // from an auth or server failure: the image could not be fetched or is a
+    // type they will not take.
+    throw new Error(
+      `PostFlow could not download that image, or will not accept the file type: ${url}`
+    );
+  }
   if (!res.ok) {
     throw new Error(`PostFlow media upload failed ${res.status}: ${(await res.text()).slice(0, 200)}`);
   }
 
   const body = await res.json();
-  const id =
-    body?.data?.id ?? body?.id ?? body?.media?.id ?? body?.data?.media_id ?? body?.media_id ?? null;
+  // MediaData.id per the spec; the alternatives are belt and braces only.
+  const id = body?.id ?? body?.data?.id ?? body?.media_id ?? body?.data?.media_id ?? null;
 
   if (id == null) {
     throw new Error(

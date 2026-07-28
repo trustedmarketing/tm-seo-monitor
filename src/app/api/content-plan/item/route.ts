@@ -318,7 +318,7 @@ async function sendToPostFlow(
         await db.from("content_plan_items").update({ media_id: media.id }).eq("id", item.id as number);
       }
     } catch (e) {
-      mediaNote = ` (image failed: ${(e as Error).message.slice(0, 80)})`;
+      mediaNote = (e as Error).message.slice(0, 160);
     }
   }
 
@@ -336,6 +336,9 @@ async function sendToPostFlow(
     postflow_id: res.id, status: "sent",
   }).eq("id", item.id as number);
 
-  if (mediaNote) throw new Error(`Post sent without its image${mediaNote}`);
+  // The post landed, so the slot is correctly marked sent — but a post that
+  // shipped without its artwork is not a success, and saying nothing is how
+  // twelve of them reach PostFlow bare before anyone notices.
+  if (mediaNote) throw new Error(`Sent, but WITHOUT the image: ${mediaNote}`);
   return true;
 }
