@@ -149,6 +149,47 @@ and it needs its own deadline.
   `approvals` table carrying the SLA clock, decline reason + 60-day suppression, `requires_role` for
   locked cards, a `failed` status, and a unique idempotency key.
 
+## WO-003 Wave 2 — core PROVEN end to end on a live store (2026-07-28)
+
+**The loop closed for the first time.** A change the platform proposed was approved by a human and
+written to a real Shopify store, with a full record:
+
+| | |
+|---|---|
+| Approval card | `published`, `attempt: 1` — claimed exactly once, so the race protection held |
+| Shopify | Both change types verified live on `getsaltydog.com/pages/test-page` |
+| Audit log | 4 immutable rows (stage + publish × 2), attributed, with before/after values |
+| Change ledger | 2 rows, `verdict: null` — awaiting 28-day measurement |
+
+- ✅ **Stream E-S · `shopifyAdapter`** — stage / publish / revert / preflight. **Staging inverts on
+  Shopify:** there is no staging environment for content, so the proposed change lives in
+  `approvals.payload` until approved and the store is touched only on yes. Stronger than a staging
+  site — no staged state on the client's property to drift or publish by accident.
+  `publish()` and `revert()` default to `dryRun: true`.
+- ✅ **Stream D · Approval Card + `lib/textDiff.ts`** — word-level diff, hand-rolled and tested for
+  exact reassembly. **For content changes the diff IS the evidence**, which sidesteps the Shopify
+  screenshot block entirely for this class. SERP truncation warnings (60/155). Punch list #2
+  (failed state keeps the card in the queue with the real error), #5 (role-locked cards visible and
+  explained), #7 (per-card freshness).
+- ✅ **`/api/approvals`** — authorise → **claim atomically** → execute → record → audit. The claim is
+  a conditional update only one caller can win, so a double click cannot publish twice.
+- ✅ **Stream N · ops diagnostics** — `ga4-check`, `shopify-check`, `screenshot-check`,
+  `stage-change`. These caught **four** silent failures in two days: a wrong GA4 property ID, a
+  blocked host, a scope change that had not taken effect, and a wrong GraphQL field.
+
+### Two real defects the live test surfaced
+1. **Shopify page/article SEO lives in metafields**, not a `seo` field — Products and Collections
+   have one, Pages do not. Caught by the read-only probe before any UI was built on it.
+2. **`page_title` (the H1) did not exist as a change type**, and the card labelled the SEO title
+   ambiguously. A card that changes one field and reads like another is a trap. Both fixed; labels
+   now use Shopify's own wording.
+
+### Remaining in Wave 2
+- WordPress adapter (Stream E-W) for local-service clients
+- Changes-log screen + undo/revert as a UI action (punch list #1)
+- Recommendations engine feeding cards automatically instead of manual staging
+- Bulk approve with client isolation (#8), SLA escalation (#9)
+
 ## Next (unblocked, not started)
 - Scale Shopify + Meta wiring across the remaining clients.
 - `recSync`: stop auto-resolving human-**approved** recommendations (flagged bug).
