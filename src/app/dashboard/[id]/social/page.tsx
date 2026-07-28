@@ -179,12 +179,41 @@ export default async function Social({
     .from("content_plans").select("id").eq("client_id", params.id);
   const planIdList = (planRows ?? []).map((p: { id: number }) => p.id);
 
-  const { count: stillGenerating } = planIdList.length
+  const { count: itemsGenerating } = planIdList.length
     ? await svc.from("content_plan_items")
         .select("id", { count: "exact", head: true })
         .in("plan_id", planIdList)
         .eq("image_status", "generating")
     : { count: 0 };
+
+  // Slides generate independently, so the page has to keep refreshing for those
+  // too — otherwise a carousel stops updating the moment its cover lands.
+  const { data: itemIdRows } = planIdList.length
+    ? await svc.from("content_plan_items").select("id").in("plan_id", planIdList)
+    : { data: [] };
+  const itemIdList = (itemIdRows ?? []).map((r: { id: number }) => r.id);
+
+  const { count: slidesGenerating } = itemIdList.length
+    ? await svc.from("content_plan_slides")
+        .select("id", { count: "exact", head: true })
+        .in("item_id", itemIdList)
+        .eq("image_status", "generating")
+    : { count: 0 };
+
+  const stillGenerating = (itemsGenerating ?? 0) + (slidesGenerating ?? 0);
+
+  // Slides for every item on screen, fetched once rather than per card.
+  const { data: allSlides } = itemIdList.length
+    ? await svc.from("content_plan_slides")
+        .select("id, item_id, position, headline, body, image_url, image_status, image_error")
+        .in("item_id", itemIdList).order("position")
+    : { data: [] };
+
+  const slidesByItem = new Map<number, Record<string, unknown>[]>();
+  for (const sl of (allSlides ?? []) as Record<string, unknown>[]) {
+    const k = sl.item_id as number;
+    slidesByItem.set(k, [...(slidesByItem.get(k) ?? []), sl]);
+  }
 
   const rawMsg = searchParams.msg ?? "";
   const planMsg = rawMsg.startsWith("built:")
@@ -391,7 +420,8 @@ export default async function Social({
 
                 <div>
                   {slots.map((it) => (
-                    <PlanSlot key={it.id as number} item={it as never} clientId={params.id} />
+                    <PlanSlot key={it.id as number} item={it as never} clientId={params.id}
+                              slides={(slidesByItem.get(it.id as number) ?? []) as never} />
                   ))}
                 </div>
 

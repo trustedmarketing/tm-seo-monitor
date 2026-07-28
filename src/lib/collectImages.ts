@@ -107,5 +107,77 @@ export async function collectPendingImages(
     }
   }
 
+  collected += await collectPendingSlides(db, planIds, key, brandId);
+  return collected;
+}
+
+/**
+ * The same collection, for carousel slides.
+ *
+ * Separate table, identical problem: a generation that finished has to reach the
+ * slide without anyone pressing anything. Kept as its own pass rather than
+ * generalised, because the two rows differ in enough columns that a shared
+ * version would be mostly branching.
+ */
+async function collectPendingSlides(
+  db: SupabaseClient,
+  planIds: number[],
+  key: string,
+  brandId: string
+): Promise<number> {
+  const { data: items } = await db
+    .from("content_plan_items").select("id").in("plan_id", planIds);
+  const itemIds = (items ?? []).map((i: { id: number }) => i.id);
+  if (itemIds.length === 0) return 0;
+
+  const { data: pending, error } = await db
+    .from("content_plan_slides")
+    .select("id, bloom_image_id, image_requested_at, image_prompt")
+    .in("item_id", itemIds)
+    .eq("image_status", "generating")
+    .limit(24);
+
+  if (error) throw new Error(`could not read pending slides: ${error.message}`);
+
+  let collected = 0;
+
+  for (const raw of (pending ?? []) as Row[]) {
+    const requested = raw.image_requested_at ? new Date(raw.image_requested_at).getTime() : 0;
+
+    if (requested && Date.now() - requested > STALE_MS) {
+      await db.from("content_plan_slides")
+        .update({ image_status: "failed", bloom_image_id: null }).eq("id", raw.id);
+      continue;
+    }
+
+    try {
+      let imageId = raw.bloom_image_id;
+      if (!imageId) {
+        const found = await findStartedImage(
+          key, brandId, new Date(requested || Date.now()), raw.image_prompt ?? ""
+        );
+        if (!found) continue;
+        imageId = found.id;
+        await db.from("content_plan_slides").update({ bloom_image_id: imageId }).eq("id", raw.id);
+      }
+
+      const state = await checkImage(key, imageId);
+
+      if (state.status === "completed") {
+        await db.from("content_plan_slides").update({
+          image_url: state.imageUrl, image_status: "completed",
+          bloom_image_id: null, media_id: null, image_error: null,
+        }).eq("id", raw.id);
+        collected++;
+      } else if (state.status === "failed") {
+        await db.from("content_plan_slides")
+          .update({ image_status: "failed", bloom_image_id: null }).eq("id", raw.id);
+      }
+    } catch (e) {
+      await db.from("content_plan_slides")
+        .update({ image_error: (e as Error).message.slice(0, 300) }).eq("id", raw.id);
+    }
+  }
+
   return collected;
 }

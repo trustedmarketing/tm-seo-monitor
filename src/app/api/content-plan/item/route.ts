@@ -134,6 +134,73 @@ export async function POST(req: Request) {
     }
   }
 
+  // ── generate one slide's artwork ───────────────────────────────────────────
+  // Separate from the post-level generate because a carousel slide has its own
+  // headline and its own subject: "slide 4 is wrong" must be fixable without
+  // regenerating five images that were fine.
+  if (action === "generate-slide") {
+    const slideId = Number(form.get("slide_id"));
+    if (!slideId) return back(req, clientId, "unknown-action");
+
+    try {
+      const { data: slide } = await db
+        .from("content_plan_slides").select("id, position, headline, body").eq("id", slideId).maybeSingle();
+      if (!slide) return back(req, clientId, "item-not-found");
+
+      const { data: client } = await db
+        .from("clients").select("bloom_brand_id").eq("id", clientId).single();
+      if (!client?.bloom_brand_id) throw new Error("no Bloom brand id set for this client");
+
+      const key = await readSecret(db, "bloom");
+      if (!key) throw new Error("no Bloom key stored");
+
+      const ratio = aspectFor(
+        item.platform ? String(item.platform) : null,
+        item.format ? String(item.format) : null
+      );
+
+      const prompt = imagePromptFor({
+        brief: `${slide.body || slide.headline}`,
+        caption: null,
+        format: "carousel",
+        headline: slide.headline,
+        aspectRatio: ratio,
+        steer: String(form.get("steer") ?? "").trim() || null,
+      });
+
+      await db.from("content_plan_slides").update({
+        image_status: "generating", image_prompt: prompt,
+        image_requested_at: new Date().toISOString(), image_error: null,
+      }).eq("id", slideId);
+
+      const imageId = await startImage(key, client.bloom_brand_id, prompt, ratio);
+      if (imageId) {
+        await db.from("content_plan_slides").update({ bloom_image_id: imageId }).eq("id", slideId);
+      }
+
+      return back(req, clientId, "image-started");
+    } catch (e) {
+      await db.from("content_plan_slides")
+        .update({ image_status: "failed", image_error: (e as Error).message.slice(0, 300) })
+        .eq("id", slideId);
+      return back(req, clientId, "send-problem");
+    }
+  }
+
+  // ── attach a slide image by URL ────────────────────────────────────────────
+  if (action === "slide-image") {
+    const slideId = Number(form.get("slide_id"));
+    const url = normaliseImageUrl(String(form.get("image_url") ?? ""));
+    if (!slideId || !url) return back(req, clientId, "empty-image");
+    if (!/^https:\/\//i.test(url)) return back(req, clientId, "image-not-https");
+
+    await db.from("content_plan_slides").update({
+      image_url: url, image_status: "completed",
+      bloom_image_id: null, media_id: null, image_error: null,
+    }).eq("id", slideId);
+    return back(req, clientId, "image-saved");
+  }
+
   // ── collect a finished generation ──────────────────────────────────────────
   if (action === "check-image") {
     if (item.image_status !== "generating") return back(req, clientId, "nothing-generating");
@@ -218,7 +285,10 @@ export async function POST(req: Request) {
     // Instagram will not accept a post without media, and TikTok needs video.
     // Sending anyway produces a draft nobody can publish, which is worse than
     // not sending: it looks done in our queue and is broken in theirs.
-    if (!item.image_url && requiresMedia(item.platform ? String(item.platform) : null)) {
+    // For a carousel the slides are the media, so the post-level image is not
+    // what decides whether it can ship.
+    const isCarousel = String(item.format ?? "").toLowerCase() === "carousel";
+    if (!isCarousel && !item.image_url && requiresMedia(item.platform ? String(item.platform) : null)) {
       return back(req, clientId, "needs-image");
     }
     try {
@@ -291,6 +361,20 @@ export async function POST(req: Request) {
       headline: drafted.headline, status: "drafted",
     }).eq("id", itemId);
 
+    // Slides are replaced wholesale on a redraft. Keeping old ones would leave
+    // artwork attached to points the new copy no longer makes.
+    if (drafted.slides.length > 0) {
+      await db.from("content_plan_slides").delete().eq("item_id", itemId);
+      await db.from("content_plan_slides").insert(
+        drafted.slides.map((sl, idx) => ({
+          item_id: itemId,
+          position: idx,
+          headline: sl.headline,
+          body: sl.body || null,
+        }))
+      );
+    }
+
     return back(req, clientId, steer ? "regenerated" : "item-drafted");
   } catch (e) {
     await db.from("content_plan_items").update({ status: "failed" }).eq("id", itemId);
@@ -337,17 +421,44 @@ async function sendToPostFlow(
     );
   }
 
+  // A carousel's slides ARE its media, in order. Everything else has one image.
+  const { data: slideRows } = await db
+    .from("content_plan_slides")
+    .select("id, position, image_url, media_id")
+    .eq("item_id", item.id as number)
+    .order("position");
+
+  const slides = (slideRows ?? []) as { id: number; position: number; image_url: string | null; media_id: string | null }[];
+
   let mediaIds: string[] = [];
   let mediaNote = "";
-  if (item.image_url) {
+
+  const sources = slides.length
+    ? slides.map((sl) => ({ url: sl.image_url, slideId: sl.id, position: sl.position }))
+    : [{ url: (item.image_url as string) ?? null, slideId: null as number | null, position: 0 }];
+
+  // A carousel missing a slide in the MIDDLE would publish in the wrong order,
+  // so a gap stops the upload rather than silently shifting everything up.
+  const missing = sources.filter((s) => !s.url).map((s) => s.position + 1);
+  if (slides.length && missing.length) {
+    throw new Error(`Slides ${missing.join(", ")} have no artwork yet. A carousel cannot ship with gaps.`);
+  }
+
+  for (const src of sources) {
+    if (!src.url) continue;
     try {
-      const media = await uploadMediaFromUrl(token, String(item.image_url));
+      const media = await uploadMediaFromUrl(token, src.url);
       if (media.id) {
-        mediaIds = [media.id];
-        await db.from("content_plan_items").update({ media_id: media.id }).eq("id", item.id as number);
+        mediaIds.push(media.id);
+        if (src.slideId) {
+          await db.from("content_plan_slides").update({ media_id: media.id }).eq("id", src.slideId);
+        } else {
+          await db.from("content_plan_items").update({ media_id: media.id }).eq("id", item.id as number);
+        }
       }
     } catch (e) {
-      mediaNote = (e as Error).message.slice(0, 160);
+      mediaNote = `slide ${src.position + 1}: ${(e as Error).message.slice(0, 200)}`;
+      break;   // stop rather than send a partial carousel
     }
   }
 

@@ -22,6 +22,8 @@ export type DraftedPost = {
   /** Two to four words for the artwork. Written here so the image has a real
    *  hook rather than the image model reaching for the post's first sentence. */
   headline: string;
+  /** Carousel slides, cover first. Empty for any other format. */
+  slides: { headline: string; body: string }[];
 };
 
 const SCHEMA = {
@@ -42,8 +44,23 @@ const SCHEMA = {
         "Two to four words for the image overlay. A claim or a contrast, not a question. " +
         "Examples of the right shape: 'DISSOLVES THE SALT', 'BUILT FOR SALT', 'DULL VS GLEAMING'.",
     },
+    slides: {
+      type: "array",
+      description:
+        "Carousel slides only. The first is the cover and repeats the headline. Each later " +
+        "slide is one point. Empty array for any format that is not a carousel.",
+      items: {
+        type: "object",
+        properties: {
+          headline: { type: "string", description: "Two to five words, set large on the slide." },
+          body: { type: "string", description: "One short sentence. Optional, may be empty." },
+        },
+        required: ["headline", "body"],
+        additionalProperties: false,
+      },
+    },
   },
-  required: ["caption", "hashtags", "headline"],
+  required: ["caption", "hashtags", "headline", "slides"],
   additionalProperties: false,
 } as const;
 
@@ -62,9 +79,11 @@ function systemPrompt(args: {
   network?: string | null;
   coreHashtags?: string[];
   monthContext?: string | null;
+  format?: string | null;
 }): string {
-  const { clientName, domain, clientType, examples, network, coreHashtags, monthContext } = args;
+  const { clientName, domain, clientType, examples, network, coreHashtags, monthContext, format } = args;
   const book = playbookFor(network);
+  const isCarousel = (format ?? "").toLowerCase() === "carousel";
 
   return [
     `You write organic social captions for ${clientName} (${domain}).`,
@@ -84,6 +103,25 @@ function systemPrompt(args: {
     "- Open with the substance. No 'Did you know' or 'In today's world'.",
     "- One clear idea per post. Length to suit the platform, not to fill space.",
     "",
+    // A carousel is a different deliverable, not a longer caption. Saying so
+    // here is what stops the copy promising slides that do not exist.
+    isCarousel
+      ? [
+          "This is a CAROUSEL. Return `slides`:",
+          "- The first slide is the cover and carries the same headline as the artwork.",
+          "- Then one slide per point, four to six in total including the cover.",
+          "- Each slide headline is two to five words. The body is one short sentence or empty.",
+          "- The caption should complement the slides, not repeat them. It can say",
+          "  'swipe through' because the slides genuinely exist.",
+          "",
+        ].join("\n")
+      : [
+          "This is NOT a carousel. Return `slides` as an empty array, and do not",
+          "invite anyone to swipe or refer to slides in the caption — there is only",
+          "one image.",
+          "",
+        ].join("\n"),
+
     "Also give a HEADLINE for the artwork:",
     "- Two to four words. It gets set large across the image, so length is the constraint.",
     "- A claim or a contrast, never a question. A question set in type reads as an ad asking",
@@ -156,6 +194,8 @@ export async function draftPost(args: {
   network?: string | null;
   /** What the business has on this month, for awareness rather than promotion. */
   monthContext?: string | null;
+  /** Post format, so a carousel is written as slides rather than a long caption. */
+  format?: string | null;
   /** The client's standing tags. Consistency is the point of a hashtag set. */
   coreHashtags?: string[];
 }): Promise<DraftedPost> {
@@ -170,7 +210,10 @@ export async function draftPost(args: {
     .filter(Boolean)
     .join("\n");
 
-  const { value } = await generate<{ caption: string; hashtags: string[]; headline: string }>({
+  const { value } = await generate<{
+    caption: string; hashtags: string[]; headline: string;
+    slides?: { headline: string; body: string }[];
+  }>({
     db,
     feature: "social_caption",
     clientId,
@@ -201,10 +244,19 @@ export async function draftPost(args: {
     .slice(0, 4)
     .join(" ");
 
+  const isCarousel = (args.format ?? "").toLowerCase() === "carousel";
+  const slides = isCarousel
+    ? (value.slides ?? [])
+        .filter((s) => s?.headline?.trim())
+        .slice(0, 6)
+        .map((s) => ({ headline: s.headline.trim(), body: (s.body ?? "").trim() }))
+    : [];
+
   return {
     week,
     brief,
     headline,
+    slides,
     caption: value.caption.trim(),
     // Standing tags first, then this post's own, capped so the block stays readable.
     hashtags: [...core, ...extras].slice(0, 8),

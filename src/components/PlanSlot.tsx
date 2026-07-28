@@ -70,7 +70,14 @@ function Hidden({ clientId, itemId, action }: { clientId: string; itemId: number
   );
 }
 
-export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
+type Slide = {
+  id: number; position: number; headline: string | null; body: string | null;
+  image_url: string | null; image_status: string | null; image_error: string | null;
+};
+
+export function PlanSlot(
+  { item, clientId, slides = [] }: { item: Item; clientId: string; slides?: Slide[] }
+) {
   const src = SOURCE[(item.theme ?? "Evergreen angle") as keyof typeof SOURCE] ?? SOURCE["Evergreen angle"];
   const sent = item.status === "sent";
   const declined = !!item.declined_at;
@@ -79,7 +86,13 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
   // an id for it, which is exactly the case that produced a silently empty slot.
   const generating = item.image_status === "generating";
   const aspect = aspectFor(item.platform, item.format);
-  const blockedForMedia = !item.image_url && requiresMedia(item.platform);
+  const isCarousel = (item.format ?? "").toLowerCase() === "carousel";
+  // For a carousel the SLIDES are the media. Judging it by the post-level image
+  // would block a complete carousel and pass an empty one.
+  const slidesReady = slides.length > 0 && slides.every((sl) => sl.image_url);
+  const blockedForMedia = isCarousel
+    ? !slidesReady
+    : !item.image_url && requiresMedia(item.platform);
 
   // A headline, not a sentence of instructions. The brief carries "Platform: x.
   // Format: y." for the model's benefit; a human already has that in the eyebrow.
@@ -170,7 +183,7 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
         <div style={{ display: "flex", gap: 26, padding: "20px 22px", flexWrap: "wrap" }}>
 
           {/* ── image ────────────────────────────────────────────────────── */}
-          <div style={{ width: 250 }}>
+          <div style={{ width: 250, display: isCarousel ? "none" : "block" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
               <span style={EYEBROW}>Image</span>
               {/* Stated up front, because someone sourcing their own needs it
@@ -285,6 +298,65 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
             )}
           </div>
 
+          {/* ── slides ───────────────────────────────────────────────────── */}
+          {/* A carousel's real deliverable. Each slide regenerates on its own,
+              because "slide 4 is wrong" must not cost five images that were fine. */}
+          {isCarousel && slides.length > 0 && (
+            <div style={{ flexBasis: "100%", order: 3, marginTop: 16 }}>
+              <div style={{ ...EYEBROW, marginBottom: 10 }}>
+                Slides · {slides.filter((s) => s.image_url).length} of {slides.length} with artwork
+              </div>
+
+              <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>
+                {slides.map((sl) => (
+                  <div key={sl.id} style={{ width: 170, flexShrink: 0 }}>
+                    {sl.image_status === "generating" ? (
+                      <div style={{
+                        width: "100%", aspectRatio: "4/5", borderRadius: 10,
+                        border: "1px dashed var(--border-strong)", display: "flex",
+                        alignItems: "center", justifyContent: "center",
+                        fontSize: 12, color: "var(--fg3)",
+                      }}>Generating…</div>
+                    ) : sl.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={sl.image_url} alt="" style={{
+                        width: "100%", borderRadius: 10, display: "block",
+                        border: "1px solid var(--border)",
+                      }} />
+                    ) : (
+                      <div style={{
+                        width: "100%", aspectRatio: "4/5", borderRadius: 10,
+                        border: "1px dashed var(--border-strong)", display: "flex",
+                        alignItems: "center", justifyContent: "center",
+                        fontSize: 12, color: sl.image_error ? "var(--danger)" : "var(--fg3)",
+                        textAlign: "center", padding: 8,
+                      }}>{sl.image_error ? "Failed" : "No image"}</div>
+                    )}
+
+                    <div style={{ fontSize: 11.5, fontWeight: 700, marginTop: 6, color: "var(--fg1)" }}>
+                      {sl.position === 0 ? "Cover · " : `${sl.position}. `}{sl.headline}
+                    </div>
+                    {sl.body && (
+                      <div style={{ fontSize: 11.5, color: "var(--fg3)", marginTop: 2, lineHeight: 1.4 }}>
+                        {sl.body}
+                      </div>
+                    )}
+
+                    {!sent && sl.image_status !== "generating" && (
+                      <form action="/api/content-plan/item" method="post" style={{ marginTop: 6 }}>
+                        <Hidden clientId={clientId} itemId={item.id} action="generate-slide" />
+                        <input type="hidden" name="slide_id" value={sl.id} />
+                        <button type="submit" style={{ ...BTN(!sl.image_url), width: "100%", padding: "6px 10px", fontSize: 12 }}>
+                          {sl.image_url ? "Redo" : "Generate"}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* ── copy ─────────────────────────────────────────────────────── */}
           <div style={{ flex: 1, minWidth: 340 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
@@ -353,7 +425,13 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
           <div style={{ fontSize: 12.5, color: "var(--fg3)", lineHeight: 1.5 }}>
             Goes to the {item.platform} account only, as an unscheduled draft.
             Nothing posts until someone schedules it.
-            {blockedForMedia && (
+            {blockedForMedia && isCarousel && (
+              <><br /><span style={{ color: "var(--danger)" }}>
+                Every slide needs artwork before this can ship. A carousel with a gap
+                publishes in the wrong order.
+              </span></>
+            )}
+            {blockedForMedia && !isCarousel && (
               // A hard stop rather than a warning: a text-only post sent to
               // Instagram lands unpublishable — done in our queue, broken in
               // theirs — which is worse than not sending it.
