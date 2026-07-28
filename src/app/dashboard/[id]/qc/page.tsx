@@ -27,10 +27,28 @@ const SEV: Record<Severity, { fg: string; bg: string; edge: string; label: strin
   low:      { fg: "var(--fg3)", bg: "transparent", edge: "var(--border)", label: "Low" },
 };
 
-export default async function Qc({ params }: { params: { id: string } }) {
+const MSG: Record<string, string> = {
+  started: "Crawl queued. It usually takes a few minutes — press Check for results when you are ready.",
+  "still-running": "Still crawling. Give it a minute and check again.",
+  done: "Crawl complete. Results below.",
+  "done-critical": "Crawl complete — critical issues found, and a Slack alert has already gone out.",
+  "already-running": "A crawl is already in progress for this client.",
+  cooldown: "A crawl ran here recently. Crawls cost money, so manual runs are limited to one every six hours.",
+  "nothing-running": "No crawl is in progress.",
+  failed: "Could not queue the crawl. Check the domain is reachable.",
+};
+
+export default async function Qc({
+  params, searchParams,
+}: {
+  params: { id: string };
+  searchParams: { msg?: string };
+}) {
   const db = userClient();
   const { data: client } = await db
-    .from("clients").select("id, name, domain, tier, client_type, last_crawl_at").eq("id", params.id).single();
+    .from("clients")
+    .select("id, name, domain, tier, client_type, last_crawl_at, onpage_task_id, onpage_task_started_at, onpage_task_by")
+    .eq("id", params.id).single();
   if (!client) redirect("/dashboard");
 
   const type = ((client as { client_type?: string }).client_type ?? null) as ClientType;
@@ -45,6 +63,10 @@ export default async function Qc({ params }: { params: { id: string } }) {
 
   const scans = (scanRows ?? []) as Scan[];
   const latest = scans[0];
+  const running = !!(client as { onpage_task_id?: string | null }).onpage_task_id;
+  const startedAt = (client as { onpage_task_started_at?: string | null }).onpage_task_started_at;
+  const startedBy = (client as { onpage_task_by?: string | null }).onpage_task_by;
+  const msg = searchParams.msg ? MSG[searchParams.msg] : null;
   const issues = latest ? classifyChecks(latest.checks) : [];
   const counts = issueCounts(issues);
   const prev = scans[1];
@@ -59,6 +81,42 @@ export default async function Qc({ params }: { params: { id: string } }) {
             ? `Last crawl ${new Date(latest.scanned_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · ${latest.pages_crawled} pages`
             : "No crawl recorded yet"}
         />
+
+        {msg && (
+          <div style={{
+            padding: "12px 16px", borderRadius: 8, background: "#fff",
+            border: "1px solid var(--border)", fontSize: 14, marginBottom: 20, maxWidth: 860,
+          }}>{msg}</div>
+        )}
+
+        {/* Run a crawl on demand: confirm a change took effect, or check a site
+            the moment it launches. Rate limited because each one costs money. */}
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 26 }}>
+          {running ? (
+            <>
+              <form action="/api/qc/scan" method="post">
+                <input type="hidden" name="client_id" value={params.id} />
+                <input type="hidden" name="action" value="refresh" />
+                <button type="submit" style={btnStyle(true)}>Check for results</button>
+              </form>
+              <span style={{ fontSize: 12.5, color: "var(--fg3)" }}>
+                Crawling since {startedAt ? new Date(startedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "recently"}
+                {startedBy ? ` · started by ${startedBy}` : ""}
+              </span>
+            </>
+          ) : (
+            <>
+              <form action="/api/qc/scan" method="post">
+                <input type="hidden" name="client_id" value={params.id} />
+                <input type="hidden" name="action" value="start" />
+                <button type="submit" style={btnStyle(false)}>Run scan now</button>
+              </form>
+              <span style={{ fontSize: 12.5, color: "var(--fg3)" }}>
+                Crawls cost money, so manual runs are limited to one every six hours.
+              </span>
+            </>
+          )}
+        </div>
 
         {!latest ? (
           <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 12, padding: "32px 28px", maxWidth: 700 }}>
@@ -149,6 +207,16 @@ export default async function Qc({ params }: { params: { id: string } }) {
       </div>
     </main>
   );
+}
+
+function btnStyle(primary: boolean): React.CSSProperties {
+  return {
+    fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13.5,
+    padding: "10px 16px", borderRadius: 8, cursor: "pointer",
+    border: primary ? "none" : "1px solid var(--border-strong)",
+    background: primary ? "var(--tm-performance-green)" : "#fff",
+    color: "#080808",
+  };
 }
 
 function Stat({ label, value, sub, delta, danger }: {
