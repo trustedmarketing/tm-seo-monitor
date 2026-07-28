@@ -96,6 +96,12 @@ export default async function Social({
   const rawMsg = searchParams.msg ?? "";
   const planMsg = rawMsg.startsWith("built:")
     ? `Plan built: ${rawMsg.split(":")[1]} posts. Review below, then approve.`
+    : rawMsg.startsWith("item-failed:")
+    // Carry the actual error through. The first version replaced it with a
+    // generic line, which turned a fixable problem into a mystery.
+    ? `Could not draft that slot: ${decodeURIComponent(rawMsg.slice("item-failed:".length))}`
+    : rawMsg.startsWith("build-failed:")
+    ? `Could not build a plan: ${decodeURIComponent(rawMsg.slice("build-failed:".length))}`
     : PLAN_MSG[rawMsg.split(":")[0]] ?? null;
 
   const posts = (postRows ?? []) as Post[];

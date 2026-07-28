@@ -203,16 +203,40 @@ export async function ping(token: string, groupId: string): Promise<{ ok: boolea
 
 export type SocialAccount = { id: string; name: string | null; network: string | null };
 
-/** Accounts a group publishes to — needed to target a draft. */
+/**
+ * Accounts a group publishes to — needed to target a draft.
+ *
+ * `/social-accounts` takes NO group filter: it returns every account the token
+ * can see, each carrying its own `group_id`. Filtering happens here. The first
+ * version passed `groupId` as a query param and read `social_network`; both were
+ * guesses, and both were wrong — the field is `socialNetwork`.
+ */
 export async function listSocialAccounts(token: string, groupId: string): Promise<SocialAccount[]> {
   if (mockApis()) return [{ id: "mock-acct", name: "Mock IG", network: "instagram" }];
 
-  const body = await get<{ data?: { id?: string | number; name?: string | null; social_network?: string | null }[] }>(
-    "/social-accounts", token, { groupId }
-  );
-  return (body.data ?? [])
-    .filter((a) => a.id != null)
-    .map((a) => ({ id: String(a.id), name: a.name ?? null, network: a.social_network ?? null }));
+  type Raw = {
+    id?: string | number; name?: string | null; custom_name?: string | null;
+    username?: string | null; socialNetwork?: string | null; group_id?: string | number | null;
+  };
+
+  const body = await get<{ data?: Raw[] }>("/social-accounts", token, {});
+  const all = body.data ?? [];
+
+  const inGroup = all.filter((a) => a.id != null && String(a.group_id ?? "") === String(groupId));
+
+  // A group with accounts we failed to match is worth distinguishing from a group
+  // with none, so the error names both numbers rather than just saying "empty".
+  if (inGroup.length === 0 && all.length > 0) {
+    throw new Error(
+      `No PostFlow accounts matched group ${groupId} (token can see ${all.length} account(s) across other groups)`
+    );
+  }
+
+  return inGroup.map((a) => ({
+    id: String(a.id),
+    name: a.custom_name ?? a.name ?? a.username ?? null,
+    network: a.socialNetwork ?? null,
+  }));
 }
 
 /**

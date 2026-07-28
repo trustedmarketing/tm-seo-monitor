@@ -14,9 +14,15 @@
 //   4. Evergreen angles for the client type. Used only to FILL, and labelled as
 //      such, so nobody mistakes a filler slot for an evidence-backed one.
 //
-// The order matters more than the contents. A planner that treats a generic
-// "customer story" idea as equal to a post that did 3x median is producing a
-// content calendar with a data-shaped veneer.
+// The order sets WEIGHT, not exhaustion order. An earlier version took the
+// highest available source until it ran out, which meant a client with thirty
+// tracked questions got twelve slots of nothing but questions — a technically
+// well-sourced month that reads as one idea repeated. Sources are now dealt
+// proportionally, so a month mixes.
+//
+// A planner that treats a generic "customer story" idea as equal to a post that
+// did 3x median is producing a content calendar with a data-shaped veneer. But a
+// planner that only ever uses its best source produces a monotonous one.
 //
 // A brand with NO social history is the normal case, not the edge case: it is
 // exactly when someone reaches for a planner. Levels 2 and 3 exist so that case
@@ -236,6 +242,56 @@ export async function buildPlan(
 
   const evergreen = EVERGREEN[(client.client_type as string) ?? "hybrid"] ?? EVERGREEN.hybrid;
 
+  /**
+   * Deal the sources across the month proportionally.
+   *
+   * Weights reflect how much each source is worth, capped by how much of it
+   * actually exists — proposing eight proven reworks when only two posts beat
+   * median would be inventing evidence. Whatever is left over goes to evergreen,
+   * which is unlimited by definition.
+   */
+  type Source = "proven" | "question" | "product" | "evergreen";
+  const WEIGHT: Record<Source, number> = { proven: 4, question: 3, product: 2, evergreen: 1 };
+  const available: Record<Source, number> = {
+    proven: proven.length,
+    question: questions.length,
+    product: products.length,
+    evergreen: Number.MAX_SAFE_INTEGER,
+  };
+
+  function dealSources(n: number): Source[] {
+    const order: Source[] = ["proven", "question", "product", "evergreen"];
+    const usableSources = order.filter((k) => available[k] > 0);
+    const totalWeight = usableSources.reduce((a, k) => a + WEIGHT[k], 0);
+
+    const quota: Record<string, number> = {};
+    let assigned = 0;
+    for (const k of usableSources) {
+      const want = Math.round((WEIGHT[k] / totalWeight) * n);
+      quota[k] = Math.min(want, available[k]);
+      assigned += quota[k];
+    }
+    // Evergreen absorbs any shortfall — it is the only source that cannot run dry.
+    quota.evergreen = (quota.evergreen ?? 0) + Math.max(0, n - assigned);
+
+    // Round-robin rather than blocks, so the month alternates instead of running
+    // four reworks and then four questions.
+    const out: Source[] = [];
+    while (out.length < n) {
+      let placed = false;
+      for (const k of usableSources) {
+        if ((quota[k] ?? 0) > 0 && out.length < n) {
+          out.push(k);
+          quota[k]--;
+          placed = true;
+        }
+      }
+      if (!placed) break;
+    }
+    while (out.length < n) out.push("evergreen");
+    return out;
+  }
+
   for (const network of usable) {
     const book = playbookFor(network);
     const count = network === usable[usable.length - 1]
@@ -245,18 +301,16 @@ export async function buildPlan(
 
     const formats = formatSequence(network, count);
     const dates = scheduleDates(monthStart, count, book?.bestDays ?? [2, 3, 4]);
+    const sources = dealSources(count);
 
     for (let i = 0; i < count; i++) {
       slot++;
-      const p = proven[provenCursor];
+      const source = sources[i];
 
-      // Roughly every other slot repeats something proven, while any remains.
-      // All-proven would be a month of one idea; none would ignore the evidence.
-      const useProven = p && i % 2 === 0;
-
-      // Then the client-specific sources, before falling back to generic angles.
-      const question = !useProven ? questions[questionCursor] : undefined;
-      const product = !useProven && !question ? products[productCursor] : undefined;
+      const p = source === "proven" ? proven[provenCursor] : undefined;
+      const useProven = !!p;
+      const question = source === "question" ? questions[questionCursor] : undefined;
+      const product = source === "product" ? products[productCursor] : undefined;
 
       if (useProven) {
         provenCursor++;
