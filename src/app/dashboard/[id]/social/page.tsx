@@ -192,18 +192,27 @@ export default async function Social({
                         <div style={{ fontSize: 14, color: "var(--fg1)" }}>{String(it.brief)}</div>
                         <div style={{ fontSize: 12, color: "var(--fg3)", marginTop: 3 }}>{String(it.why)}</div>
                       </div>
-                      {/* Evidence-backed slots are marked. A filler slot that looks
-                          identical to a proven one is how a calendar gets mistaken
-                          for a strategy. */}
-                      <div style={{
-                        fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-                        padding: "3px 8px", borderRadius: 999, whiteSpace: "nowrap",
-                        background: it.source_post_id ? "#E5FFB8" : "var(--bg)",
-                        color: it.source_post_id ? "#2F8F4E" : "var(--fg3)",
-                        border: `1px solid ${it.source_post_id ? "#C7E89A" : "var(--border)"}`,
-                      }}>
-                        {it.source_post_id ? "Proven" : "Evergreen"}
-                      </div>
+                      {/* Each slot says where it came from. A filler slot that
+                          looks identical to an evidence-backed one is how a
+                          calendar gets mistaken for a strategy. */}
+                      {(() => {
+                        const theme = String(it.theme ?? "");
+                        const style =
+                          theme === "Repeat what worked"
+                            ? { label: "Proven", fg: "#2F8F4E", bg: "#E5FFB8", edge: "#C7E89A" }
+                            : theme === "Answer a customer question"
+                            ? { label: "Customer ask", fg: "#2F6F8F", bg: "#E7F4FB", edge: "#BFDDEC" }
+                            : theme === "Show the product working"
+                            ? { label: "Catalogue", fg: "#7A5AA8", bg: "#F1EBFA", edge: "#DCCCF0" }
+                            : { label: "Evergreen", fg: "var(--fg3)", bg: "var(--bg)", edge: "var(--border)" };
+                        return (
+                          <div style={{
+                            fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
+                            padding: "3px 8px", borderRadius: 999, whiteSpace: "nowrap",
+                            background: style.bg, color: style.fg, border: `1px solid ${style.edge}`,
+                          }}>{style.label}</div>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>

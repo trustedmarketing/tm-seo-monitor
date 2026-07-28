@@ -7,16 +7,24 @@
 // ── Where the ideas come from, in priority order ─────────────────────────────
 //   1. THIS client's proven posts. A format that beat their own median is the
 //      strongest evidence available and it outranks everything else.
-//   2. The platform playbook. Mechanical and defensible: what the network
-//      rewards, what suppresses reach, which formats to mix.
-//   3. Evergreen angles for the client type. Used only to FILL, and labelled as
+//   2. The questions their customers actually ask (tracked_prompts). These were
+//      written as customer-voice questions for AI visibility, and a question a
+//      buyer asks is a post worth writing whether or not anyone has posted before.
+//   3. What they actually sell, read live from their store.
+//   4. Evergreen angles for the client type. Used only to FILL, and labelled as
 //      such, so nobody mistakes a filler slot for an evidence-backed one.
 //
 // The order matters more than the contents. A planner that treats a generic
 // "customer story" idea as equal to a post that did 3x median is producing a
 // content calendar with a data-shaped veneer.
+//
+// A brand with NO social history is the normal case, not the edge case: it is
+// exactly when someone reaches for a planner. Levels 2 and 3 exist so that case
+// produces something specific to the business rather than a page of filler.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { playbookFor, formatSequence, defaultCadence, type Format } from "@/lib/platformPlaybook";
+import { readSecret } from "@/lib/vault";
+import { connect as shopifyConnect, listContent as shopifyList } from "@/lib/shopifyAdapter";
 
 export type PlanItem = {
   slot: number;
@@ -187,12 +195,44 @@ export async function buildPlan(
         .sort((a, b) => b.multiple - a.multiple)
     : [];
 
+  // ── customer questions ─────────────────────────────────────────────────────
+  // Written for AEO, useful here for the same reason: they are the things buyers
+  // ask in their own words, which is the shortest route to a post that lands.
+  const { data: promptRows } = await db
+    .from("tracked_prompts").select("prompt").eq("client_id", clientId).eq("active", true).limit(30);
+  const questions = (promptRows ?? [])
+    .map((p: { prompt: string }) => p.prompt?.trim())
+    .filter(Boolean) as string[];
+
+  // ── what they sell ─────────────────────────────────────────────────────────
+  // Read live rather than from a table because we do not store a catalogue, and
+  // a failure here must degrade to the other sources rather than kill the plan.
+  let products: string[] = [];
+  try {
+    const { data: store } = await db
+      .from("client_stores").select("platform, domain, api_client_id, auth_ref")
+      .eq("client_id", clientId).eq("status", "active").maybeSingle();
+
+    if (store?.platform === "shopify" && store.auth_ref && store.api_client_id) {
+      const secret = await readSecret(db, store.auth_ref);
+      if (secret) {
+        const token = await shopifyConnect(store.domain, store.api_client_id, secret);
+        const content = await shopifyList(store.domain, token, 30);
+        products = content.map((c) => c.title).filter(Boolean).slice(0, 20);
+      }
+    }
+  } catch {
+    // Catalogue is a bonus source. Losing it is not a reason to fail the plan.
+  }
+
   // ── deal the slots ─────────────────────────────────────────────────────────
   const perNetwork = Math.max(1, Math.floor(target / usable.length));
   const items: PlanItem[] = [];
   let slot = 0;
   let provenCursor = 0;
   let evergreenCursor = 0;
+  let questionCursor = 0;
+  let productCursor = 0;
 
   const evergreen = EVERGREEN[(client.client_type as string) ?? "hybrid"] ?? EVERGREEN.hybrid;
 
@@ -214,6 +254,10 @@ export async function buildPlan(
       // All-proven would be a month of one idea; none would ignore the evidence.
       const useProven = p && i % 2 === 0;
 
+      // Then the client-specific sources, before falling back to generic angles.
+      const question = !useProven ? questions[questionCursor] : undefined;
+      const product = !useProven && !question ? products[productCursor] : undefined;
+
       if (useProven) {
         provenCursor++;
         items.push({
@@ -225,6 +269,30 @@ export async function buildPlan(
           brief: `Rework "${shortLabel(p)}" as a ${formats[i]} for ${book?.label ?? network}.`,
           why: `That post did ${p.multiple.toFixed(1)}× this account's median. The subject works; the format is being varied to reach a different part of the audience.`,
           sourcePostId: p.id,
+        });
+      } else if (question) {
+        questionCursor++;
+        items.push({
+          slot,
+          scheduledFor: dates[i],
+          platform: network,
+          format: formats[i],
+          theme: "Answer a customer question",
+          brief: `Answer "${question}" as a ${formats[i]} for ${book?.label ?? network}.`,
+          why: `This is a question this client's buyers actually ask — it is one of the prompts tracked for AI visibility. Answering it publicly serves the same search intent on a second surface.`,
+          sourcePostId: null,
+        });
+      } else if (product) {
+        productCursor++;
+        items.push({
+          slot,
+          scheduledFor: dates[i],
+          platform: network,
+          format: formats[i],
+          theme: "Show the product working",
+          brief: `Feature "${product}" in the situation it was made for. As a ${formats[i]} for ${book?.label ?? network}.`,
+          why: `Drawn from the live catalogue, so the post is about something they actually sell rather than a generic angle.`,
+          sourcePostId: null,
         });
       } else {
         const angle = evergreen[evergreenCursor % evergreen.length];
@@ -245,12 +313,27 @@ export async function buildPlan(
     }
   }
 
-  const provenCount = items.filter((i) => i.sourcePostId).length;
+  const counts = {
+    proven: items.filter((i) => i.theme === "Repeat what worked").length,
+    question: items.filter((i) => i.theme === "Answer a customer question").length,
+    product: items.filter((i) => i.theme === "Show the product working").length,
+    evergreen: items.filter((i) => i.theme === "Evergreen angle").length,
+  };
+
+  // Say where the month came from, source by source. A plan that reports only a
+  // total invites the reader to assume it is all evidence-backed.
+  const parts: string[] = [];
+  if (counts.proven) parts.push(`${counts.proven} rework a post that beat this account's median`);
+  if (counts.question) parts.push(`${counts.question} answer questions this client's buyers actually ask`);
+  if (counts.product) parts.push(`${counts.product} feature something from the live catalogue`);
+  if (counts.evergreen) parts.push(`${counts.evergreen} are evergreen angles filling the cadence`);
+
   const rationale = [
     `${items.length} posts across ${usable.length} network${usable.length === 1 ? "" : "s"}.`,
-    provenCount > 0
-      ? `${provenCount} rework something that beat this account's median; ${items.length - provenCount} are evergreen angles filling the cadence.`
-      : `No post in the last 60 days beat this account's median by enough to build on, so every slot is an evergreen angle. Worth a human steer before this goes out.`,
+    parts.length ? `${parts.join("; ")}.` : "",
+    counts.proven === 0
+      ? `Nothing in this account's own posting history was strong enough to build on, so the plan is drawn from what their customers ask and what they sell rather than from social performance.`
+      : "",
     client.social_posts_per_month
       ? `Target of ${target} comes from this client's stated cadence.`
       : `No cadence is set for this client, so the target is the playbook minimum for their networks. Set one in Settings to plan against the real commitment.`,
