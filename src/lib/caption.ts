@@ -262,3 +262,67 @@ export async function draftPost(args: {
     hashtags: [...core, ...extras].slice(0, 8),
   };
 }
+
+
+const SLIDES_SCHEMA = {
+  type: "object",
+  properties: {
+    slides: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          headline: { type: "string", description: "Two to five words, set large on the slide." },
+          body: { type: "string", description: "One short sentence. May be empty." },
+        },
+        required: ["headline", "body"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["slides"],
+  additionalProperties: false,
+} as const;
+
+/**
+ * Break existing copy into carousel slides, without rewriting it.
+ *
+ * Exists because a post drafted before slides were a thing has good copy and no
+ * slides, and the only route to slides was a full rewrite — which throws away
+ * whatever a human had already edited. Splitting what is there is the cheaper
+ * and less destructive operation.
+ */
+export async function slidesFromCaption(args: {
+  db: SupabaseClient;
+  clientId: string;
+  caption: string;
+  headline?: string | null;
+}): Promise<{ headline: string; body: string }[]> {
+  const { db, clientId, caption, headline } = args;
+
+  const { value } = await generate<{ slides: { headline: string; body: string }[] }>({
+    db,
+    feature: "carousel_slides",
+    clientId,
+    system: [
+      "You turn an existing social post into carousel slides.",
+      "",
+      "Rules:",
+      "- Do NOT rewrite the post. Use the points it already makes, in the same order.",
+      "- The first slide is the cover" + (headline ? `, carrying the headline "${headline}".` : "."),
+      "- Then one slide per point the post makes. Four to six slides in total.",
+      "- Each slide headline is two to five words, no punctuation beyond a full stop.",
+      "- The body is one short sentence taken from that point, or empty if the",
+      "  headline already says it.",
+      "- No em dashes.",
+    ].join("\n"),
+    prompt: `Break this post into slides:\n\n${caption}`,
+    schema: SLIDES_SCHEMA as unknown as Record<string, unknown>,
+    maxTokens: 2000,
+  });
+
+  return (value.slides ?? [])
+    .filter((s) => s?.headline?.trim())
+    .slice(0, 6)
+    .map((s) => ({ headline: s.headline.trim(), body: (s.body ?? "").trim() }));
+}

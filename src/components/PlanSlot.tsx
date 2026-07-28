@@ -301,6 +301,26 @@ export function PlanSlot(
           {/* ── slides ───────────────────────────────────────────────────── */}
           {/* A carousel's real deliverable. Each slide regenerates on its own,
               because "slide 4 is wrong" must not cost five images that were fine. */}
+          {/* A carousel with no slides yet — drafted before slides existed, or
+              its copy was written by hand. One button out, and it works from the
+              copy rather than replacing it. */}
+          {isCarousel && slides.length === 0 && item.caption && !sent && (
+            <div style={{
+              flexBasis: "100%", order: 3, marginTop: 16, padding: "16px 18px",
+              background: "var(--bg)", borderRadius: 10, display: "flex",
+              gap: 14, alignItems: "center", flexWrap: "wrap",
+            }}>
+              <form action="/api/content-plan/item" method="post">
+                <Hidden clientId={clientId} itemId={item.id} action="make-slides" />
+                <button type="submit" style={BTN(true)}>Create slides</button>
+              </form>
+              <div style={{ fontSize: 12.5, color: "var(--fg3)", lineHeight: 1.5, flex: 1, minWidth: 260 }}>
+                This is a carousel with no slides. Splits the copy above into a cover and one slide
+                per point, without rewriting it. You then generate artwork per slide.
+              </div>
+            </div>
+          )}
+
           {isCarousel && slides.length > 0 && (
             <div style={{ flexBasis: "100%", order: 3, marginTop: 16 }}>
               <div style={{ ...EYEBROW, marginBottom: 10 }}>

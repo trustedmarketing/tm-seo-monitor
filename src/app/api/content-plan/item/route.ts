@@ -24,7 +24,7 @@ import { getProfile, isAgency } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
 import { listSocialAccounts, createDraft, uploadMediaFromUrl } from "@/lib/postflow";
-import { draftPost } from "@/lib/caption";
+import { draftPost, slidesFromCaption } from "@/lib/caption";
 import { startImage, checkImage, findStartedImage, imagePromptFor, normaliseImageUrl } from "@/lib/bloom";
 import { aspectFor, normaliseNetwork, requiresMedia } from "@/lib/platformPlaybook";
 
@@ -131,6 +131,37 @@ export async function POST(req: Request) {
       return back(req, clientId, "image-started");
     } catch (e) {
       return back(req, clientId, `item-failed:${(e as Error).message.slice(0, 90)}`);
+    }
+  }
+
+  // ── build slides from copy that already exists ─────────────────────────────
+  // Deliberately not a rewrite. A carousel drafted before slides existed has
+  // good copy and no slides, and forcing a redraft to get them would discard
+  // whatever a human had edited.
+  if (action === "make-slides") {
+    if (!item.caption) return back(req, clientId, "nothing-to-send");
+    try {
+      const slides = await slidesFromCaption({
+        db, clientId,
+        caption: String(item.caption),
+        headline: item.headline ? String(item.headline) : null,
+      });
+
+      if (slides.length === 0) throw new Error("no slides could be derived from this copy");
+
+      await db.from("content_plan_slides").delete().eq("item_id", itemId);
+      await db.from("content_plan_slides").insert(
+        slides.map((sl, idx) => ({
+          item_id: itemId, position: idx,
+          headline: sl.headline, body: sl.body || null,
+        }))
+      );
+
+      return back(req, clientId, "slides-made");
+    } catch (e) {
+      await db.from("content_plan_items")
+        .update({ send_error: (e as Error).message.slice(0, 500) }).eq("id", itemId);
+      return back(req, clientId, "send-problem");
     }
   }
 

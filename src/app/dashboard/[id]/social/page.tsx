@@ -67,6 +67,7 @@ const PLAN_MSG: Record<string, string> = {
   "image-not-https": "Image URL must start with https://.",
   sent: "Sent to PostFlow.",
   "send-problem": "The send had a problem. The detail is on the card below.",
+  "slides-made": "Slides created from the copy. Generate artwork for each one.",
   "already-sent": "That slot is already in PostFlow.",
   "nothing-to-send": "Write a caption before sending.",
   "needs-image": "This platform will not accept a post without an image. Generate one or paste a URL first.",
