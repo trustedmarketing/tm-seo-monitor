@@ -53,12 +53,16 @@ export async function collectPendingImages(
   if (itemErr) throw new Error(`could not read pending images: ${itemErr.message}`);
 
   const rows = (pending ?? []) as Row[];
-  if (rows.length === 0) return 0;
 
   const key = await readSecret(db, "bloom");
   if (!key) return 0;
 
   let collected = 0;
+
+  // NOTE: no early return when `rows` is empty. An earlier version returned here,
+  // which meant carousel slides were only ever collected when a post-level image
+  // happened to be generating at the same time — so a carousel on its own sat on
+  // "Generating…" forever while its artwork sat finished in Bloom.
 
   for (const row of rows) {
     const requested = row.image_requested_at ? new Date(row.image_requested_at).getTime() : 0;

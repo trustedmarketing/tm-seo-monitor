@@ -305,7 +305,7 @@ export function PlanSlot(
           {/* A carousel with no slides yet — drafted before slides existed, or
               its copy was written by hand. One button out, and it works from the
               copy rather than replacing it. */}
-          {isCarousel && slides.length === 0 && item.caption && !sent && (
+          {isCarousel && item.caption && !sent && (
             <div style={{
               flexBasis: "100%", order: 3, marginTop: 16, padding: "16px 18px",
               background: "var(--bg)", borderRadius: 10, display: "flex",
@@ -313,11 +313,14 @@ export function PlanSlot(
             }}>
               <form action="/api/content-plan/item" method="post">
                 <Hidden clientId={clientId} itemId={item.id} action="make-slides" />
-                <button type="submit" style={BTN(true)}>Create slides</button>
+                <button type="submit" style={BTN(slides.length === 0)}>
+                  {slides.length ? "Rebuild slides" : "Create slides"}
+                </button>
               </form>
               <div style={{ fontSize: 12.5, color: "var(--fg3)", lineHeight: 1.5, flex: 1, minWidth: 260 }}>
-                This is a carousel with no slides. Splits the copy above into a cover and one slide
-                per point, without rewriting it. You then generate artwork per slide.
+                {slides.length
+                  ? "Rebuilds the slide breakdown from the copy above. Replaces the current slides and any artwork on them."
+                  : "Splits the copy above into a cover and one slide per point, without rewriting it. You then generate artwork per slide."}
               </div>
             </div>
           )}
@@ -373,15 +376,17 @@ export function PlanSlot(
 
                     {!sent && (
                       <>
-                        {sl.image_status !== "generating" && (
-                          <form action="/api/content-plan/item" method="post" style={{ marginTop: 6 }}>
-                            <Hidden clientId={clientId} itemId={item.id} action="generate-slide" />
-                            <input type="hidden" name="slide_id" value={sl.id} />
-                            <button type="submit" style={{ ...BTN(!sl.image_url), width: "100%", padding: "6px 10px", fontSize: 12 }}>
-                              {sl.image_url ? "Redo" : "Generate"}
-                            </button>
-                          </form>
-                        )}
+                        {/* Always available, including mid-generation. A slide
+                            whose generation never lands was otherwise stuck with
+                            no button at all — the same dead end as the stuck
+                            single image, rebuilt in a new place. */}
+                        <form action="/api/content-plan/item" method="post" style={{ marginTop: 6 }}>
+                          <Hidden clientId={clientId} itemId={item.id} action="generate-slide" />
+                          <input type="hidden" name="slide_id" value={sl.id} />
+                          <button type="submit" style={{ ...BTN(!sl.image_url), width: "100%", padding: "6px 10px", fontSize: 12 }}>
+                            {sl.image_status === "generating" ? "Start again" : sl.image_url ? "Redo" : "Generate"}
+                          </button>
+                        </form>
 
                         {/* The same escape hatch the single image has. A slide
                             stuck generating, or one where a real photograph beats
