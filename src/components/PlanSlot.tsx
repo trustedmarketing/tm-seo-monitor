@@ -21,6 +21,7 @@ type Item = {
   image_url: string | null; bloom_image_id: string | null; image_status: string | null;
   image_error: string | null;
   declined_at: string | null; decline_note: string | null; decline_by: string | null;
+  send_error: string | null;
   postflow_id: string | null;
 };
 
@@ -106,6 +107,21 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
             {!sent && <button type="submit" style={BTN(false)}>{skipped ? "Restore" : "Skip"}</button>}
           </form>
         </div>
+
+        {/* Shown in full, and kept until the next send succeeds. A failure that
+            only exists in a redirect banner is gone the moment anyone clicks. */}
+        {item.send_error && (
+          <div style={{
+            background: "#FBE7E4", border: "1px solid #EBC9C4", borderRadius: 10,
+            padding: "12px 14px", margin: "12px 0 4px", maxWidth: 860,
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--danger)" }}>Last send had a problem</div>
+            <div style={{
+              fontSize: 12.5, color: "var(--fg2)", marginTop: 5, lineHeight: 1.5,
+              fontFamily: "var(--font-mono, ui-monospace, monospace)", wordBreak: "break-word",
+            }}>{item.send_error}</div>
+          </div>
+        )}
 
         {declined && (
           <div style={{

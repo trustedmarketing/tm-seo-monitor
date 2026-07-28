@@ -222,10 +222,16 @@ export async function POST(req: Request) {
       return back(req, clientId, "needs-image");
     }
     try {
-      const sent = await sendToPostFlow(db, clientId, item);
-      return back(req, clientId, sent ? "sent" : "send-failed");
+      await sendToPostFlow(db, clientId, item);
+      await db.from("content_plan_items").update({ send_error: null }).eq("id", itemId);
+      return back(req, clientId, "sent");
     } catch (e) {
-      return back(req, clientId, `item-failed:${(e as Error).message.slice(0, 70)}`);
+      // Stored in full rather than squeezed through a URL parameter. The
+      // 70-character slice here turned "PostFlow media upload failed 500: {…}"
+      // into a message that named the failure and none of its cause.
+      await db.from("content_plan_items")
+        .update({ send_error: (e as Error).message.slice(0, 1000) }).eq("id", itemId);
+      return back(req, clientId, "send-problem");
     }
   }
 

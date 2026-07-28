@@ -359,7 +359,14 @@ export async function uploadMediaFromUrl(token: string, url: string): Promise<{ 
     );
   }
   if (!res.ok) {
-    throw new Error(`PostFlow media upload failed ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    // The whole body, not a slice. A 500 from their media service is the only
+    // thing that explains a 500 from their media service, and truncating it to
+    // `{ "` — which is what reached Tom — is worse than not reporting at all.
+    const detail = (await res.text()).slice(0, 600);
+    throw new Error(
+      `PostFlow media upload failed ${res.status} at ${MEDIA_BASE}/upload/url/sync ` +
+      `for ${url} — ${detail}`
+    );
   }
 
   const body = await res.json();

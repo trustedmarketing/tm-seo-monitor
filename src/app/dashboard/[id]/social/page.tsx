@@ -66,6 +66,7 @@ const PLAN_MSG: Record<string, string> = {
   "nothing-generating": "No generation is running for that slot.",
   "image-not-https": "Image URL must start with https://.",
   sent: "Sent to PostFlow.",
+  "send-problem": "The send had a problem. The detail is on the card below.",
   "already-sent": "That slot is already in PostFlow.",
   "nothing-to-send": "Write a caption before sending.",
   "needs-image": "This platform will not accept a post without an image. Generate one or paste a URL first.",
@@ -113,7 +114,7 @@ export default async function Social({
 
   const { data: planItems } = plan
     ? await db.from("content_plan_items")
-        .select("id, slot, scheduled_for, platform, format, theme, brief, why, source_post_id, status, caption, hashtags, headline, postflow_id, image_url, bloom_image_id, image_status, image_error, declined_at, decline_note, decline_by")
+        .select("id, slot, scheduled_for, platform, format, theme, brief, why, source_post_id, status, caption, hashtags, headline, postflow_id, image_url, bloom_image_id, image_status, image_error, declined_at, decline_note, decline_by, send_error")
         .eq("plan_id", plan.id).order("slot")
     : { data: [] };
 
