@@ -20,6 +20,7 @@ type Item = {
   status: string; caption: string | null; hashtags: string[] | null; headline: string | null;
   image_url: string | null; bloom_image_id: string | null; image_status: string | null;
   image_error: string | null;
+  declined_at: string | null; decline_note: string | null; decline_by: string | null;
   postflow_id: string | null;
 };
 
@@ -71,6 +72,7 @@ function Hidden({ clientId, itemId, action }: { clientId: string; itemId: number
 export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
   const src = SOURCE[(item.theme ?? "Evergreen angle") as keyof typeof SOURCE] ?? SOURCE["Evergreen angle"];
   const sent = item.status === "sent";
+  const declined = !!item.declined_at;
   const skipped = item.status === "skipped";
   // Keyed on status, not the id: a generation can be in flight without us having
   // an id for it, which is exactly the case that produced a silently empty slot.
@@ -96,7 +98,7 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
           <span style={{ color: "var(--border-strong)" }}>·</span>
           <span style={PILL(src.fg, src.bg, src.edge)}>{src.label}</span>
           <span style={PILL("var(--fg3)", "var(--bg)", "var(--border)")}>
-            {sent ? "In PostFlow" : skipped ? "Skipped" : item.caption ? "Draft" : "Not written"}
+            {declined ? "Declined" : sent ? "In PostFlow" : skipped ? "Skipped" : item.caption ? "Draft" : "Not written"}
           </span>
 
           <form action="/api/content-plan/item" method="post" style={{ marginLeft: "auto" }}>
@@ -104,6 +106,24 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
             {!sent && <button type="submit" style={BTN(false)}>{skipped ? "Restore" : "Skip"}</button>}
           </form>
         </div>
+
+        {declined && (
+          <div style={{
+            background: "#FBE7E4", border: "1px solid #EBC9C4", borderRadius: 10,
+            padding: "12px 14px", margin: "12px 0 4px", maxWidth: 860,
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--danger)" }}>
+              Declined by the client{item.decline_by ? ` — ${item.decline_by}` : ""}
+            </div>
+            {/* The reason is the useful half. "Declined" alone sends someone to
+                PostFlow to find out why; the reason tells them what to change. */}
+            <div style={{ fontSize: 13.5, color: "var(--fg2)", marginTop: 5, lineHeight: 1.55 }}>
+              {item.decline_note
+                ? `“${item.decline_note}”`
+                : "No reason was given. Worth asking before redrafting blind."}
+            </div>
+          </div>
+        )}
 
         <h3 style={{
           fontSize: 21, fontWeight: 600, letterSpacing: "-0.01em",
@@ -258,7 +278,7 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
               </span>
             </div>
 
-            {sent ? (
+            {sent && !declined ? (
               <div style={{
                 padding: "14px 16px", background: "var(--bg)", borderRadius: 10,
                 fontSize: 14, color: "var(--fg2)", lineHeight: 1.6, whiteSpace: "pre-wrap",
@@ -287,7 +307,7 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
               </div>
             )}
 
-            {!sent && (
+            {(!sent || declined) && (
               <form action="/api/content-plan/item" method="post"
                     style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
                 <Hidden clientId={clientId} itemId={item.id} action="regenerate" />

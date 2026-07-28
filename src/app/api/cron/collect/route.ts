@@ -342,6 +342,27 @@ export async function GET(req: Request) {
     report[c.domain] = done;
   }
 
+  // ── Client approvals: did anyone decline a scheduled post? ──
+  // PostFlow has no webhooks, so this is the poll. Wrapped, because a decline
+  // check failing must not take down revenue collection.
+  try {
+    const { checkApprovals } = await import("@/lib/postflowApproval");
+    const { notify } = await import("@/lib/notify");
+    for (const c of (clients ?? []) as { id: string; name: string; postflow_group_id: string | null }[]) {
+      const r = await checkApprovals(db, c);
+      if (r.newlyDeclined.length) {
+        await notify({
+          subject: `${c.name}: ${r.newlyDeclined.length} post(s) declined`,
+          body: r.newlyDeclined
+            .map((d) => `• Slot ${d.slot}${d.by ? ` (${d.by})` : ""}: ${d.reason ?? "no reason given"}`)
+            .join("\n") + `\n\n/dashboard/${c.id}/social`,
+        });
+      }
+    }
+  } catch (e) {
+    failures.push({ client: "portfolio", module: "approvals", error: (e as Error).message });
+  }
+
   // ── Portfolio-wide: proactive token-expiry sweep (self-records) ──
   await checkTokenExpiry(db);
 
