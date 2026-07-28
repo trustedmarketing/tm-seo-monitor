@@ -12,6 +12,9 @@ import { userClient } from "@/lib/supabaseServer";
 import { ClientHeader } from "@/components/ClientHeader";
 import { workspaceTabs, type ClientType } from "@/lib/workspaceTabs";
 import { fmtDate } from "@/lib/time";
+import { dbClient } from "@/lib/db";
+import { readSecret } from "@/lib/vault";
+import { listSocialAccounts } from "@/lib/postflow";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
@@ -88,20 +91,44 @@ export default async function Social({
         .eq("plan_id", plan.id).order("slot")
     : { data: [] };
 
-  // What this client can actually publish to. Offering a network with no
-  // connected profile would be offering a plan nobody can execute.
-  const { data: acctRows } = await db
-    .from("social_posts").select("platform").eq("client_id", params.id).not("platform", "is", null);
-  const historicalNets = Array.from(
-    new Set((acctRows ?? []).map((r: { platform: string | null }) => r.platform).filter(Boolean) as string[])
-  );
-  const planNets = ((plan as { networks?: string[] } | null)?.networks ?? []) as string[];
-  const pickable = Array.from(new Set([...planNets, ...historicalNets]));
 
   const slots = (planItems ?? []) as Record<string, unknown>[];
   const pendingSlots = slots.filter((i) => ["planned", "failed"].includes(String(i.status))).length;
   const draftedSlots = slots.filter((i) => String(i.status) === "drafted").length;
   const skippedSlots = slots.filter((i) => String(i.status) === "skipped").length;
+
+  const groupId = (client as { postflow_group_id?: string | null }).postflow_group_id;
+  // ── what this client can actually publish to ──────────────────────────────
+  // CONNECTED accounts, same source the planner uses. An earlier version read
+  // posting history and the existing plan, which meant a brand that had never
+  // posted got no picker at all — precisely the client who most needs to choose.
+  //
+  // Read with the service role because the vault is not reachable under RLS, and
+  // wrapped because a PostFlow outage should cost the picker, not the page.
+  let connectedNets: string[] = [];
+  let connectError: string | null = null;
+  if (groupId) {
+    try {
+      const svcDb = dbClient();
+      const token = await readSecret(svcDb, "postflow");
+      if (token) {
+        const accounts = await listSocialAccounts(token, groupId);
+        connectedNets = Array.from(
+          new Set(accounts.map((a) => a.network?.toLowerCase()).filter(Boolean) as string[])
+        );
+      }
+    } catch (e) {
+      connectError = (e as Error).message.slice(0, 220);
+    }
+  }
+
+  const { data: acctRows } = await db
+    .from("social_posts").select("platform").eq("client_id", params.id).not("platform", "is", null);
+  const historicalNets = Array.from(
+    new Set((acctRows ?? []).map((r: { platform: string | null }) => r.platform).filter(Boolean) as string[])
+  );
+
+  const pickable = connectedNets.length ? connectedNets : historicalNets;
 
   const rawMsg = searchParams.msg ?? "";
   const planMsg = rawMsg.startsWith("built:")
@@ -149,7 +176,6 @@ export default async function Social({
     )
     .slice(0, 5);
 
-  const groupId = (client as { postflow_group_id?: string | null }).postflow_group_id;
 
   return (
     <main style={{ padding: "40px 32px 64px" }}>
@@ -159,6 +185,15 @@ export default async function Social({
           clientType={type} active="social" pending={pending ?? 0}
           sub={posts.length ? `${posts.length} posts collected via PostFlow` : "No posts collected yet"}
         />
+
+        {connectError && (
+          <div style={{
+            background: "#FFF9EC", border: "1px solid #EAD9A6", borderRadius: 10,
+            padding: "12px 16px", marginBottom: 18, fontSize: 13.5, color: "#8A6D1F", maxWidth: 900,
+          }}>
+            <strong>Nothing can be published for this client yet.</strong> {connectError}
+          </div>
+        )}
 
         {planMsg && (
           <div style={{ padding: "12px 16px", borderRadius: 8, background: "#fff",
@@ -182,17 +217,26 @@ export default async function Social({
                 <input type="hidden" name="client_id" value={params.id} />
                 <input type="hidden" name="action" value="build" />
 
-                {/* Leave every box unticked to plan for whatever is connected.
-                    Ticking narrows it — useful when a client is Facebook-only
-                    this quarter, or when LinkedIn is handled by someone else. */}
-                {pickable.length > 1 && (
+                {/* More than one connected network is a choice worth offering.
+                    Exactly one is worth STATING, so nobody wonders why there is
+                    no picker. None is worth warning about, because a plan cannot
+                    be published anywhere. */}
+                {pickable.length > 1 ? (
                   <span style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 12.5, color: "var(--fg2)" }}>
                     {pickable.map((n) => (
-                      <label key={n} style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                      <label key={n} style={{ display: "flex", gap: 5, alignItems: "center", textTransform: "capitalize" }}>
                         <input type="checkbox" name="network" value={n} />
                         {n}
                       </label>
                     ))}
+                  </span>
+                ) : pickable.length === 1 ? (
+                  <span style={{ fontSize: 12.5, color: "var(--fg3)", textTransform: "capitalize" }}>
+                    {pickable[0]} only
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 12.5, color: "var(--danger)" }}>
+                    No connected accounts
                   </span>
                 )}
 

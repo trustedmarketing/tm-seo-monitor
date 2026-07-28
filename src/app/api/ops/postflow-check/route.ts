@@ -46,7 +46,13 @@ export async function GET(req: Request) {
   // Accounts per group. A group with no connected profile can be published to
   // by nobody, and that is invisible from the group list alone.
   try {
-    const accounts = await listAllSocialAccounts(token);
+    const { accounts, rawShape } = await listAllSocialAccounts(token);
+    if (rawShape !== undefined) {
+      // Show what came back rather than reporting zero. Reporting zero is what
+      // sent Tom looking at PostFlow for a problem that was in our parser.
+      out.accounts_raw_response = JSON.stringify(rawShape).slice(0, 1500);
+      out.accounts_note = "No accounts parsed. Raw response above so the shape can be read, not guessed.";
+    }
     const byGroup: Record<string, { network: string | null; name: string | null }[]> = {};
     for (const a of accounts) {
       const k = a.groupId ?? "(none)";

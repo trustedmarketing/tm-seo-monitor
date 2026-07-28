@@ -205,7 +205,9 @@ export type SocialAccount = { id: string; name: string | null; network: string |
 
 type RawAccount = {
   id?: string | number; name?: string | null; custom_name?: string | null;
-  username?: string | null; socialNetwork?: string | null; group_id?: string | number | null;
+  username?: string | null;
+  socialNetwork?: string | null; social_network?: string | null;
+  group_id?: string | number | null; groupId?: string | number | null;
 };
 
 /**
@@ -215,18 +217,59 @@ type RawAccount = {
  * broken" produce the same symptom, and the only way to tell them apart is to
  * look at what the token actually returns.
  */
-export async function listAllSocialAccounts(token: string): Promise<SocialAccount[]> {
-  if (mockApis()) return [{ id: "mock-acct", name: "Mock IG", network: "instagram", groupId: "mock-group" }];
+export async function listAllSocialAccounts(
+  token: string
+): Promise<{ accounts: SocialAccount[]; rawShape?: unknown }> {
+  if (mockApis()) {
+    return { accounts: [{ id: "mock-acct", name: "Mock IG", network: "instagram", groupId: "mock-group" }] };
+  }
 
-  const body = await get<{ data?: RawAccount[] }>("/social-accounts", token, {});
-  return (body.data ?? [])
-    .filter((a) => a.id != null)
-    .map((a) => ({
-      id: String(a.id),
-      name: a.custom_name ?? a.name ?? a.username ?? null,
-      network: a.socialNetwork ?? null,
-      groupId: a.group_id != null ? String(a.group_id) : null,
-    }));
+  const body = await get<unknown>("/social-accounts", token, {});
+
+  // Third time this envelope has bitten. `/groups` returned something other than
+  // {data:[...]}, and so does this. Rather than guess again, try the shapes
+  // vendors actually use and hand back the raw payload when none parses — an
+  // empty list and an unrecognised envelope are indistinguishable otherwise, and
+  // "0 accounts" sent Tom looking at PostFlow for a problem that was in here.
+  const arr = firstArray(body);
+
+  const accounts = (arr ?? [])
+    .filter((a) => a && (a as RawAccount).id != null)
+    .map((raw) => {
+      const a = raw as RawAccount;
+      return {
+        id: String(a.id),
+        name: a.custom_name ?? a.name ?? a.username ?? null,
+        // Networks are spelled inconsistently across vendors; accept either case.
+        network: (a.socialNetwork ?? a.social_network ?? null)?.toLowerCase() ?? null,
+        groupId: a.group_id != null ? String(a.group_id) : a.groupId != null ? String(a.groupId) : null,
+      };
+    });
+
+  return accounts.length ? { accounts } : { accounts, rawShape: body };
+}
+
+/** Find the first array in a response, whatever the vendor wrapped it in. */
+function firstArray(body: unknown): unknown[] | undefined {
+  const candidates: unknown[] = [
+    (body as { data?: unknown })?.data,
+    (body as { accounts?: unknown })?.accounts,
+    (body as { socialAccounts?: unknown })?.socialAccounts,
+    (body as { social_accounts?: unknown })?.social_accounts,
+    (body as { results?: unknown })?.results,
+    (body as { items?: unknown })?.items,
+    body,
+  ];
+  // Some vendors nest one level: { data: { accounts: [...] } }
+  const nested = (body as { data?: unknown })?.data;
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    candidates.push(
+      (nested as { accounts?: unknown }).accounts,
+      (nested as { socialAccounts?: unknown }).socialAccounts,
+      (nested as { items?: unknown }).items
+    );
+  }
+  return candidates.find((c) => Array.isArray(c)) as unknown[] | undefined;
 }
 
 /**
@@ -238,7 +281,15 @@ export async function listAllSocialAccounts(token: string): Promise<SocialAccoun
  * guesses, and both were wrong — the field is `socialNetwork`.
  */
 export async function listSocialAccounts(token: string, groupId: string): Promise<SocialAccount[]> {
-  const all = await listAllSocialAccounts(token);
+  const { accounts: all, rawShape } = await listAllSocialAccounts(token);
+
+  if (rawShape !== undefined) {
+    throw new Error(
+      `PostFlow returned social accounts in an unrecognised shape. Raw: ` +
+      `${JSON.stringify(rawShape).slice(0, 300)}`
+    );
+  }
+
   const inGroup = all.filter((a) => a.groupId === String(groupId));
 
   // Three states, three different fixes. Reporting them identically is what sent
