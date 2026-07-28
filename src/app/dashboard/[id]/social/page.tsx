@@ -58,6 +58,8 @@ const PLAN_MSG: Record<string, string> = {
   "image-started": "Bloom is generating. It takes about a minute — press Check when you are ready.",
   "image-still-generating": "Still generating. Give it a moment and check again.",
   "image-ready": "Artwork ready. Regenerate with a note if it is not right.",
+  "headline-saved": "Headline saved. Generate again to see it on the artwork.",
+  "empty-headline": "The headline cannot be empty.",
   "nothing-generating": "No generation is running for that slot.",
   "image-not-https": "Image URL must start with https://.",
   sent: "Sent to PostFlow.",
@@ -107,7 +109,7 @@ export default async function Social({
 
   const { data: planItems } = plan
     ? await db.from("content_plan_items")
-        .select("id, slot, scheduled_for, platform, format, theme, brief, why, source_post_id, status, caption, hashtags, postflow_id, image_url, bloom_image_id, image_status")
+        .select("id, slot, scheduled_for, platform, format, theme, brief, why, source_post_id, status, caption, hashtags, headline, postflow_id, image_url, bloom_image_id, image_status")
         .eq("plan_id", plan.id).order("slot")
     : { data: [] };
 

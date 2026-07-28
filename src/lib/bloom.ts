@@ -227,8 +227,10 @@ export function imagePromptFor(args: {
   caption?: string | null;
   format?: string | null;
   steer?: string | null;
+  /** Two to four words, written alongside the caption. */
+  headline?: string | null;
 }): string {
-  const { brief, caption, format, steer } = args;
+  const { brief, caption, format, steer, headline } = args;
 
   const subject = brief
     .replace(/\s*(Platform|Format):\s*\w+\.?/gi, "")
@@ -236,20 +238,36 @@ export function imagePromptFor(args: {
     .replace(/\s+as an? \w+ for \w+\.?/i, "")
     .trim();
 
-  // First sentence only. The earlier version passed 400 characters of caption,
+  // First sentence only. An earlier version passed 400 characters of caption,
   // which put four paragraphs of advice into an image prompt and pushed the
-  // model toward rendering the question as a text overlay. An image prompt wants
-  // a subject, not the post.
-  const gist = caption
-    ? caption.split(/(?<=[.!?])\s/)[0].slice(0, 160)
-    : "";
+  // model toward setting the post's question as the overlay — small, thin, and
+  // asking rather than claiming.
+  const gist = caption ? caption.split(/(?<=[.!?])\s/)[0].slice(0, 160) : "";
 
   return [
-    `Social media image for this post: ${subject}`,
+    `Social media image. Subject: ${subject}`,
     gist ? `Context: ${gist}` : "",
-    format === "carousel" ? "Design as the first slide of a carousel." : "",
-    format === "short" || format === "video" ? "Design as a video thumbnail or opening frame." : "",
-    "No text overlay unless it is a single short phrase. Photographic where possible.",
+
+    // The house style, taken from what this brand already produces by hand:
+    // product hero in a real setting, natural light, one bold line of type.
+    "Style: photographic and real, not illustrated or rendered.",
+    "Shoot it as a product hero in the setting the product is actually used in, with natural light.",
+    "The product packaging should be clearly visible and legible.",
+
+    headline
+      ? [
+          `Set this headline across the image: "${headline.toUpperCase()}".`,
+          // The specific failure being corrected: type came back small and thin,
+          // so the size instruction is stated as a proportion rather than an
+          // adjective, which a model can act on.
+          "Set it in a heavy condensed sans-serif, uppercase, occupying roughly a third of the",
+          "image width, high contrast against what sits behind it. Large and confident.",
+          "No other text anywhere in the image. No paragraphs, no bullet points, no small print.",
+        ].join(" ")
+      : "No text overlay of any kind.",
+
+    format === "carousel" ? "Compose as the first slide of a carousel." : "",
+    format === "short" || format === "video" ? "Compose as a video thumbnail or opening frame." : "",
     steer ? `Direction: ${steer}` : "",
   ]
     .filter(Boolean)

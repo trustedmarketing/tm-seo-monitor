@@ -50,7 +50,7 @@ export async function POST(req: Request) {
 
   const { data: item } = await db
     .from("content_plan_items")
-    .select("id, plan_id, slot, brief, platform, format, scheduled_for, source_post_id, postflow_id, status, caption, hashtags, image_url, bloom_image_id, image_status")
+    .select("id, plan_id, slot, brief, platform, format, scheduled_for, source_post_id, postflow_id, status, caption, hashtags, headline, image_url, bloom_image_id, image_status")
     .eq("id", itemId).maybeSingle();
   if (!item) return back(req, clientId, "item-not-found");
 
@@ -94,6 +94,7 @@ export async function POST(req: Request) {
         brief: String(item.brief),
         caption: item.caption ? String(item.caption) : null,
         format: item.format ? String(item.format) : null,
+        headline: item.headline ? String(item.headline) : null,
         steer: steerImg || null,
       });
 
@@ -142,6 +143,14 @@ export async function POST(req: Request) {
     } catch (e) {
       return back(req, clientId, `item-failed:${(e as Error).message.slice(0, 90)}`);
     }
+  }
+
+  // ── edit the artwork headline ──────────────────────────────────────────────
+  if (action === "headline") {
+    const headline = String(form.get("headline") ?? "").trim().split(/\s+/).slice(0, 4).join(" ");
+    if (!headline) return back(req, clientId, "empty-headline");
+    await db.from("content_plan_items").update({ headline }).eq("id", itemId);
+    return back(req, clientId, "headline-saved");
   }
 
   // ── attach an image ────────────────────────────────────────────────────────
@@ -219,7 +228,8 @@ export async function POST(req: Request) {
     // Stored, not sent. Sending is a separate decision, made once the post is
     // actually finished — copy and artwork both.
     await db.from("content_plan_items").update({
-      caption: drafted.caption, hashtags: drafted.hashtags, status: "drafted",
+      caption: drafted.caption, hashtags: drafted.hashtags,
+      headline: drafted.headline, status: "drafted",
     }).eq("id", itemId);
 
     return back(req, clientId, steer ? "regenerated" : "item-drafted");

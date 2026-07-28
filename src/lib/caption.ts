@@ -19,6 +19,9 @@ export type DraftedPost = {
   brief: string;
   caption: string;
   hashtags: string[];
+  /** Two to four words for the artwork. Written here so the image has a real
+   *  hook rather than the image model reaching for the post's first sentence. */
+  headline: string;
 };
 
 const SCHEMA = {
@@ -33,8 +36,14 @@ const SCHEMA = {
       items: { type: "string" },
       description: "3 to 6 hashtags, each including the leading #.",
     },
+    headline: {
+      type: "string",
+      description:
+        "Two to four words for the image overlay. A claim or a contrast, not a question. " +
+        "Examples of the right shape: 'DISSOLVES THE SALT', 'BUILT FOR SALT', 'DULL VS GLEAMING'.",
+    },
   },
-  required: ["caption", "hashtags"],
+  required: ["caption", "hashtags", "headline"],
   additionalProperties: false,
 } as const;
 
@@ -73,6 +82,12 @@ function systemPrompt(args: {
     "- No emoji unless the examples below use them.",
     "- Open with the substance. No 'Did you know' or 'In today's world'.",
     "- One clear idea per post. Length to suit the platform, not to fill space.",
+    "",
+    "Also give a HEADLINE for the artwork:",
+    "- Two to four words. It gets set large across the image, so length is the constraint.",
+    "- A claim or a contrast, never a question. A question set in type reads as an ad asking",
+    "  permission; a claim reads as the brand knowing something.",
+    "- Plain words. It will be set in uppercase, so no punctuation beyond a full stop.",
     "",
 
     // The playbook rules were written down and then never handed to the writer.
@@ -141,7 +156,7 @@ export async function draftPost(args: {
     .filter(Boolean)
     .join("\n");
 
-  const { value } = await generate<{ caption: string; hashtags: string[] }>({
+  const { value } = await generate<{ caption: string; hashtags: string[]; headline: string }>({
     db,
     feature: "social_caption",
     clientId,
@@ -163,9 +178,19 @@ export async function draftPost(args: {
   const seen = new Set(core.map((h) => h.toLowerCase()));
   const extras = returned.filter((h) => !seen.has(h.toLowerCase()));
 
+  // Four words is the practical ceiling before type has to shrink to fit, which
+  // is the thing that made the first attempt look weak.
+  const headline = (value.headline ?? "")
+    .trim()
+    .replace(/[?!]+$/, "")
+    .split(/\s+/)
+    .slice(0, 4)
+    .join(" ");
+
   return {
     week,
     brief,
+    headline,
     caption: value.caption.trim(),
     // Standing tags first, then this post's own, capped so the block stays readable.
     hashtags: [...core, ...extras].slice(0, 8),

@@ -17,7 +17,7 @@ type Item = {
   id: number; slot: number; scheduled_for: string | null;
   platform: string | null; format: string | null; theme: string | null;
   brief: string; why: string | null; source_post_id: number | null;
-  status: string; caption: string | null; hashtags: string[] | null;
+  status: string; caption: string | null; hashtags: string[] | null; headline: string | null;
   image_url: string | null; bloom_image_id: string | null; postflow_id: string | null;
 };
 
@@ -134,6 +134,20 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
                   before they crop rather than after. */}
               <span style={{ fontSize: 11.5, color: "var(--fg3)" }}>{aspect} · required</span>
             </div>
+
+            {/* The words that will be set across the artwork. Shown because it
+                is the single thing most likely to be wrong, and it is far
+                cheaper to fix here than after a generation. */}
+            {item.headline && !sent && (
+              <form action="/api/content-plan/item" method="post" style={{ marginBottom: 10 }}>
+                <Hidden clientId={clientId} itemId={item.id} action="headline" />
+                <input name="headline" defaultValue={item.headline}
+                       style={{ ...INPUT, fontWeight: 700, letterSpacing: "0.02em", textTransform: "uppercase" }} />
+                <div style={{ fontSize: 11, color: "var(--fg3)", marginTop: 4 }}>
+                  Set large across the image. Two to four words.
+                </div>
+              </form>
+            )}
 
             {generating ? (
               <form action="/api/content-plan/item" method="post">
