@@ -335,6 +335,77 @@ async function write(
   if (errs.length) throw new Error(`Shopify write refused: ${errs.map((e) => e.message).join("; ")}`);
 }
 
+/** A content item with the SEO fields the proposal engine reasons about. */
+export type ContentItem = {
+  gid: string;
+  title: string;
+  handle: string;
+  seoTitle: string;
+  metaDescription: string;
+  bodyText: string;
+};
+
+/**
+ * List pages with their SEO fields.
+ *
+ * Deliberately bounded rather than paginated to exhaustion: a proposal run that
+ * walks ten thousand objects on a large store is a surprise API bill and a slow
+ * cron. If a client genuinely has more pages than this, that is a scheduling
+ * decision to make explicitly, not something to discover from a timeout.
+ */
+export async function listContent(
+  shopDomain: string,
+  token: string,
+  limit = 50
+): Promise<ContentItem[]> {
+  if (mockApis()) {
+    return [{
+      gid: "gid://shopify/Page/1", title: "Mock Page", handle: "mock",
+      seoTitle: "", metaDescription: "", bodyText: "Mock body text for proposals.",
+    }];
+  }
+
+  const data = await gql<{ pages: { nodes: {
+    id: string; title: string; handle: string; body: string;
+    titleTag?: { value?: string } | null; descriptionTag?: { value?: string } | null;
+  }[] } }>(
+    shopDomain, token,
+    `query($n: Int!) {
+       pages(first: $n) {
+         nodes {
+           id title handle body
+           titleTag:       metafield(namespace: "${SEO_NAMESPACE}", key: "title_tag")       { value }
+           descriptionTag: metafield(namespace: "${SEO_NAMESPACE}", key: "description_tag") { value }
+         }
+       }
+     }`,
+    { n: limit }
+  );
+
+  return data.pages.nodes.map((n) => ({
+    gid: n.id,
+    title: n.title,
+    handle: n.handle,
+    seoTitle: n.titleTag?.value ?? "",
+    metaDescription: n.descriptionTag?.value ?? "",
+    bodyText: stripHtml(n.body ?? ""),
+  }));
+}
+
+/** Body copy arrives as HTML; proposals reason about the words. */
+export function stripHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&#39;|&rsquo;/g, "'")
+    .replace(/&quot;|&ldquo;|&rdquo;/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Resolve a store's credentials and mint a short-lived token. */
 export async function connect(
   shopDomain: string,

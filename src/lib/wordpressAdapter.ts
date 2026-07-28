@@ -217,6 +217,73 @@ function writeBody(type: WpChangeType, value: string, plugin: SeoPlugin): Record
   }
 }
 
+/** A content item with the SEO fields the proposal engine reasons about. */
+export type WpContentItem = {
+  id: number;
+  postType: "posts" | "pages";
+  title: string;
+  slug: string;
+  seoTitle: string;
+  metaDescription: string;
+  bodyText: string;
+};
+
+/**
+ * List pages with their SEO fields.
+ *
+ * Bounded on purpose — see the Shopify adapter for the same reasoning. Also
+ * filters to published content: proposing SEO changes to drafts creates cards
+ * for pages nobody can reach.
+ */
+export async function listContent(
+  siteUrl: string,
+  username: string,
+  appPassword: string,
+  plugin: SeoPlugin = "none",
+  limit = 50
+): Promise<WpContentItem[]> {
+  if (mockApis()) {
+    return [{
+      id: 1, postType: "pages", title: "Mock Page", slug: "mock",
+      seoTitle: "", metaDescription: "", bodyText: "Mock body text for proposals.",
+    }];
+  }
+
+  const auth = authHeader(username, appPassword);
+  const posts = await wp<WpPost[]>(
+    { siteUrl },
+    `/wp/v2/pages?per_page=${Math.min(limit, 100)}&context=edit&status=publish`,
+    auth
+  );
+
+  const keys = plugin === "none" ? null : SEO_META_KEYS[plugin];
+
+  return posts.map((p) => ({
+    id: p.id,
+    postType: "pages" as const,
+    title: p.title?.raw ?? p.title?.rendered ?? "",
+    slug: String((p as { slug?: string }).slug ?? p.id),
+    seoTitle: keys ? String(p.meta?.[keys.title] ?? "") : "",
+    metaDescription: keys ? String(p.meta?.[keys.description] ?? "") : "",
+    bodyText: stripHtml(p.content?.raw ?? ""),
+  }));
+}
+
+/** Body copy arrives as HTML; proposals reason about the words. */
+export function stripHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ")          // Gutenberg block comments
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&#8217;|&#039;|&rsquo;/g, "'")
+    .replace(/&quot;|&ldquo;|&rdquo;/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Read the live value. Writes nothing. */
 export async function stage(
   siteUrl: string,
