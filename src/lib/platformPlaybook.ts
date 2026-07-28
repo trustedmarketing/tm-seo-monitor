@@ -157,6 +157,25 @@ export function normaliseNetwork(network: string): string {
   return ALIASES[raw] ?? raw;
 }
 
+/**
+ * The aspect ratio a given post should be produced at.
+ *
+ * Worth stating on the card: someone sourcing their own image needs to know
+ * before they crop it, and "it looked fine in the preview" is how a post ships
+ * with the subject's head cut off on a phone.
+ */
+export function aspectFor(network: string | null | undefined, format: string | null | undefined): string {
+  const n = network ? normaliseNetwork(network) : "";
+  const f = (format ?? "").toLowerCase();
+
+  if (f === "story" || f === "short" || n === "tiktok") return "9:16";
+  if (n === "youtube") return f === "short" ? "9:16" : "16:9";
+  if (n === "linkedin") return f === "carousel" ? "1:1" : "1.91:1";
+  if (n === "google_business_profile") return "4:3";
+  if (f === "link") return "1.91:1";
+  return "4:5";
+}
+
 export function allNetworks(): Network[] {
   return Object.keys(PLAYBOOK) as Network[];
 }

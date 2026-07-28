@@ -10,6 +10,7 @@
 import { redirect } from "next/navigation";
 import { userClient } from "@/lib/supabaseServer";
 import { ClientHeader } from "@/components/ClientHeader";
+import { PlanSlot } from "@/components/PlanSlot";
 import { workspaceTabs, type ClientType } from "@/lib/workspaceTabs";
 import { fmtDate } from "@/lib/time";
 import { dbClient } from "@/lib/db";
@@ -111,10 +112,6 @@ export default async function Social({
     : { data: [] };
 
 
-  const slots = (planItems ?? []) as Record<string, unknown>[];
-  const pendingSlots = slots.filter((i) => ["planned", "failed"].includes(String(i.status))).length;
-  const draftedSlots = slots.filter((i) => String(i.status) === "sent").length;
-  const skippedSlots = slots.filter((i) => String(i.status) === "skipped").length;
 
   const groupId = (client as { postflow_group_id?: string | null }).postflow_group_id;
   // ── what this client can actually publish to ──────────────────────────────
@@ -153,6 +150,10 @@ export default async function Social({
 
   const pickable = connectedNets.length ? connectedNets : historicalNets;
 
+  const slots = (planItems ?? []) as Record<string, unknown>[];
+  const pendingSlots = slots.filter((i) => ["planned", "failed"].includes(String(i.status))).length;
+  const draftedSlots = slots.filter((i) => String(i.status) === "sent").length;
+  const skippedSlots = slots.filter((i) => String(i.status) === "skipped").length;
   const rawMsg = searchParams.msg ?? "";
   const planMsg = rawMsg.startsWith("built:")
     ? `Plan built: ${rawMsg.split(":")[1]} posts. Review below, then approve.`
@@ -294,202 +295,9 @@ export default async function Social({
                   {plan.rationale}
                 </div>
 
-                <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
-                  {(planItems ?? []).map((it: Record<string, unknown>, i: number) => (
-                    <div key={it.slot as number} style={{
-                      display: "flex", alignItems: "flex-start", gap: 14, padding: "13px 20px",
-                      borderTop: i === 0 ? "none" : "1px solid var(--border)", flexWrap: "wrap",
-                    }}>
-                      <div style={{ minWidth: 70, fontSize: 12.5, color: "var(--fg3)", paddingTop: 2 }}>
-                        {fmtDate(it.scheduled_for as string)}
-                      </div>
-                      <div style={{ minWidth: 96, fontSize: 12, color: "var(--fg3)", paddingTop: 3 }}>
-                        {String(it.platform)} · {String(it.format)}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 260 }}>
-                        <div style={{ fontSize: 14, color: "var(--fg1)" }}>{String(it.brief)}</div>
-                        <div style={{ fontSize: 12, color: "var(--fg3)", marginTop: 3 }}>{String(it.why)}</div>
-                      </div>
-                      {/* Each slot says where it came from. A filler slot that
-                          looks identical to an evidence-backed one is how a
-                          calendar gets mistaken for a strategy. */}
-                      {(() => {
-                        const theme = String(it.theme ?? "");
-                        const style =
-                          theme === "Repeat what worked"
-                            ? { label: "Proven", fg: "#2F8F4E", bg: "#E5FFB8", edge: "#C7E89A" }
-                            : theme === "Answer a customer question"
-                            ? { label: "Customer ask", fg: "#2F6F8F", bg: "#E7F4FB", edge: "#BFDDEC" }
-                            : theme === "Show the product working"
-                            ? { label: "Catalogue", fg: "#7A5AA8", bg: "#F1EBFA", edge: "#DCCCF0" }
-                            : { label: "Evergreen", fg: "var(--fg3)", bg: "var(--bg)", edge: "var(--border)" };
-                        return (
-                          <div style={{
-                            fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-                            padding: "3px 8px", borderRadius: 999, whiteSpace: "nowrap",
-                            background: style.bg, color: style.fg, border: `1px solid ${style.edge}`,
-                          }}>{style.label}</div>
-                        );
-                      })()}
-
-                      {/* Each slot decides for itself. Reviewing a month means
-                          keeping most of it and killing a couple, not one yes. */}
-                      <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 150, justifyContent: "flex-end" }}>
-                        {String(it.status) === "sent" ? (
-                          <span style={{ fontSize: 12.5, color: "#2F8F4E", fontWeight: 600 }}>In PostFlow ✓</span>
-                        ) : String(it.status) === "skipped" ? (
-                          <form action="/api/content-plan/item" method="post">
-                            <input type="hidden" name="client_id" value={params.id} />
-                            <input type="hidden" name="item_id" value={it.id as number} />
-                            <input type="hidden" name="action" value="unskip" />
-                            <button type="submit" style={ITEM_BTN(false)}>Restore</button>
-                          </form>
-                        ) : (
-                          <>
-                            <form action="/api/content-plan/item" method="post">
-                              <input type="hidden" name="client_id" value={params.id} />
-                              <input type="hidden" name="item_id" value={it.id as number} />
-                              <input type="hidden" name="action" value="draft" />
-                              <button type="submit" style={ITEM_BTN(true)}>
-                                {String(it.status) === "failed" ? "Retry" : "Draft"}
-                              </button>
-                            </form>
-                            <form action="/api/content-plan/item" method="post">
-                              <input type="hidden" name="client_id" value={params.id} />
-                              <input type="hidden" name="item_id" value={it.id as number} />
-                              <input type="hidden" name="action" value="skip" />
-                              <button type="submit" style={ITEM_BTN(false)}>Skip</button>
-                            </form>
-                          </>
-                        )}
-                      </div>
-
-                      {/* ── the post itself ──────────────────────────────────
-                          Copy and artwork are edited independently, because the
-                          real cases are "good image, wrong copy" and the reverse.
-                          Nothing leaves for PostFlow until both are right. */}
-                      {it.caption ? (
-                        <div style={{ flexBasis: "100%", marginTop: 6, display: "flex", gap: 14, flexWrap: "wrap" }}>
-
-                          {/* artwork */}
-                          <div style={{ width: 150 }}>
-                            {it.bloom_image_id ? (
-                              // A generation in flight. The check is manual rather
-                              // than a poll: one deliberate press beats a page that
-                              // refetches on a timer whether anyone is watching.
-                              <form action="/api/content-plan/item" method="post">
-                                <input type="hidden" name="client_id" value={params.id} />
-                                <input type="hidden" name="item_id" value={it.id as number} />
-                                <input type="hidden" name="action" value="check-image" />
-                                <div style={{
-                                  width: "100%", aspectRatio: "1", borderRadius: 8,
-                                  border: "1px dashed var(--border-strong)", display: "flex",
-                                  alignItems: "center", justifyContent: "center",
-                                  fontSize: 12, color: "var(--fg3)", textAlign: "center", padding: 8,
-                                }}>Generating…</div>
-                                <button type="submit" style={{ ...ITEM_BTN(true), marginTop: 5, width: "100%" }}>
-                                  Check
-                                </button>
-                              </form>
-                            ) : it.image_url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={String(it.image_url)} alt="" style={{
-                                width: "100%", borderRadius: 8, display: "block",
-                                border: "1px solid var(--border)",
-                              }} />
-                            ) : (
-                              <div style={{
-                                width: "100%", aspectRatio: "1", borderRadius: 8,
-                                border: "1px dashed var(--border-strong)", display: "flex",
-                                alignItems: "center", justifyContent: "center",
-                                fontSize: 12, color: "var(--fg3)", textAlign: "center", padding: 8,
-                              }}>No image yet</div>
-                            )}
-
-                            {String(it.status) !== "sent" && !it.bloom_image_id && (
-                              <>
-                                {/* Generate with Bloom, or bring your own. Both
-                                    end in the same field, so neither is the
-                                    "proper" path. */}
-                                <form action="/api/content-plan/item" method="post" style={{ marginTop: 6 }}>
-                                  <input type="hidden" name="client_id" value={params.id} />
-                                  <input type="hidden" name="item_id" value={it.id as number} />
-                                  <input type="hidden" name="action" value="generate-image" />
-                                  <input name="steer" placeholder={it.image_url ? "What to change" : "Optional direction"}
-                                         style={{ ...INP, fontSize: 11.5, padding: "6px 8px" }} />
-                                  <button type="submit" style={{ ...ITEM_BTN(true), marginTop: 5, width: "100%" }}>
-                                    {it.image_url ? "Regenerate" : "Generate with Bloom"}
-                                  </button>
-                                </form>
-
-                                <form action="/api/content-plan/item" method="post" style={{ marginTop: 8 }}>
-                                  <input type="hidden" name="client_id" value={params.id} />
-                                  <input type="hidden" name="item_id" value={it.id as number} />
-                                  <input type="hidden" name="action" value="image" />
-                                  <input name="image_url" placeholder="…or paste your own URL"
-                                         defaultValue={String(it.image_url ?? "")}
-                                         style={{ ...INP, fontSize: 11.5, padding: "6px 8px" }} />
-                                  <button type="submit" style={{ ...ITEM_BTN(false), marginTop: 5, width: "100%" }}>
-                                    Use this image
-                                  </button>
-                                </form>
-                              </>
-                            )}
-                          </div>
-
-                          {/* copy */}
-                          <div style={{ flex: 1, minWidth: 320 }}>
-                            {String(it.status) === "sent" ? (
-                              <div style={{
-                                padding: "10px 12px", background: "var(--bg)", borderRadius: 8,
-                                fontSize: 13.5, color: "var(--fg2)", lineHeight: 1.55, whiteSpace: "pre-wrap",
-                              }}>{String(it.caption)}</div>
-                            ) : (
-                              <>
-                                <form action="/api/content-plan/item" method="post">
-                                  <input type="hidden" name="client_id" value={params.id} />
-                                  <input type="hidden" name="item_id" value={it.id as number} />
-                                  <input type="hidden" name="action" value="caption" />
-                                  <textarea name="caption" defaultValue={String(it.caption)} rows={8}
-                                            style={{ ...INP, lineHeight: 1.55, resize: "vertical" }} />
-                                  <button type="submit" style={{ ...ITEM_BTN(false), marginTop: 6 }}>Save copy</button>
-                                </form>
-
-                                {/* A steer is cheaper than a rewrite and keeps the
-                                    voice rules the prompt enforces. */}
-                                <form action="/api/content-plan/item" method="post"
-                                      style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                  <input type="hidden" name="client_id" value={params.id} />
-                                  <input type="hidden" name="item_id" value={it.id as number} />
-                                  <input type="hidden" name="action" value="regenerate" />
-                                  <input name="steer" placeholder="Rewrite it — e.g. shorter, less salesy, lead with the anode point"
-                                         style={{ ...INP, flex: 1, minWidth: 240, fontSize: 12.5 }} />
-                                  <button type="submit" style={ITEM_BTN(false)}>Rewrite</button>
-                                </form>
-                              </>
-                            )}
-
-                            {Array.isArray(it.hashtags) && (it.hashtags as string[]).length > 0 && (
-                              <div style={{ marginTop: 8, fontSize: 12.5, color: "var(--fg3)" }}>
-                                {(it.hashtags as string[]).join(" ")}
-                              </div>
-                            )}
-
-                            {String(it.status) !== "sent" && (
-                              <form action="/api/content-plan/item" method="post" style={{ marginTop: 10 }}>
-                                <input type="hidden" name="client_id" value={params.id} />
-                                <input type="hidden" name="item_id" value={it.id as number} />
-                                <input type="hidden" name="action" value="send" />
-                                <button type="submit" style={ITEM_BTN(true)}>Send to PostFlow</button>
-                                <span style={{ fontSize: 12, color: "var(--fg3)", marginLeft: 10 }}>
-                                  Lands as an unscheduled draft.
-                                </span>
-                              </form>
-                            )}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
+                <div>
+                  {slots.map((it) => (
+                    <PlanSlot key={it.id as number} item={it as never} clientId={params.id} />
                   ))}
                 </div>
 
