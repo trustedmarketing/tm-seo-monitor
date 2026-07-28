@@ -95,11 +95,12 @@ export async function startImage(
   // has been wrong four times on this integration today, so the ratio is ALSO
   // stated in the prompt. An ignored field costs nothing; a silently square image
   // in a 9:16 slot costs a repost.
-  // POST /images is the documented generation endpoint. /images/generations also
-  // accepts the request — it is what produced the images sitting in Tom's Bloom
-  // library — but its response shape carried no id we could recognise, and the
-  // documented endpoint is the one to build on.
-  const created = await call<unknown>("/images", key, {
+  // /images/generations, because it is the endpoint that DEMONSTRABLY works —
+  // every image in Tom's library came from it. The docs index also lists
+  // POST /images; switching to it on that basis broke generation entirely, which
+  // is a good argument for preferring observed behaviour over documentation when
+  // the two disagree.
+  const created = await call<unknown>("/images/generations", key, {
     method: "POST",
     body: JSON.stringify({
       brandSessionId: brandId,

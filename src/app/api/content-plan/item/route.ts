@@ -106,18 +106,27 @@ export async function POST(req: Request) {
         steer: steerImg || null,
       });
 
-      const imageId = await startImage(key, client.bloom_brand_id, prompt, ratio);
-
-      // Record the request whether or not we got an id back. The generation has
-      // started either way, and an earlier version threw when no id was found -
-      // so Bloom produced a good image while the slot recorded nothing at all
-      // and offered no way to collect it.
+      // Record the attempt BEFORE the call. If Bloom errors, the slot still shows
+      // that something was tried and why it stopped, rather than looking as
+      // though the button did nothing — which is exactly how this failed twice.
       await db.from("content_plan_items").update({
-        bloom_image_id: imageId,
-        image_prompt: prompt,
         image_status: "generating",
+        image_prompt: prompt,
         image_requested_at: new Date().toISOString(),
       }).eq("id", itemId);
+
+      let imageId: string | null = null;
+      try {
+        imageId = await startImage(key, client.bloom_brand_id, prompt, ratio);
+      } catch (e) {
+        await db.from("content_plan_items")
+          .update({ image_status: "failed" }).eq("id", itemId);
+        throw e;
+      }
+
+      if (imageId) {
+        await db.from("content_plan_items").update({ bloom_image_id: imageId }).eq("id", itemId);
+      }
 
       return back(req, clientId, "image-started");
     } catch (e) {

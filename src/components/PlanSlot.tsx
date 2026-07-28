@@ -172,6 +172,16 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
                   This page updates itself
                 </div>
               </div>
+            ) : item.image_status === "failed" ? (
+              <div style={{
+                width: "100%", aspectRatio: "4/5", borderRadius: 10,
+                border: "1px solid #EBC9C4", background: "#FBE7E4", display: "flex",
+                flexDirection: "column", alignItems: "center", justifyContent: "center",
+                gap: 4, color: "var(--danger)", fontSize: 13, textAlign: "center", padding: 12,
+              }}>
+                <span>Generation failed</span>
+                <span style={{ fontSize: 12 }}>Try again, or paste a URL</span>
+              </div>
             ) : item.image_url ? (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
