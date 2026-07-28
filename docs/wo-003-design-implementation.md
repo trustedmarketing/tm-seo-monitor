@@ -203,6 +203,38 @@ Depends on: B, C.
   three days then got reverted is data — measurement depends on not hiding it.
 - Ships with a tested rollback path or the change type stays staging-only.
 
+### Stream N · `module/ops-checks` — one diagnostic per integration
+Added 2026-07-28 (Tom). No migration.
+
+Two integration failures in two days had the same shape: an invisible value, and
+hours spent reasoning about symptoms instead of looking at what the server sees.
+
+- **Screenshots** — three wrong theories (truncated key, sensitive-var masking,
+  account setup) before the vendor's request log showed the target site returning
+  429. Cost: ~1 hour.
+- **GA4** — six days of daily failures and three access grants applied to a
+  permission that was never the problem. `ga4_property_id` was simply wrong, and
+  GA4's error never named the property it was refusing. Cost: 6 days of lost data.
+
+Both were diagnosed in ten minutes once an owner-only route reported what the
+server actually resolves. Generalise it.
+
+**Pattern:** `/api/ops/<integration>-check`, owner-only, reporting each hop in
+order so a failure says *which* one broke — credential present, identity we
+present, external ID we ask for, the vendor's own error text, and the round-trip
+result. Never the secret; identifiers and lengths only.
+
+**Build for:** Meta · Google Ads · Microsoft Ads · Shopify · PostFlow · GSC ·
+DataForSEO · ClickUp. (`screenshot-check` and `ga4-check` already shipped.)
+
+**Related fix, applies everywhere:** any collector reading a hand-entered
+external ID must name that ID in its error and say to verify it. A wrong ID is
+indistinguishable from a permissions failure from the outside — that is precisely
+what cost six days on GA4.
+
+**Feeds the COO finding:** these checks are what an attention-view owner needs to
+triage a red row in seconds rather than escalating it.
+
 ### Stream F · `module/approvals-queue` — the queue screen
 Depends on: C, D.
 - Filters (client / type / severity / age), the earned empty state, median
