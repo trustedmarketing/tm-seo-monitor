@@ -19,6 +19,7 @@ type Item = {
   brief: string; why: string | null; source_post_id: number | null;
   status: string; caption: string | null; hashtags: string[] | null; headline: string | null;
   image_url: string | null; bloom_image_id: string | null; image_status: string | null;
+  image_error: string | null;
   postflow_id: string | null;
 };
 
@@ -171,8 +172,20 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
                 <div style={{ fontSize: 11.5, color: "var(--fg3)", textAlign: "center", marginTop: 8 }}>
                   This page updates itself
                 </div>
+
+                {/* An escape hatch, always. A generation that never lands would
+                    otherwise leave the slot with no way to proceed — which is
+                    exactly what happened, and hiding the alternative while
+                    waiting made a slow step into a dead end. */}
+                <form action="/api/content-plan/item" method="post" style={{ marginTop: 10 }}>
+                  <Hidden clientId={clientId} itemId={item.id} action="image" />
+                  <input name="image_url" placeholder="or paste an image URL"
+                         style={{ ...INPUT, fontSize: 12, border: "none",
+                                  borderBottom: "1px solid var(--border)", borderRadius: 0,
+                                  textAlign: "center", padding: "6px 2px" }} />
+                </form>
               </div>
-            ) : item.image_status === "failed" ? (
+            ) : item.image_status === "failed" && !item.image_url ? (
               <div style={{
                 width: "100%", aspectRatio: "4/5", borderRadius: 10,
                 border: "1px solid #EBC9C4", background: "#FBE7E4", display: "flex",
@@ -180,7 +193,9 @@ export function PlanSlot({ item, clientId }: { item: Item; clientId: string }) {
                 gap: 4, color: "var(--danger)", fontSize: 13, textAlign: "center", padding: 12,
               }}>
                 <span>Generation failed</span>
-                <span style={{ fontSize: 12 }}>Try again, or paste a URL</span>
+                {item.image_error && (
+                  <span style={{ fontSize: 11.5, opacity: 0.85 }}>{item.image_error}</span>
+                )}
               </div>
             ) : item.image_url ? (
               <>

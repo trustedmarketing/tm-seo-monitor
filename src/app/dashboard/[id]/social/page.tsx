@@ -111,7 +111,7 @@ export default async function Social({
 
   const { data: planItems } = plan
     ? await db.from("content_plan_items")
-        .select("id, slot, scheduled_for, platform, format, theme, brief, why, source_post_id, status, caption, hashtags, headline, postflow_id, image_url, bloom_image_id, image_status")
+        .select("id, slot, scheduled_for, platform, format, theme, brief, why, source_post_id, status, caption, hashtags, headline, postflow_id, image_url, bloom_image_id, image_status, image_error")
         .eq("plan_id", plan.id).order("slot")
     : { data: [] };
 

@@ -197,9 +197,13 @@ export async function POST(req: Request) {
     const url = String(form.get("image_url") ?? "").trim();
     if (!url) return back(req, clientId, "empty-image");
     if (!/^https:\/\//i.test(url)) return back(req, clientId, "image-not-https");
-    // media_id is cleared: a new image means the old upload no longer applies.
-    await db.from("content_plan_items")
-      .update({ image_url: url, media_id: null }).eq("id", itemId);
+    // Also ends any generation in flight. Someone pasting their own image has
+    // decided; leaving the slot "generating" alongside it would let a late
+    // arrival overwrite the choice they just made.
+    await db.from("content_plan_items").update({
+      image_url: url, media_id: null,
+      image_status: "completed", bloom_image_id: null, image_error: null,
+    }).eq("id", itemId);
     return back(req, clientId, "image-saved");
   }
 
