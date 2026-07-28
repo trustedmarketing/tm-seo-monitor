@@ -113,20 +113,31 @@ export async function accountStatus(): Promise<AccountStatus> {
 // ── On-page crawl: post task, fetch score later ───────────────────
 export async function onPageTaskPost(domain: string, maxPages = 300): Promise<string> {
   if (mockApis()) return "mock-task-000";
-  const result = await post<never>("/on_page/task_post", [
-    { target: domain, max_crawl_pages: maxPages, load_resources: false, enable_javascript: false },
-  ]);
-  // task_post returns the id on the task object, not in result — refetch shape:
-  // simpler: DataForSEO echoes the id; grab from a direct call instead.
-  void result;
-  // The post() helper strips task metadata, so make one raw call here:
+
+  // Raw fetch rather than post(): the task id lives on the task object, and
+  // post() returns task.result, which task_post leaves empty.
+  //
+  // This must stay ONE call. An earlier version called post() first, discarded
+  // the result, then made this call for the id — which queued two crawls and
+  // billed for both on every click, and orphaned the first. The second call
+  // also dropped the load_resources/enable_javascript flags, so the crawl we
+  // kept was the expensive one. That defeated the point of the six-hour rate
+  // limit on /api/qc/scan.
   const res = await fetch(`${BASE}/on_page/task_post`, {
     method: "POST",
     headers: { Authorization: authHeader(), "Content-Type": "application/json" },
-    body: JSON.stringify([{ target: domain, max_crawl_pages: maxPages }]),
+    body: JSON.stringify([
+      { target: domain, max_crawl_pages: maxPages, load_resources: false, enable_javascript: false },
+    ]),
   });
+  if (!res.ok) throw new Error(`DataForSEO /on_page/task_post → HTTP ${res.status}`);
+
   const json = await res.json();
-  const id = json?.tasks?.[0]?.id;
+  const task = json?.tasks?.[0];
+  if (task?.status_code >= 40000) {
+    throw new Error(`DataForSEO /on_page/task_post → ${task.status_code} ${task.status_message}`);
+  }
+  const id = task?.id;
   if (!id) throw new Error("on_page task_post returned no id");
   return id as string;
 }

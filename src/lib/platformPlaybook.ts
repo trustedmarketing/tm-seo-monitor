@@ -33,6 +33,16 @@ const ALIASES: Record<string, Network> = {
   google_my_business: "google_business_profile",
 };
 
+// ── On video formats in a still-image pipeline ───────────────────────────────
+// The planner deals `short` and `video` slots even though nothing here produces
+// video. That is deliberate (Tom, 2026-07-28): the networks genuinely reward
+// native video, and a plan that quietly omitted it to match our tooling would be
+// worse advice dressed as a complete month.
+//
+// What we generate for those slots is the OPENING FRAME. The intended path is
+// still → video via Higgsfield, which is already connected but not yet wired.
+// Until then a video slot is a storyboard frame plus human work, and the card
+// says so rather than implying the still is the deliverable.
 export type Format = "image" | "carousel" | "video" | "short" | "text" | "link" | "story";
 
 export type NetworkPlaybook = {

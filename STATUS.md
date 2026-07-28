@@ -3,6 +3,27 @@
 _Last updated: 2026-07-27_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
 
+### Social content planner — WO-004 (2026-07-28)
+
+Build a month, decide it slot by slot, finish each post, send it. Working
+end to end today: plan generation from client-specific evidence, per-slot
+approve/skip/rewrite, caption drafting with playbook rules and standing hashtags,
+Bloom artwork, and PostFlow delivery as unscheduled drafts.
+
+**Open decisions and next steps**
+
+- **Video slots produce a still, not a video.** Deliberate: the networks reward
+  native video, and omitting it to match our tooling would be worse advice
+  dressed as a complete month. The still is an OPENING FRAME. Intended path is
+  still → video via **Higgsfield**, already connected, not yet wired. Until then
+  a video slot is a storyboard frame plus human work.
+- **Client approval surface undecided.** Posts land in PostFlow as unscheduled
+  drafts. Whether the client approves in PostFlow's strict-approval mode or in
+  our own portal is unresolved; PostFlow's approval API is not documented well
+  enough to build on.
+- **Bloom is pilot-only.** Ray declined a DPA (no timeline). Public assets only,
+  two brands. Wider rollout is a CLO decision.
+
 ## Shipped to production
 - **WO-001 enabling layer** — staging Supabase, vitest + `MOCK_APIS` harness, CI, branch/agent conventions.
 - **Collectors** (per-client, vaulted, dynamic, into a shared spine): organic/SEO, AI visibility, **Meta ads**,
