@@ -72,6 +72,17 @@ export async function POST(req: Request) {
       social_posts_per_month: opt(form, "social_posts_per_month")
         ? Number(opt(form, "social_posts_per_month"))
         : null,
+      // Standing tags, applied to every post for this client. Stored normalised
+      // so "#SaltyDog", "saltydog" and " #saltydog " cannot become three tags.
+      hashtag_core: opt(form, "hashtag_core")
+        ? Array.from(new Set(
+            String(opt(form, "hashtag_core"))
+              .split(/[\s,]+/)
+              .map((t) => t.trim())
+              .filter(Boolean)
+              .map((t) => (t.startsWith("#") ? t : `#${t}`))
+          )).slice(0, 5)
+        : null,
       active: form.get("active") === "on",
     };
 

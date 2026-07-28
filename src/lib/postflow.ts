@@ -348,6 +348,45 @@ export async function createDraft(
   return { id: body?.data?.id != null ? String(body.data.id) : null };
 }
 
+/**
+ * Hand PostFlow a remote image URL and get a media id back.
+ *
+ * /upload-url-sync rather than /upload: Bloom returns a URL, so there is no
+ * reason to pull bytes through our server just to push them out again.
+ *
+ * The response shape is not documented publicly (the reference page 404s), so
+ * this looks for an id in the places vendors put one and reports the raw payload
+ * when it finds none. Guessing a shape has cost three fixes on this API already.
+ */
+export async function uploadMediaFromUrl(token: string, url: string): Promise<{ id: string | null }> {
+  if (mockApis()) return { id: "mock-media-1" };
+
+  const res = await fetch(`${BASE}/upload-url-sync`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ url }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`PostFlow media upload failed ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+
+  const body = await res.json();
+  const id =
+    body?.data?.id ?? body?.id ?? body?.media?.id ?? body?.data?.media_id ?? body?.media_id ?? null;
+
+  if (id == null) {
+    throw new Error(
+      `PostFlow accepted the image but returned no media id. Raw: ${JSON.stringify(body).slice(0, 250)}`
+    );
+  }
+  return { id: String(id) };
+}
+
 const MOCK_POSTS: PostFlowPost[] = [
   {
     externalId: "mock-1", platform: "instagram", postType: "image",

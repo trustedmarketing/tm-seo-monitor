@@ -155,6 +155,13 @@ export default async function Settings({
               <div style={HINT}>The cadence this client is on. Leave blank and the planner uses the platform minimum and says so.</div>
             </div>
             <div>
+              <label style={L}>Standing hashtags</label>
+              <input name="hashtag_core"
+                     defaultValue={(client.hashtag_core ?? []).join(" ")}
+                     placeholder="#SaltyDog #BoatCare" style={I} />
+              <div style={HINT}>Applied to every post for this client, before the post-specific ones. Max 5.</div>
+            </div>
+            <div>
               <label style={L}>ClickUp list ID</label>
               <input name="clickup_list_id" defaultValue={client.clickup_list_id ?? ""} style={I} />
             </div>

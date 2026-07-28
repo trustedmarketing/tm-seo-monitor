@@ -12,6 +12,7 @@
 // example already in this codebase's history.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generate } from "@/lib/ai";
+import { playbookFor } from "@/lib/platformPlaybook";
 
 export type DraftedPost = {
   week: number;
@@ -49,8 +50,11 @@ function systemPrompt(args: {
   domain: string;
   clientType: string | null;
   examples: string[];
+  network?: string | null;
+  coreHashtags?: string[];
 }): string {
-  const { clientName, domain, clientType, examples } = args;
+  const { clientName, domain, clientType, examples, network, coreHashtags } = args;
+  const book = playbookFor(network);
 
   return [
     `You write organic social captions for ${clientName} (${domain}).`,
@@ -69,6 +73,29 @@ function systemPrompt(args: {
     "- No emoji unless the examples below use them.",
     "- Open with the substance. No 'Did you know' or 'In today's world'.",
     "- One clear idea per post. Length to suit the platform, not to fill space.",
+    "",
+
+    // The playbook rules were written down and then never handed to the writer.
+    // The first live caption put a URL in a Facebook post body, which is the one
+    // thing that playbook entry says suppresses reach.
+    book
+      ? [
+          `Writing for ${book.label}. What it rewards: ${book.rewards}`,
+          `Caption style: ${book.captionHint}`,
+          "Avoid on this network:",
+          ...book.avoid.map((a) => `- ${a}`),
+        ].join("\n")
+      : "",
+    "",
+
+    coreHashtags?.length
+      ? [
+          "Hashtags:",
+          `- These are this client's standing tags and must appear on every post: ${coreHashtags.join(" ")}`,
+          "- Add 1 to 3 more that are specific to THIS post's subject.",
+          "- Return the standing tags plus your additions, standing tags first.",
+        ].join("\n")
+      : "Hashtags: 3 to 6, specific to this post's subject.",
     "",
     examples.length
       ? [
@@ -98,8 +125,12 @@ export async function draftPost(args: {
   brief: string;
   week: number;
   sourcePost?: string | null;
+  /** Network this post is for, so the drafter gets that platform's rules. */
+  network?: string | null;
+  /** The client's standing tags. Consistency is the point of a hashtag set. */
+  coreHashtags?: string[];
 }): Promise<DraftedPost> {
-  const { db, clientId, brief, week, sourcePost } = args;
+  const { db, clientId, brief, week, sourcePost, coreHashtags } = args;
 
   const prompt = [
     `Write the post for this brief:`,
@@ -121,10 +152,22 @@ export async function draftPost(args: {
     maxTokens: 2000,
   });
 
+  // Enforce the standing set rather than trusting the model to have included
+  // it. A "consistent" hashtag strategy that depends on the model remembering is
+  // not consistent, it is usually consistent.
+  const returned = (value.hashtags ?? [])
+    .filter((h) => typeof h === "string" && h.trim())
+    .map((h) => (h.trim().startsWith("#") ? h.trim() : `#${h.trim()}`));
+
+  const core = (coreHashtags ?? []).map((h) => (h.startsWith("#") ? h : `#${h}`));
+  const seen = new Set(core.map((h) => h.toLowerCase()));
+  const extras = returned.filter((h) => !seen.has(h.toLowerCase()));
+
   return {
     week,
     brief,
     caption: value.caption.trim(),
-    hashtags: (value.hashtags ?? []).filter((h) => typeof h === "string").slice(0, 6),
+    // Standing tags first, then this post's own, capped so the block stays readable.
+    hashtags: [...core, ...extras].slice(0, 8),
   };
 }

@@ -32,6 +32,12 @@ type Metric = {
 
 function n(v: number | null | undefined): number { return v ?? 0; }
 
+const INP: React.CSSProperties = {
+  fontFamily: "var(--font-body)", fontSize: 13, padding: "8px 10px",
+  border: "1px solid var(--border-strong)", borderRadius: 7, width: "100%",
+  boxSizing: "border-box", background: "#fff", color: "var(--fg1)",
+};
+
 function ITEM_BTN(primary: boolean): React.CSSProperties {
   return {
     fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 12.5,
@@ -44,7 +50,15 @@ function ITEM_BTN(primary: boolean): React.CSSProperties {
 
 const PLAN_MSG: Record<string, string> = {
   approved: "Plan approved. Run the drafting job to write the captions and push them to PostFlow.",
-  "item-drafted": "Drafted and sent to PostFlow.",
+  "item-drafted": "Caption written. Review it, add artwork, then send.",
+  regenerated: "Rewritten.",
+  "caption-saved": "Your copy saved.",
+  "image-saved": "Image attached. It uploads when you send.",
+  "image-not-https": "Image URL must start with https://.",
+  sent: "Sent to PostFlow.",
+  "already-sent": "That slot is already in PostFlow.",
+  "nothing-to-send": "Write a caption before sending.",
+  "empty-caption": "Caption cannot be empty.",
   "item-skipped": "Slot skipped. It stays in the plan and can be restored.",
   "item-restored": "Slot restored.",
   "already-drafted": "That slot is already in PostFlow.",
@@ -95,7 +109,7 @@ export default async function Social({
 
   const slots = (planItems ?? []) as Record<string, unknown>[];
   const pendingSlots = slots.filter((i) => ["planned", "failed"].includes(String(i.status))).length;
-  const draftedSlots = slots.filter((i) => String(i.status) === "drafted").length;
+  const draftedSlots = slots.filter((i) => String(i.status) === "sent").length;
   const skippedSlots = slots.filter((i) => String(i.status) === "skipped").length;
 
   const groupId = (client as { postflow_group_id?: string | null }).postflow_group_id;
@@ -317,7 +331,7 @@ export default async function Social({
                       {/* Each slot decides for itself. Reviewing a month means
                           keeping most of it and killing a couple, not one yes. */}
                       <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 150, justifyContent: "flex-end" }}>
-                        {String(it.status) === "drafted" ? (
+                        {String(it.status) === "sent" ? (
                           <span style={{ fontSize: 12.5, color: "#2F8F4E", fontWeight: 600 }}>In PostFlow ✓</span>
                         ) : String(it.status) === "skipped" ? (
                           <form action="/api/content-plan/item" method="post">
@@ -346,15 +360,96 @@ export default async function Social({
                         )}
                       </div>
 
-                      {/* The drafted words, in place. Reviewing a caption on the
-                          same row as the brief it came from is the only way to
-                          tell whether it answered the brief. */}
+                      {/* ── the post itself ──────────────────────────────────
+                          Copy and artwork are edited independently, because the
+                          real cases are "good image, wrong copy" and the reverse.
+                          Nothing leaves for PostFlow until both are right. */}
                       {it.caption ? (
-                        <div style={{
-                          flexBasis: "100%", marginTop: 4, padding: "10px 12px",
-                          background: "var(--bg)", borderRadius: 8, fontSize: 13.5,
-                          color: "var(--fg2)", lineHeight: 1.55, whiteSpace: "pre-wrap",
-                        }}>{String(it.caption)}</div>
+                        <div style={{ flexBasis: "100%", marginTop: 6, display: "flex", gap: 14, flexWrap: "wrap" }}>
+
+                          {/* artwork */}
+                          <div style={{ width: 150 }}>
+                            {it.image_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={String(it.image_url)} alt="" style={{
+                                width: "100%", borderRadius: 8, display: "block",
+                                border: "1px solid var(--border)",
+                              }} />
+                            ) : (
+                              <div style={{
+                                width: "100%", aspectRatio: "1", borderRadius: 8,
+                                border: "1px dashed var(--border-strong)", display: "flex",
+                                alignItems: "center", justifyContent: "center",
+                                fontSize: 12, color: "var(--fg3)", textAlign: "center", padding: 8,
+                              }}>No image yet</div>
+                            )}
+
+                            {String(it.status) !== "sent" && (
+                              <form action="/api/content-plan/item" method="post" style={{ marginTop: 6 }}>
+                                <input type="hidden" name="client_id" value={params.id} />
+                                <input type="hidden" name="item_id" value={it.id as number} />
+                                <input type="hidden" name="action" value="image" />
+                                <input name="image_url" placeholder="Paste an image URL"
+                                       defaultValue={String(it.image_url ?? "")}
+                                       style={{ ...INP, fontSize: 11.5, padding: "6px 8px" }} />
+                                <button type="submit" style={{ ...ITEM_BTN(false), marginTop: 5, width: "100%" }}>
+                                  {it.image_url ? "Replace image" : "Attach image"}
+                                </button>
+                              </form>
+                            )}
+                          </div>
+
+                          {/* copy */}
+                          <div style={{ flex: 1, minWidth: 320 }}>
+                            {String(it.status) === "sent" ? (
+                              <div style={{
+                                padding: "10px 12px", background: "var(--bg)", borderRadius: 8,
+                                fontSize: 13.5, color: "var(--fg2)", lineHeight: 1.55, whiteSpace: "pre-wrap",
+                              }}>{String(it.caption)}</div>
+                            ) : (
+                              <>
+                                <form action="/api/content-plan/item" method="post">
+                                  <input type="hidden" name="client_id" value={params.id} />
+                                  <input type="hidden" name="item_id" value={it.id as number} />
+                                  <input type="hidden" name="action" value="caption" />
+                                  <textarea name="caption" defaultValue={String(it.caption)} rows={8}
+                                            style={{ ...INP, lineHeight: 1.55, resize: "vertical" }} />
+                                  <button type="submit" style={{ ...ITEM_BTN(false), marginTop: 6 }}>Save copy</button>
+                                </form>
+
+                                {/* A steer is cheaper than a rewrite and keeps the
+                                    voice rules the prompt enforces. */}
+                                <form action="/api/content-plan/item" method="post"
+                                      style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                  <input type="hidden" name="client_id" value={params.id} />
+                                  <input type="hidden" name="item_id" value={it.id as number} />
+                                  <input type="hidden" name="action" value="regenerate" />
+                                  <input name="steer" placeholder="Rewrite it — e.g. shorter, less salesy, lead with the anode point"
+                                         style={{ ...INP, flex: 1, minWidth: 240, fontSize: 12.5 }} />
+                                  <button type="submit" style={ITEM_BTN(false)}>Rewrite</button>
+                                </form>
+                              </>
+                            )}
+
+                            {Array.isArray(it.hashtags) && (it.hashtags as string[]).length > 0 && (
+                              <div style={{ marginTop: 8, fontSize: 12.5, color: "var(--fg3)" }}>
+                                {(it.hashtags as string[]).join(" ")}
+                              </div>
+                            )}
+
+                            {String(it.status) !== "sent" && (
+                              <form action="/api/content-plan/item" method="post" style={{ marginTop: 10 }}>
+                                <input type="hidden" name="client_id" value={params.id} />
+                                <input type="hidden" name="item_id" value={it.id as number} />
+                                <input type="hidden" name="action" value="send" />
+                                <button type="submit" style={ITEM_BTN(true)}>Send to PostFlow</button>
+                                <span style={{ fontSize: 12, color: "var(--fg3)", marginLeft: 10 }}>
+                                  Lands as an unscheduled draft.
+                                </span>
+                              </form>
+                            )}
+                          </div>
+                        </div>
                       ) : null}
                     </div>
                   ))}
