@@ -14,7 +14,7 @@
 // click, or a retried request must publish ONCE — so the claim is a conditional
 // UPDATE that only one caller can win, not a read-then-write.
 import { NextResponse } from "next/server";
-import { getProfile, isAgency } from "@/lib/supabaseServer";
+import { getProfile, isAgency, type Profile } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
 import { writeAudit, canDecide, UNDO_WINDOW_MS } from "@/lib/audit";
@@ -51,6 +51,50 @@ export async function POST(req: Request) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
 
   const db = dbClient();
+
+  // ── bulk approve ───────────────────────────────────────────────────────────
+  //
+  // Punch list #8: "Approve all 3 is correctly scoped to low-risk change types.
+  // Add the second constraint: bulk actions never span clients without explicit
+  // per-client selection (client-isolation rule)."
+  //
+  // Both constraints are enforced HERE, not in the UI that renders the button.
+  // A bulk action is the one place where a mistake multiplies, so the server
+  // re-derives the eligible set rather than trusting a list of ids from a form.
+  if (action === "approve_all") {
+    const clientId = String(form.get("client_id") ?? "");
+    if (!clientId) return back(req, "bulk-needs-client");
+
+    const { data: eligible } = await db
+      .from("approvals")
+      .select("id, requires_role, severity")
+      .eq("client_id", clientId)          // never spans clients
+      .eq("status", "staged")
+      .neq("severity", "High");           // low-risk only
+
+    const ids = ((eligible ?? []) as { id: string; requires_role: string }[])
+      .filter((r) => canDecide(profile!.role, r.requires_role))
+      .map((r) => r.id);
+
+    if (ids.length === 0) return back(req, "bulk-nothing-eligible");
+
+    // Sequential on purpose: each card publishes through the same claim-execute
+    // -record-audit path as a single approval, so one failure cannot corrupt the
+    // others and every card still gets its own audit row.
+    let ok = 0, failedCount = 0;
+    for (const each of ids) {
+      const r = await publishOne(db, each, profile, ip);
+      if (r) ok++; else failedCount++;
+    }
+
+    await writeAudit(
+      { action: "approve", targetType: "client", targetId: clientId, clientId,
+        detail: `bulk approve: ${ok} published, ${failedCount} failed, ${ids.length} eligible`, ip },
+      profile
+    );
+    return back(req, failedCount ? "bulk-partial" : "bulk-done");
+  }
+
   const { data: row } = await db.from("approvals").select("*").eq("id", id).maybeSingle();
   if (!row) return back(req, "not-found");
 
@@ -193,11 +237,35 @@ export async function POST(req: Request) {
 
   if (action !== "approve" && action !== "retry") return back(req, "unknown-action");
 
+  const ok = await publishOne(db, id, profile, ip, action === "retry" ? "failed" : "staged");
+  return back(req, ok === null ? "already-in-progress" : ok ? "published" : "failed");
+}
+
+/**
+ * Claim a card and publish it. The ONLY path that writes to a client property.
+ *
+ * Single approve, retry and bulk approve all route through here, so they cannot
+ * drift apart — a bulk action that skipped the claim, the ledger entry or the
+ * audit row would be a silent second implementation of the most consequential
+ * code in the product.
+ *
+ * Returns true on publish, false on failure, and null when the card could not be
+ * claimed (someone else already has it).
+ */
+async function publishOne(
+  db: ReturnType<typeof dbClient>,
+  id: string,
+  profile: Profile | null,
+  ip: string | null,
+  claimable: "staged" | "failed" = "staged"
+): Promise<boolean | null> {
+  const { data: row } = await db.from("approvals").select("*").eq("id", id).maybeSingle();
+  if (!row) return null;
+
   // ── claim ──────────────────────────────────────────────────────────────────
   // Conditional update: only a card currently in a claimable state can be moved
   // to `publishing`, and only one caller wins the race. This is what makes a
   // double click safe.
-  const claimable = action === "retry" ? "failed" : "staged";
   const { data: claimed } = await db
     .from("approvals")
     .update({ status: "publishing", attempt: (row.attempt ?? 0) + 1, updated_at: new Date().toISOString() })
@@ -206,12 +274,12 @@ export async function POST(req: Request) {
     .select("id")
     .maybeSingle();
 
-  if (!claimed) return back(req, "already-in-progress");
+  if (!claimed) return null;
 
   const payload = row.payload as Payload | null;
   if (!payload) {
     await fail(db, id, "approval has no staged change payload");
-    return back(req, "no-payload");
+    return false;
   }
 
   try {
@@ -243,7 +311,7 @@ export async function POST(req: Request) {
 
     const now = new Date().toISOString();
     await db.from("approvals").update({
-      status: "published", decided_by: profile!.id, decided_at: now,
+      status: "published", decided_by: profile?.id ?? null, decided_at: now,
       published_at: now, error_detail: null, updated_at: now,
     }).eq("id", id);
 
@@ -256,8 +324,8 @@ export async function POST(req: Request) {
       changed_at: now.slice(0, 10),
       source: "growth-os",
       approval_id: id,
-      decided_by: profile!.id,
-      decided_by_email: profile!.email,
+      decided_by: profile?.id ?? null,
+      decided_by_email: profile?.email ?? null,
       automatic: false,
     });
 
@@ -267,8 +335,7 @@ export async function POST(req: Request) {
         detail: `${payload.changeType} → ${payload.targetLabel ?? payload.targetGid}`, ip },
       profile
     );
-
-    return back(req, "published");
+    return true;
   } catch (e) {
     // Punch list #2: the card stays in the queue, carrying the real error.
     // A publish that fails silently is how a ledger ends up lying.
@@ -279,7 +346,7 @@ export async function POST(req: Request) {
         detail: `FAILED: ${msg}`, ip },
       profile
     );
-    return back(req, "failed");
+    return false;
   }
 }
 

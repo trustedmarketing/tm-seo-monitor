@@ -23,6 +23,10 @@ const MESSAGES: Record<string, string> = {
   reverted: "Reverted. Both the change and the reversal stay in the record.",
   "revert-failed": "Revert failed. The change is still live — check the error and try again.",
   "not-published": "That card is not in a published state.",
+  "bulk-done": "Approved and published every low-risk card for that client.",
+  "bulk-partial": "Some cards published, some failed. The failures stayed in the queue with their errors.",
+  "bulk-nothing-eligible": "Nothing eligible — bulk approve covers low-risk cards you have the role to decide.",
+  "bulk-needs-client": "Bulk approve has to name a client. It never spans clients.",
 };
 
 export default async function Approvals({
@@ -90,6 +94,36 @@ export default async function Approvals({
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/*
+              Punch list #8: bulk approve is scoped to ONE client and to
+              low-risk cards. The button is rendered per client group precisely
+              so there is no "approve everything" affordance that could span
+              clients — the constraint is in the interaction, not just the
+              server check that also enforces it.
+            */}
+            {Object.entries(
+              queue.reduce<Record<string, number>>((acc, r) => {
+                if (r.severity !== "High") acc[r.client_id] = (acc[r.client_id] ?? 0) + 1;
+                return acc;
+              }, {})
+            ).filter(([, n]) => n > 1).map(([cid, n]) => (
+              <form key={cid} action="/api/approvals" method="post"
+                    style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <input type="hidden" name="action" value="approve_all" />
+                <input type="hidden" name="client_id" value={cid} />
+                <button type="submit" style={{
+                  fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13,
+                  padding: "9px 14px", borderRadius: 8, cursor: "pointer",
+                  border: "1px solid var(--border-strong)", background: "#fff", color: "var(--fg1)",
+                }}>
+                  Approve all {n} low-risk · {nameOf.get(cid)}
+                </button>
+                <span style={{ fontSize: 12.5, color: "var(--fg3)" }}>
+                  This client only. High-severity cards are never included.
+                </span>
+              </form>
+            ))}
+
             {queue.map((row) => {
               const p = row.payload ?? {};
               return (
