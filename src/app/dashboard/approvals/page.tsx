@@ -5,11 +5,23 @@
 //
 // Reads through userClient() so RLS applies — an agency user sees their org's
 // clients and nothing else, enforced by Postgres rather than by this query.
+import Link from "next/link";
 import { userClient, getProfile } from "@/lib/supabaseServer";
 import { ApprovalCard, type ApprovalRow } from "@/components/ApprovalCard";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
+
+function Chip({ href, on, label, warn }: { href: string; on: boolean; label: string; warn?: boolean }) {
+  return (
+    <Link href={href} style={{
+      fontSize: 13, fontWeight: 600, padding: "6px 12px", borderRadius: 999, textDecoration: "none",
+      background: on ? "var(--tm-deep-charcoal)" : "#fff",
+      color: on ? "var(--tm-performance-green)" : warn ? "#8C6500" : "var(--fg2)",
+      border: `1px solid ${on ? "var(--tm-deep-charcoal)" : warn ? "#EAD9A6" : "var(--border)"}`,
+    }}>{label}</Link>
+  );
+}
 
 const MESSAGES: Record<string, string> = {
   published: "Published. The change is live and now being measured.",
@@ -33,7 +45,7 @@ const MESSAGES: Record<string, string> = {
 export default async function Approvals({
   searchParams,
 }: {
-  searchParams: { msg?: string };
+  searchParams: { msg?: string; client?: string; severity?: string; age?: string };
 }) {
   const profile = await getProfile();
   const db = userClient();
@@ -43,11 +55,24 @@ export default async function Approvals({
   // the "I've just realised" gap after it.
   const since = new Date(Date.now() - 24 * 3600_000).toISOString();
 
+  // Spec: "Approvals → the queue. Filterable by client / type / severity / age."
+  // One work surface, narrowed — not thirteen queues. Filtering happens in the
+  // query rather than in the page so a large queue does not ship rows the user
+  // will never see.
+  let q = db.from("approvals")
+    .select("*")
+    .in("status", ["staged", "publishing", "failed"])
+    .order("created_at", { ascending: true });
+
+  if (searchParams.client) q = q.eq("client_id", searchParams.client);
+  if (searchParams.severity) q = q.eq("severity", searchParams.severity);
+  if (searchParams.age === "stale") {
+    // Past its own SLA — the cards that have a consequence attached (#9).
+    q = q.lt("sla_due_at", new Date().toISOString());
+  }
+
   const [{ data: rows }, { data: recent }, { data: clients }] = await Promise.all([
-    db.from("approvals")
-      .select("*")
-      .in("status", ["staged", "publishing", "failed"])
-      .order("created_at", { ascending: true }),
+    q,
     db.from("approvals")
       .select("*")
       .eq("status", "published")
@@ -60,6 +85,25 @@ export default async function Approvals({
   const queue = (rows ?? []) as (ApprovalRow & { payload?: Record<string, string> })[];
   const published = (recent ?? []) as (ApprovalRow & { payload?: Record<string, string> })[];
   const msg = searchParams.msg ? MESSAGES[searchParams.msg] : null;
+
+  // Counts come from the unfiltered set, so a filter never hides how much work
+  // is actually waiting — a filtered view that also hides the total is how a
+  // queue quietly grows.
+  const { data: allOpen } = await db.from("approvals")
+    .select("client_id, severity, sla_due_at")
+    .in("status", ["staged", "publishing", "failed"]);
+  const open = (allOpen ?? []) as { client_id: string; severity: string; sla_due_at: string | null }[];
+
+  const filterHref = (patch: Record<string, string | undefined>) => {
+    const sp = new URLSearchParams();
+    const merged = { client: searchParams.client, severity: searchParams.severity, age: searchParams.age, ...patch };
+    for (const [k, v] of Object.entries(merged)) if (v) sp.set(k, v);
+    const qs = sp.toString();
+    return qs ? `?${qs}` : "/dashboard/approvals";
+  };
+
+  const staleCount = open.filter((r) => r.sla_due_at && new Date(r.sla_due_at) < new Date()).length;
+  const anyFilter = !!(searchParams.client || searchParams.severity || searchParams.age);
 
   return (
     <main style={{ padding: "40px 32px 64px" }}>
@@ -76,13 +120,51 @@ export default async function Approvals({
           Everything here is finished work. Your job is yes or no.
         </p>
 
+        {open.length > 0 && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 22, alignItems: "center" }}>
+            <Chip href={filterHref({ client: undefined, severity: undefined, age: undefined })}
+                  on={!anyFilter} label={`All ${open.length}`} />
+            {staleCount > 0 && (
+              <Chip href={filterHref({ age: searchParams.age === "stale" ? undefined : "stale" })}
+                    on={searchParams.age === "stale"} label={`Past SLA ${staleCount}`} warn />
+            )}
+            {["High", "Medium", "Low"].map((sev) => {
+              const n = open.filter((r) => r.severity === sev).length;
+              if (!n) return null;
+              return (
+                <Chip key={sev}
+                      href={filterHref({ severity: searchParams.severity === sev ? undefined : sev })}
+                      on={searchParams.severity === sev} label={`${sev} ${n}`} />
+              );
+            })}
+            <span style={{ width: 1, height: 22, background: "var(--border)", margin: "0 4px" }} />
+            {Object.entries(
+              open.reduce<Record<string, number>>((acc, r) => {
+                acc[r.client_id] = (acc[r.client_id] ?? 0) + 1; return acc;
+              }, {})
+            ).map(([cid, n]) => (
+              <Chip key={cid}
+                    href={filterHref({ client: searchParams.client === cid ? undefined : cid })}
+                    on={searchParams.client === cid} label={`${nameOf.get(cid) ?? "unknown"} ${n}`} />
+            ))}
+          </div>
+        )}
+
         {msg && (
           <div style={{ padding: "12px 16px", borderRadius: 8, background: "#fff", border: "1px solid var(--border)", fontSize: 14, marginBottom: 22 }}>
             {msg}
           </div>
         )}
 
-        {queue.length === 0 ? (
+        {queue.length === 0 && anyFilter ? (
+          <div style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 12, padding: "28px 26px", maxWidth: 700 }}>
+            <div style={{ fontSize: 15, color: "var(--fg2)" }}>
+              Nothing matches that filter, though {open.length} card{open.length === 1 ? "" : "s"} are
+              still waiting overall.{" "}
+              <Link href="/dashboard/approvals" style={{ fontWeight: 600, color: "var(--fg1)" }}>Clear filters</Link>
+            </div>
+          </div>
+        ) : queue.length === 0 ? (
           // The design's "earned" empty state — not a shrug, a result.
           <div style={{ background: "var(--tm-deep-charcoal)", borderRadius: 12, padding: "34px 30px", color: "var(--tm-stone-100)", maxWidth: 760 }}>
             <div style={{ fontFamily: "var(--font-display)", fontSize: 30, marginBottom: 8 }}>

@@ -44,6 +44,12 @@ const PLATFORM_LABEL: Record<string, string> = {
 export default async function Overview({ params }: { params: { id: string } }) {
   const db = userClient();
 
+  const { count: pending } = await db
+    .from("approvals")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", params.id)
+    .in("status", ["staged", "failed"]);
+
   const [{ data: client }, { data: snaps }, { data: convs }, { data: ads }] = await Promise.all([
     db.from("clients").select("*").eq("id", params.id).single(),
     db.from("metric_snapshots").select("captured_at, visibility, ai_visibility, site_health, organic_traffic")
@@ -103,7 +109,20 @@ export default async function Overview({ params }: { params: { id: string } }) {
           {cur ? `Last collected ${dateShort(cur.captured_at)}` : "No data collected yet"}
         </div>
 
-        <ChannelNav clientId={params.id} active="overview" clientType={(client as any)?.client_type ?? null} />
+        <>
+          {!!pending && (
+            <div style={{ marginBottom: 18 }}>
+              <a href={`/dashboard/approvals?client=${params.id}`} style={{
+                display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 600,
+                padding: "9px 14px", borderRadius: 8, textDecoration: "none",
+                background: "var(--tm-performance-green)", color: "#080808",
+              }}>
+                {pending} card{pending === 1 ? "" : "s"} waiting on a decision →
+              </a>
+            </div>
+          )}
+          <ChannelNav clientId={params.id} active="overview" clientType={(client as any)?.client_type ?? null} />
+        </>
 
         {/* ── Revenue-first hero ─────────────────────────────────────── */}
         <section style={{ ...card, padding: "28px 28px 24px", marginBottom: 16 }}>
