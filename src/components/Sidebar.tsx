@@ -26,7 +26,7 @@ export function Sidebar({ profile, active }: { profile: Profile | null; active: 
   const items: Item[] = agency
     ? [
         { label: "Portfolio", href: "/dashboard", built: true },
-        { label: "Approvals queue", href: "/dashboard/approvals", built: false },
+        { label: "Approvals queue", href: "/dashboard/approvals", built: true },
         { label: "QC panel", href: "/dashboard/qc", built: false },
         { label: "Paid controls", href: "/dashboard/paid-controls", built: false },
         { label: "Research", href: "/research", built: true },
