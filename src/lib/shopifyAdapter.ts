@@ -106,13 +106,26 @@ export async function preflight(shopDomain: string, token: string): Promise<{ ca
   return { canWrite: scopes.includes("write_content"), scopes };
 }
 
-const FIELD_FOR: Record<ShopifyChangeType, "seo.title" | "seo.description" | "body"> = {
-  page_seo_title: "seo.title",
-  page_meta_description: "seo.description",
-  page_body: "body",
-  article_seo_title: "seo.title",
-  article_meta_description: "seo.description",
+// ── How Shopify actually stores page/article SEO ─────────────────────────────
+//
+// Verified against the live Admin API (2026-07-28): `Page` and `Article` have
+// NO `seo` field. Products and Collections do, which is the trap — the obvious
+// query compiles in your head and is rejected by the server.
+//
+// Page and Article SEO overrides live in metafields under the `global`
+// namespace: `title_tag` and `description_tag`. That is a long-standing Shopify
+// convention rather than something discoverable from the type itself.
+type FieldKind = { kind: "metafield"; key: "title_tag" | "description_tag"; type: string } | { kind: "native"; field: "body" };
+
+const FIELD_FOR: Record<ShopifyChangeType, FieldKind> = {
+  page_seo_title:            { kind: "metafield", key: "title_tag",       type: "single_line_text_field" },
+  page_meta_description:     { kind: "metafield", key: "description_tag", type: "multi_line_text_field" },
+  page_body:                 { kind: "native",    field: "body" },
+  article_seo_title:         { kind: "metafield", key: "title_tag",       type: "single_line_text_field" },
+  article_meta_description:  { kind: "metafield", key: "description_tag", type: "multi_line_text_field" },
 };
+
+const SEO_NAMESPACE = "global";
 
 /**
  * Read the live value and hold the proposed one. Touches nothing on the store.
@@ -130,18 +143,37 @@ export async function stage(
   if (mockApis()) {
     return {
       ...change,
-      current: `mock current value for ${FIELD_FOR[change.type]}`,
+      current: `mock current value for ${change.type}`,
       targetLabel: "Mock page",
       stagedAt: new Date().toISOString(),
     };
   }
 
-  const data = await gql<{ node: { title?: string; handle?: string; body?: string; seo?: { title?: string; description?: string } } | null }>(
+  const field = FIELD_FOR[change.type];
+
+  type Node = {
+    title?: string;
+    handle?: string;
+    body?: string;
+    titleTag?: { value?: string } | null;
+    descriptionTag?: { value?: string } | null;
+  };
+
+  // Both metafields are fetched regardless of which one we are changing: the
+  // extra field is free, and it means the card can show the whole SEO picture
+  // rather than one value in isolation.
+  const SEO_FIELDS = `
+    title handle body
+    titleTag:       metafield(namespace: "${SEO_NAMESPACE}", key: "title_tag")       { value }
+    descriptionTag: metafield(namespace: "${SEO_NAMESPACE}", key: "description_tag") { value }
+  `;
+
+  const data = await gql<{ node: Node | null }>(
     shopDomain, token,
     `query($id: ID!) {
        node(id: $id) {
-         ... on Page    { title handle body seo { title description } }
-         ... on Article { title handle body seo { title description } }
+         ... on Page    { ${SEO_FIELDS} }
+         ... on Article { ${SEO_FIELDS} }
        }
      }`,
     { id: change.targetGid }
@@ -149,11 +181,16 @@ export async function stage(
 
   if (!data.node) throw new Error(`Shopify target not found: ${change.targetGid}`);
 
-  const field = FIELD_FOR[change.type];
+  // An unset SEO metafield reads as empty, which is correct: Shopify falls back
+  // to the page title at render time, but the OVERRIDE genuinely has no value.
+  // Recording the fallback as the "before" would make the ledger claim we
+  // changed something that was never set.
   const current =
-    field === "body" ? (data.node.body ?? "")
-    : field === "seo.title" ? (data.node.seo?.title ?? "")
-    : (data.node.seo?.description ?? "");
+    field.kind === "native"
+      ? (data.node.body ?? "")
+      : field.key === "title_tag"
+        ? (data.node.titleTag?.value ?? "")
+        : (data.node.descriptionTag?.value ?? "");
 
   return {
     ...change,
@@ -234,10 +271,18 @@ async function write(
   const isArticle = type.startsWith("article_");
   const field = FIELD_FOR[type];
 
+  // PageUpdateInput / ArticleUpdateInput accept a metafields list, so the SEO
+  // override is written through the same mutation as native fields. `type` is
+  // supplied because it is required when the metafield does not yet exist, and
+  // on a page whose SEO has never been edited it will not.
   const input: Record<string, unknown> =
-    field === "body" ? { body: value }
-    : field === "seo.title" ? { seo: { title: value } }
-    : { seo: { description: value } };
+    field.kind === "native"
+      ? { body: value }
+      : {
+          metafields: [
+            { namespace: SEO_NAMESPACE, key: field.key, value, type: field.type },
+          ],
+        };
 
   const mutation = isArticle
     ? `mutation($id: ID!, $article: ArticleUpdateInput!) {
