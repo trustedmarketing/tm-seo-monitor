@@ -150,8 +150,11 @@ export async function POST(req: Request) {
         // Never ran meaningfully: take it out of the measurement queue. The
         // audit log below still records that it happened, so nothing is lost —
         // only the pending verdict goes.
+        // Scoped by approval_id, not by title — two cards can legitimately
+        // share a title, and deleting by title could take out someone else's
+        // pending measurement.
         await db.from("changes").delete()
-          .eq("client_id", row.client_id).eq("title", row.title).is("verdict", null);
+          .eq("approval_id", id).is("verdict", null);
       } else {
         await db.from("changes").insert({
           client_id: row.client_id,
@@ -159,6 +162,10 @@ export async function POST(req: Request) {
           description: `Restored ${payload0.changeType} on ${payload0.targetLabel ?? payload0.targetGid}`,
           changed_at: now.slice(0, 10),
           source: "growth-os",
+          approval_id: id,
+          decided_by: profile!.id,
+          decided_by_email: profile!.email,
+          automatic: false,
         });
       }
 
@@ -246,7 +253,12 @@ export async function POST(req: Request) {
       client_id: row.client_id,
       title: row.title,
       description: `${payload.changeType} on ${payload.targetLabel ?? payload.targetGid}`,
-      changed_at: now,
+      changed_at: now.slice(0, 10),
+      source: "growth-os",
+      approval_id: id,
+      decided_by: profile!.id,
+      decided_by_email: profile!.email,
+      automatic: false,
     });
 
     await writeAudit(
