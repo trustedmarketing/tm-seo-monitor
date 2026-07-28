@@ -19,6 +19,7 @@
 // prompt and receives a URL — but anyone extending it to upload references needs
 // to know that first.
 import { mockApis } from "@/lib/apiMock";
+import { findArray, describeShape } from "@/lib/apiShape";
 
 const BASE = process.env.BLOOM_API_URL ?? "https://www.trybloom.ai/api/v1";
 
@@ -58,12 +59,13 @@ export async function listBrands(key: string): Promise<BloomBrand[]> {
   if (mockApis()) return [{ id: "mock-brand", name: "Mock Brand", status: "ready" }];
 
   const body = await call<unknown>("/brands", key);
-  const arr =
-    ((body as { data?: unknown })?.data as unknown[]) ??
-    ((body as { brands?: unknown })?.brands as unknown[]) ??
-    (Array.isArray(body) ? (body as unknown[]) : []);
+  const arr = findArray(body);
 
-  return (arr ?? [])
+  if (!arr) {
+    throw new Error(`Bloom returned brands in an unrecognised shape: ${describeShape(body)}`);
+  }
+
+  return arr
     .filter((b) => b && (b as { id?: unknown }).id != null)
     .map((raw) => {
       const b = raw as { id: string; name?: string | null; status?: string | null };

@@ -13,6 +13,7 @@
 // Rate limit is 60 requests/minute per token, shared across every client, so the
 // collector paginates conservatively rather than fanning out.
 import { mockApis, readFixture } from "@/lib/apiMock";
+import { findArray } from "@/lib/apiShape";
 
 const BASE = process.env.POSTFLOW_API_URL ?? "https://api.postflow.app/v1";
 
@@ -167,14 +168,7 @@ export async function listGroups(token: string): Promise<{ groups: PostFlowGroup
   // array, some { groups: [...] }. Try the likely shapes rather than assuming
   // one — the first version assumed `data` and silently returned nothing, which
   // reads identically to "this account has no groups".
-  const candidates: unknown[] = [
-    (body as { data?: unknown })?.data,
-    (body as { groups?: unknown })?.groups,
-    (body as { results?: unknown })?.results,
-    body,
-  ];
-
-  const arr = candidates.find((c) => Array.isArray(c)) as
+  const arr = findArray(body) as
     | { id?: string | number; name?: string | null; title?: string | null }[]
     | undefined;
 
@@ -231,7 +225,7 @@ export async function listAllSocialAccounts(
   // vendors actually use and hand back the raw payload when none parses — an
   // empty list and an unrecognised envelope are indistinguishable otherwise, and
   // "0 accounts" sent Tom looking at PostFlow for a problem that was in here.
-  const arr = firstArray(body);
+  const arr = findArray(body);
 
   const accounts = (arr ?? [])
     .filter((a) => a && (a as RawAccount).id != null)
@@ -249,28 +243,6 @@ export async function listAllSocialAccounts(
   return accounts.length ? { accounts } : { accounts, rawShape: body };
 }
 
-/** Find the first array in a response, whatever the vendor wrapped it in. */
-function firstArray(body: unknown): unknown[] | undefined {
-  const candidates: unknown[] = [
-    (body as { data?: unknown })?.data,
-    (body as { accounts?: unknown })?.accounts,
-    (body as { socialAccounts?: unknown })?.socialAccounts,
-    (body as { social_accounts?: unknown })?.social_accounts,
-    (body as { results?: unknown })?.results,
-    (body as { items?: unknown })?.items,
-    body,
-  ];
-  // Some vendors nest one level: { data: { accounts: [...] } }
-  const nested = (body as { data?: unknown })?.data;
-  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
-    candidates.push(
-      (nested as { accounts?: unknown }).accounts,
-      (nested as { socialAccounts?: unknown }).socialAccounts,
-      (nested as { items?: unknown }).items
-    );
-  }
-  return candidates.find((c) => Array.isArray(c)) as unknown[] | undefined;
-}
 
 /**
  * Accounts a group publishes to — needed to target a draft.

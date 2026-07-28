@@ -60,9 +60,18 @@ export async function GET() {
 
     return NextResponse.json({ ok: true, key_accepted: true, ...out });
   } catch (e) {
+    const msg = (e as Error).message;
     return NextResponse.json({
-      ok: false, failed_at: "api_error",
-      error: (e as Error).message.slice(0, 300), ...out,
+      ok: false,
+      // A shape problem and a rejected key need different fixes, and the message
+      // already carries the payload when it is the former.
+      failed_at: /unrecognised shape/i.test(msg)
+        ? "unrecognised_response"
+        : /401|403|api key/i.test(msg)
+        ? "key_rejected"
+        : "api_error",
+      error: msg.slice(0, 500),
+      ...out,
     }, { status: 500 });
   }
 }
