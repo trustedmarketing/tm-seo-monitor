@@ -1,5 +1,16 @@
-/* tm-tokens.css — trimmed from the Trusted Marketing design system.
-   Fonts: self-host the same TTFs from the handoff bundle in /public/fonts. */
+/* tm-tokens.css — the Trusted Marketing design system.
+ *
+ * Ported from the design handoff at
+ * docs/design/_ds/…/colors_and_type.css, which is the source of truth.
+ *
+ * Previously this was a hand-trimmed subset: nine brand colours, four radii and
+ * two fonts. Everything else — spacing, the type scale, shadows, motion — was
+ * being reinvented inline in each component, which is how a card ends up with
+ * marginTop: 14 next to padding: "13px 18px". The full vocabulary is here so
+ * components can stop guessing.
+ *
+ * Fonts are self-hosted from /public/fonts.
+ */
 
 @font-face {
   font-family: 'Instrument Serif';
@@ -16,33 +27,181 @@
   font-style: normal; font-weight: 100 900; font-display: swap;
   src: url('/fonts/Inter-VariableFont_opsz_wght.ttf') format('truetype-variations');
 }
+/* Was missing, and the file is already in /public/fonts — so italic body text
+   was silently falling back to a synthesised oblique. */
+@font-face {
+  font-family: 'Inter';
+  font-style: italic; font-weight: 100 900; font-display: swap;
+  src: url('/fonts/Inter-Italic-VariableFont_opsz_wght.ttf') format('truetype-variations');
+}
 
 :root {
-  --tm-deep-charcoal: #080808;
+  /* ── CORE PALETTE ─────────────────────────────────────────────── */
+  --tm-deep-charcoal:     #080808;
   --tm-performance-green: #C7FF6A;
-  --tm-midnight-blue: #0F1A2B;
-  --tm-graphite: #4A4F55;
-  --tm-charcoal-800: #14141A;
-  --tm-charcoal-700: #1E1E26;
-  --tm-stone-100: #F4F2EE;
-  --tm-stone-200: #E8E5DD;
-  --tm-green-deep: #8FCC2E;
+  --tm-midnight-blue:     #0F1A2B;
+  --tm-warm-stone:        #D8DCCE;
+  --tm-graphite:          #4A4F55;
+  --tm-white:             #FFFFFF;
+  --tm-black:             #000000;
 
-  --bg: var(--tm-stone-100);
-  --surface: #FFFFFF;
-  --fg1: var(--tm-deep-charcoal);
-  --fg2: var(--tm-graphite);
-  --fg3: #7A7F86;
-  --border: var(--tm-stone-200);
-  --border-strong: #C9CCC1;
-  --success: #2F8F4E;
-  --danger: #C0392B;
+  --tm-charcoal-900:      #0B0B0D;
+  --tm-charcoal-800:      #14141A;
+  --tm-charcoal-700:      #1E1E26;
+  --tm-stone-100:         #F4F2EE;
+  --tm-stone-200:         #E8E5DD;
+  --tm-stone-300:         #D8DCCE;
+  --tm-stone-400:         #B8BCB0;
 
+  --tm-green-soft:        #E5FFB8;
+  --tm-green-deep:        #8FCC2E;
+
+  /* ── SEMANTIC ─────────────────────────────────────────────────── */
+  /* NOTE: the handoff sets --bg to white and --bg-elevated to stone. This app
+     has shipped the other way round — a stone page with white cards — which is
+     what every screenshot shows. Kept as built rather than flipped at the token
+     level, because inverting it silently would repaint every screen. Raised
+     with Tom as a decision, not resolved here. */
+  --bg:                   var(--tm-stone-100);
+  --bg-elevated:          var(--tm-white);
+  --surface:              var(--tm-white);
+  --bg-inverse:           var(--tm-deep-charcoal);
+
+  --fg1:                  var(--tm-deep-charcoal);
+  --fg2:                  var(--tm-graphite);
+  --fg3:                  #7A7F86;
+  --fg-on-inverse:        var(--tm-white);
+
+  --accent:               var(--tm-performance-green);
+  --accent-fg:            var(--tm-deep-charcoal);
+
+  --border:               var(--tm-stone-200);
+  --border-strong:        #C9CCC1;
+  --divider:              var(--tm-stone-200);
+
+  --success:              #2F8F4E;
+  --warning:              #C49000;
+  --danger:               #C0392B;
+
+  /* ── RADII ────────────────────────────────────────────────────── */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-xl: 20px;
   --radius-pill: 999px;
-  --shadow-sm: 0 1px 2px rgba(8,8,8,0.06), 0 1px 3px rgba(8,8,8,0.04);
 
+  /* ── SPACING (4-pt scale) ─────────────────────────────────────── */
+  --space-1:  4px;   --space-2:  8px;   --space-3:  12px;  --space-4:  16px;
+  --space-5:  20px;  --space-6:  24px;  --space-8:  32px;  --space-10: 40px;
+  --space-12: 48px;  --space-16: 64px;  --space-20: 80px;  --space-24: 96px;
+
+  /* ── SHADOWS — quiet, never coloured ─────────────────────────── */
+  --shadow-xs: 0 1px 1px rgba(8,8,8,0.04);
+  --shadow-sm: 0 1px 2px rgba(8,8,8,0.06), 0 1px 3px rgba(8,8,8,0.04);
+  --shadow-md: 0 2px 6px rgba(8,8,8,0.06), 0 8px 16px rgba(8,8,8,0.05);
+  --shadow-lg: 0 12px 28px rgba(8,8,8,0.10), 0 4px 8px rgba(8,8,8,0.05);
+  --shadow-focus: 0 0 0 3px rgba(199,255,106,0.55);
+
+  --border-width: 1px;
+  --border-thick: 2px;
+
+  /* ── MOTION ───────────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --t-fast: 120ms;
+  --t-base: 200ms;
+  --t-slow: 360ms;
+
+  /* ── TYPE FAMILIES ────────────────────────────────────────────── */
   --font-display: 'Instrument Serif', 'Times New Roman', serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono:    ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* ── TYPE SCALE — display (serif) ─────────────────────────────── */
+  --display-xxl-size: 128px; --display-xxl-line: 0.92; --display-xxl-tracking: -0.02em;
+  --display-xl-size:   96px; --display-xl-line:  0.95; --display-xl-tracking:  -0.02em;
+  --display-lg-size:   72px; --display-lg-line:  0.98; --display-lg-tracking:  -0.015em;
+  --display-md-size:   56px; --display-md-line:  1.02; --display-md-tracking:  -0.01em;
+  --display-sm-size:   40px; --display-sm-line:  1.05; --display-sm-tracking:  -0.01em;
+
+  /* ── TYPE SCALE — UI (Inter) ──────────────────────────────────── */
+  --h1-size: 40px; --h1-line: 1.15; --h1-weight: 600; --h1-tracking: -0.015em;
+  --h2-size: 32px; --h2-line: 1.2;  --h2-weight: 600; --h2-tracking: -0.01em;
+  --h3-size: 24px; --h3-line: 1.25; --h3-weight: 600; --h3-tracking: -0.005em;
+  --h4-size: 20px; --h4-line: 1.3;  --h4-weight: 600; --h4-tracking: 0;
+  --h5-size: 16px; --h5-line: 1.4;  --h5-weight: 600; --h5-tracking: 0;
+
+  --body-lg-size: 18px; --body-lg-line: 1.55;
+  --body-size:    16px; --body-line:    1.55;
+  --body-sm-size: 14px; --body-sm-line: 1.5;
+  --caption-size: 12px; --caption-line: 1.4;
+  --eyebrow-size: 12px; --eyebrow-tracking: 0.12em;
+  --code-size:    14px; --code-line:    1.5;
+}
+
+/* ── BASE ─────────────────────────────────────────────────────── */
+html, body {
+  background: var(--bg);
+  color: var(--fg1);
+  font-family: var(--font-body);
+  font-size: var(--body-size);
+  line-height: var(--body-line);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── DISPLAY (serif) ──────────────────────────────────────────── */
+.display-xxl, .display-xl, .display-lg, .display-md, .display-sm {
+  font-family: var(--font-display);
+  font-weight: 400;              /* Instrument Serif is a one-weight family */
+  color: var(--fg1);
+}
+.display-xxl { font-size: var(--display-xxl-size); line-height: var(--display-xxl-line); letter-spacing: var(--display-xxl-tracking); }
+.display-xl  { font-size: var(--display-xl-size);  line-height: var(--display-xl-line);  letter-spacing: var(--display-xl-tracking);  }
+.display-lg  { font-size: var(--display-lg-size);  line-height: var(--display-lg-line);  letter-spacing: var(--display-lg-tracking);  }
+.display-md  { font-size: var(--display-md-size);  line-height: var(--display-md-line);  letter-spacing: var(--display-md-tracking);  }
+.display-sm  { font-size: var(--display-sm-size);  line-height: var(--display-sm-line);  letter-spacing: var(--display-sm-tracking);  }
+
+/* Italic display is a brand signature — it emphasises revenue and growth
+   nouns, not decoration. Used sparingly. */
+.display-italic { font-style: italic; color: var(--accent); }
+
+/* ── HEADINGS (Inter) ─────────────────────────────────────────── */
+.h1 { font-family: var(--font-body); font-size: var(--h1-size); line-height: var(--h1-line); font-weight: var(--h1-weight); letter-spacing: var(--h1-tracking); color: var(--fg1); }
+.h2 { font-family: var(--font-body); font-size: var(--h2-size); line-height: var(--h2-line); font-weight: var(--h2-weight); letter-spacing: var(--h2-tracking); color: var(--fg1); }
+.h3 { font-family: var(--font-body); font-size: var(--h3-size); line-height: var(--h3-line); font-weight: var(--h3-weight); letter-spacing: var(--h3-tracking); color: var(--fg1); }
+.h4 { font-family: var(--font-body); font-size: var(--h4-size); line-height: var(--h4-line); font-weight: var(--h4-weight); color: var(--fg1); }
+.h5 { font-family: var(--font-body); font-size: var(--h5-size); line-height: var(--h5-line); font-weight: var(--h5-weight); color: var(--fg1); }
+
+.body-lg { font-size: var(--body-lg-size); line-height: var(--body-lg-line); color: var(--fg1); }
+.body    { font-size: var(--body-size);    line-height: var(--body-line);    color: var(--fg1); }
+.body-sm { font-size: var(--body-sm-size); line-height: var(--body-sm-line); color: var(--fg2); }
+.caption { font-size: var(--caption-size); line-height: var(--caption-line); color: var(--fg3); }
+
+/* The all-caps eyebrow is a key brand component — it labels every section on
+   the brand board and every panel in this app. */
+.eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--eyebrow-size);
+  font-weight: 600;
+  letter-spacing: var(--eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--fg2);
+}
+
+code, .code, kbd, samp {
+  font-family: var(--font-mono);
+  font-size: var(--code-size);
+  line-height: var(--code-line);
+}
+
+/* ── FOCUS ────────────────────────────────────────────────────── */
+/* One visible focus treatment, brand green, on everything interactive.
+   Keyboard users were relying on the browser default, which the stone
+   background renders nearly invisible. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-radius: var(--radius-sm);
 }
