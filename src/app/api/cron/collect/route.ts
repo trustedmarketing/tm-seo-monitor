@@ -13,6 +13,7 @@ import {
   onPageSummary,
   visibilityScore,
   aiPromptCheck,
+  AEO_MODEL,
 } from "@/lib/dataforseo";
 import { syncRecommendations, measureChanges } from "@/lib/recSync";
 import { recordRun } from "@/lib/collectorRuns";
@@ -156,10 +157,18 @@ export async function GET(req: Request) {
           const rows = await mapLimit(prompts, 6, async (p) => {
             try {
               const r = await aiPromptCheck(p.prompt, c.domain, c.name);
-              return { prompt_id: p.id, mentioned: r.mentioned, cited: r.cited };
+              return {
+                prompt_id: p.id, mentioned: r.mentioned, cited: r.cited,
+                // The answer and its sources are stored so a 0% can be READ
+                // rather than argued about. Without them, "not mentioned" is a
+                // claim with no evidence behind it — which is how 121 checks
+                // went unquestioned for a week.
+                answer: r.answer, sources: r.sources,
+                model: AEO_MODEL, web_search: true,
+              };
             } catch { return null; }
           });
-          const ok = rows.filter((r): r is { prompt_id: string; mentioned: boolean; cited: boolean } => r !== null);
+          const ok = rows.filter((r): r is NonNullable<typeof r> => r !== null);
           const mentionedCount = ok.filter((r) => r.mentioned).length;
           const wrote = ok.length;
           if (ok.length > 0) {

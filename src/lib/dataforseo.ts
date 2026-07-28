@@ -218,21 +218,110 @@ export function visibilityScore(positions: (number | null)[]): number {
 }
 
 // ── AI answer visibility — one prompt through an LLM, check presence ─
-// Uses DataForSEO's AI Optimization LLM Responses endpoint (ChatGPT).
+//
+// DataForSEO's AI Optimization LLM Responses endpoint (ChatGPT).
+//
+// ── Why the first version measured nothing ───────────────────────────────────
+// It asked gpt-4o-mini with `web_search` left at its default of FALSE, then
+// searched the whole JSON blob for the brand name. Three faults compounding:
+//
+//   · A small model answering from training data alone will never name a
+//     boat-care brand. 121 checks returned 0% and that was a true answer to the
+//     wrong question — nobody asks ChatGPT for a recommendation and gets an
+//     ungrounded answer from a mini model.
+//   · Citations were inferred by substring. The endpoint returns an `annotations`
+//     array with real URLs; matching a domain against serialised JSON also
+//     matches the domain appearing in our own request.
+//   · The blob included the PROMPT. A prompt naming the brand — "is Salty Dog
+//     any good" — would have scored as a mention of itself.
+//
+// Now: a real model, web search forced on, citations read from annotations, and
+// the brand matched only against the ANSWER text.
+export const AEO_MODEL = process.env.AEO_MODEL ?? "gpt-4o";
+
+export type AiCheck = {
+  mentioned: boolean;
+  cited: boolean;
+  /** The answer, so a human can see what the model actually said. */
+  answer: string | null;
+  /** Every source the answer cited, ours or not — competitor visibility. */
+  sources: { title: string | null; url: string }[];
+};
+
 export async function aiPromptCheck(
-  prompt: string, domain: string, brand: string
-): Promise<{ mentioned: boolean; cited: boolean }> {
+  prompt: string, domain: string, brand: string, countryIso = "US"
+): Promise<AiCheck> {
   const result = await post<unknown>("/ai_optimization/chat_gpt/llm_responses/live", [{
-    user_prompt: prompt,
-    model_name: "gpt-4o-mini",
-    max_output_tokens: 1024,
+    user_prompt: prompt.slice(0, 500),
+    model_name: AEO_MODEL,
+    max_output_tokens: 2048,
+    // The whole point. Without this the model cannot see the web, and "is this
+    // brand visible in AI answers" becomes "was this brand in the training set".
+    web_search: true,
+    force_web_search: true,
+    web_search_country_iso_code: countryIso,
   }]);
-  const blob = JSON.stringify(result ?? []).toLowerCase();
+
+  const { text, annotations } = extractAnswer(result);
+
   const bare = domain.replace(/^www\./, "").toLowerCase();
   const brandLc = brand.trim().toLowerCase();
-  const cited = blob.includes(bare);
-  const mentioned = cited || (brandLc.length > 2 && blob.includes(brandLc));
-  return { mentioned, cited };
+  const answerLc = (text ?? "").toLowerCase();
+
+  const sources = annotations
+    .filter((a) => a.url)
+    .map((a) => ({ title: a.title ?? null, url: a.url as string }));
+
+  // Cited means a source LINK to the domain — the thing that earns the click.
+  const cited =
+    sources.some((sr) => sr.url.toLowerCase().includes(bare)) || answerLc.includes(bare);
+
+  // Mentioned means named in the answer, cited or not.
+  const mentioned = cited || (brandLc.length > 2 && answerLc.includes(brandLc));
+
+  return { mentioned, cited, answer: text, sources };
+}
+
+/**
+ * Pull the answer text and its citations out of the response.
+ *
+ * Shapes are read defensively rather than assumed — the annotations live inside
+ * response sections, and reporting "no mention" when we simply failed to find
+ * the text would repeat exactly the failure this function was rewritten to fix.
+ */
+function extractAnswer(result: unknown): {
+  text: string | null;
+  annotations: { title?: string | null; url?: string }[];
+} {
+  const parts: string[] = [];
+  const annotations: { title?: string | null; url?: string }[] = [];
+
+  const walk = (node: unknown, depth = 0): void => {
+    if (!node || depth > 8) return;
+    if (Array.isArray(node)) return node.forEach((n) => walk(n, depth + 1));
+    if (typeof node !== "object") return;
+
+    const o = node as Record<string, unknown>;
+    // `text`, `message` and `content` all appear in their responses depending on
+    // the section. Reading only one of them is how an answer that was there
+    // scored as "not mentioned".
+    for (const k of ["text", "message", "content"]) {
+      const v = o[k];
+      if (typeof v === "string" && v.trim()) parts.push(v);
+    }
+    if (Array.isArray(o.annotations)) {
+      for (const a of o.annotations) {
+        const an = a as Record<string, unknown>;
+        if (typeof an.url === "string") {
+          annotations.push({ title: (an.title as string) ?? null, url: an.url });
+        }
+      }
+    }
+    for (const v of Object.values(o)) walk(v, depth + 1);
+  };
+
+  walk(result);
+  return { text: parts.length ? parts.join("\n\n") : null, annotations };
 }
 
 // ── Ranked keywords — suggestion source for tracked_keywords ─────

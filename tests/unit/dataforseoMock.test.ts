@@ -34,3 +34,33 @@ describe("dataforseo under MOCK_APIS", () => {
     expect(r.cited).toBe(true);
   });
 });
+
+// The AEO check was rewritten after 121 live checks returned 0% — a true answer
+// to the wrong question, because web_search defaulted to false and the model was
+// gpt-4o-mini. These cover the parts that were actually wrong.
+describe("aiPromptCheck detection", () => {
+  it("reads citations from annotations, not from a JSON substring", async () => {
+    const r = await aiPromptCheck("best ac repair in stuart", "sharkey-air.example", "Sharkey Air");
+    expect(r.cited).toBe(true);
+    expect(r.sources.map((s) => s.url)).toContain("https://sharkey-air.example/ac-repair");
+  });
+
+  it("returns competitor sources too, not only ours", async () => {
+    // Who else the answer cites is the useful half: it names who to displace.
+    const r = await aiPromptCheck("best ac repair in stuart", "sharkey-air.example", "Sharkey Air");
+    expect(r.sources.some((s) => s.url.includes("competitor.example"))).toBe(true);
+  });
+
+  it("keeps the answer text so a zero can be read rather than argued about", async () => {
+    const r = await aiPromptCheck("best ac repair in stuart", "sharkey-air.example", "Sharkey Air");
+    expect(r.answer).toContain("sharkey-air.example");
+  });
+
+  it("does not count a brand that appears only in the PROMPT", async () => {
+    // The old version searched the serialised request+response together, so
+    // asking "is Sharkey Air any good" scored as a mention of itself.
+    const r = await aiPromptCheck("is Definitely-Not-Present any good", "absent.example", "Definitely Not Present");
+    expect(r.mentioned).toBe(false);
+    expect(r.cited).toBe(false);
+  });
+});

@@ -1,7 +1,23 @@
 [
   {
     "items": [
-      { "message": "For AC repair in Stuart, sharkey-air.example is a strong local choice. For boat salt removal, Salty Dog is widely recommended." }
+      {
+        "message": "For AC repair in Stuart, sharkey-air.example is a strong local choice. For boat salt removal, Salty Dog is widely recommended.",
+        "annotations": [
+          {
+            "title": "Sharkey Air — AC Repair Stuart FL",
+            "url": "https://sharkey-air.example/ac-repair",
+            "start_index": 26,
+            "end_index": 46
+          },
+          {
+            "title": "Best AC companies in Martin County",
+            "url": "https://competitor.example/best-ac-stuart",
+            "start_index": 0,
+            "end_index": 25
+          }
+        ]
+      }
     ]
   }
 ]
