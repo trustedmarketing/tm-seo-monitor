@@ -31,6 +31,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { playbookFor, formatSequence, defaultCadence, type Format } from "@/lib/platformPlaybook";
 import { readSecret } from "@/lib/vault";
 import { connect as shopifyConnect, listContent as shopifyList } from "@/lib/shopifyAdapter";
+import { listSocialAccounts } from "@/lib/postflow";
 
 export type PlanItem = {
   slot: number;
@@ -142,16 +143,43 @@ export async function buildPlan(
 
   if (!client) throw new Error("client not found");
 
-  // Which networks this client actually publishes to, taken from what has been
-  // collected rather than assumed. Planning for TikTok when they have never
-  // posted there is a plan nobody can execute.
+  // ── which networks to plan for ─────────────────────────────────────────────
+  // CONNECTED accounts first, posting history second. Getting this order wrong
+  // produced a real failure: Salty Dog has a Facebook profile and no Instagram,
+  // had never posted, and the planner defaulted to Instagram — twelve carousels
+  // for an account that does not exist.
+  //
+  // What you can publish to is the constraint. What you have published is only
+  // evidence about it, and for a new client there is none.
+  let connected: string[] = [];
+  try {
+    if (client.postflow_group_id) {
+      const token = await readSecret(db, "postflow");
+      if (token) {
+        const accounts = await listSocialAccounts(token, client.postflow_group_id);
+        connected = Array.from(
+          new Set(accounts.map((a) => a.network?.toLowerCase()).filter(Boolean) as string[])
+        );
+      }
+    }
+  } catch {
+    // No connection is a reason to fall back, not to fail. The plan is still
+    // useful as a document even if we cannot confirm where it can publish.
+  }
+
   const { data: posted } = await db
     .from("social_posts").select("platform").eq("client_id", clientId).not("platform", "is", null);
 
-  const networks = Array.from(
+  const historical = Array.from(
     new Set((posted ?? []).map((p: { platform: string | null }) => p.platform).filter(Boolean) as string[])
   );
-  const usable = networks.length ? networks : ["instagram"];
+
+  const usable = connected.length ? connected : historical.length ? historical : ["instagram"];
+  const networkSource = connected.length
+    ? "connected"
+    : historical.length
+    ? "historical"
+    : "assumed";
 
   const target = client.social_posts_per_month ?? defaultCadence(usable);
 
@@ -388,6 +416,11 @@ export async function buildPlan(
     counts.proven === 0
       ? `Nothing in this account's own posting history was strong enough to build on, so the plan is drawn from what their customers ask and what they sell rather than from social performance.`
       : "",
+    networkSource === "connected"
+      ? `Planned for ${usable.join(", ")} — the network${usable.length === 1 ? "" : "s"} actually connected in PostFlow.`
+      : networkSource === "historical"
+      ? `Planned for ${usable.join(", ")}, based on where this client has posted before. No connected accounts could be read from PostFlow, so this may not match what can actually be published to.`
+      : `No connected accounts and no posting history, so this assumes Instagram. Connect this client's profiles in PostFlow and rebuild to plan for the right networks.`,
     client.social_posts_per_month
       ? `Target of ${target} comes from this client's stated cadence.`
       : `No cadence is set for this client, so the target is the playbook minimum for their networks. Set one in Settings to plan against the real commitment.`,
