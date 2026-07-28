@@ -36,6 +36,7 @@ import { playbookFor, formatSequence, defaultCadence, normaliseNetwork, type For
 import { readSecret } from "@/lib/vault";
 import { connect as shopifyConnect, listProducts as shopifyList } from "@/lib/shopifyAdapter";
 import { listSocialAccounts } from "@/lib/postflow";
+import { parseWindow, datesInWindow } from "@/lib/campaignDates";
 
 export type PlanItem = {
   slot: number;
@@ -48,6 +49,8 @@ export type PlanItem = {
   sourcePostId: number | null;
   /** Stable id for the idea, so later months can exclude what is already used. */
   seedRef: string | null;
+  /** Which campaign line this slot serves, so its dates can be constrained. */
+  campaignKey?: string | null;
 };
 
 export type Plan = {
@@ -324,7 +327,10 @@ export async function buildPlan(
   const campaigns = campaignBrief
     .split(/\n+|(?<=[.;])\s+/)
     .map((l) => l.trim().replace(/^[-*•]\s*/, ""))
-    .filter((l) => l.length > 3);
+    .filter((l) => l.length > 3)
+    // Dates matter as much as the text. A post advertising a sale three days
+    // before it opens sends people to a page that is not live yet.
+    .map((line) => ({ line, window: parseWindow(line) }));
 
   const allEvergreen = EVERGREEN[(client.client_type as string) ?? "hybrid"] ?? EVERGREEN.hybrid;
   const evergreen = allEvergreen.filter((a) => !used.has(`e:${a}`));
@@ -414,11 +420,14 @@ export async function buildPlan(
           format: formats[i],
           theme: "Campaign",
           brief: nth === 1
-            ? `${campaign}. As a ${formats[i]} for ${book?.label ?? network}.`
-            : `${campaign} — a different angle on the same thing, not a repeat. As a ${formats[i]} for ${book?.label ?? network}.`,
-          why: `From this month's brief. This is something the business has committed to, so it outranks anything the performance data suggests.`,
+            ? `${campaign.line}. As a ${formats[i]} for ${book?.label ?? network}.`
+            : `${campaign.line} — a different angle on the same thing, not a repeat. As a ${formats[i]} for ${book?.label ?? network}.`,
+          why: campaign.window.label
+            ? `From this month's brief, scheduled ${campaign.window.label}. A commitment the business has made outranks anything the performance data suggests.`
+            : `From this month's brief. A commitment the business has made outranks anything the performance data suggests. No dates were given, so this can run any time in the month.`,
           sourcePostId: null,
           seedRef: null,   // campaigns repeat across months by design
+          campaignKey: campaign.line,
         });
       } else if (useProven) {
         provenCursor++;
@@ -485,6 +494,23 @@ export async function buildPlan(
       }
     }
   }
+
+  // Re-date the campaign slots so each falls inside its own window. Done after
+  // dealing rather than during: the format mix and network split are decided
+  // across the whole month, and only the DATES need to respect the window.
+  for (const { line, window } of campaigns) {
+    if (window.from == null) continue;
+    const mine = items.filter((i) => i.campaignKey === line);
+    if (mine.length === 0) continue;
+
+    const dates = datesInWindow(monthStart, window, mine.length);
+    mine.forEach((item, idx) => { item.scheduledFor = dates[idx]; });
+  }
+
+  // Order by date, since re-dating breaks the original sequence and a plan
+  // listed out of order reads as a mistake.
+  items.sort((a, b) => a.scheduledFor.localeCompare(b.scheduledFor));
+  items.forEach((it, idx) => { it.slot = idx + 1; });
 
   const counts = {
     campaign: items.filter((i) => i.theme === "Campaign").length,

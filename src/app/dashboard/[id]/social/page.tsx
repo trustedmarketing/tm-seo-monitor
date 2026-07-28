@@ -18,6 +18,7 @@ import { readSecret } from "@/lib/vault";
 import { listSocialAccounts } from "@/lib/postflow";
 import { normaliseNetwork } from "@/lib/platformPlaybook";
 import { collectPendingImages } from "@/lib/collectImages";
+import { parseWindow } from "@/lib/campaignDates";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import "@/styles/tm-tokens.css";
 
@@ -339,8 +340,33 @@ export default async function Social({
                         }} />
               <div style={{ fontSize: 12, color: "var(--fg3)", marginTop: 5 }}>
                 One per line. These outrank everything the data suggests, and each gets more than one post
-                — a sale mentioned once reads as an afterthought.
+                — a sale mentioned once reads as an afterthought. Include dates and the posts stay inside
+                them: <em>from the 8th to the 15th</em>, <em>on the 14th</em>.
               </div>
+
+              {/* What the parser understood, shown back. A date read wrongly is
+                  worse than one not read at all, and it is invisible otherwise. */}
+              {(plan as { campaign_brief?: string | null } | null)?.campaign_brief && (
+                <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {String((plan as { campaign_brief?: string | null }).campaign_brief)
+                    .split(/\n+/).map((l) => l.trim()).filter(Boolean)
+                    .map((line) => {
+                      const w = parseWindow(line);
+                      return (
+                        <span key={line} style={{
+                          fontSize: 11.5, padding: "4px 10px", borderRadius: 999,
+                          background: w.label ? "#FFF1D6" : "var(--bg)",
+                          color: w.label ? "#8A5A00" : "var(--fg3)",
+                          border: `1px solid ${w.label ? "#EAD9A6" : "var(--border)"}`,
+                        }}>
+                          {line.length > 34 ? line.slice(0, 32) + "…" : line}
+                          {" · "}
+                          {w.label ?? "any time this month"}
+                        </span>
+                      );
+                    })}
+                </div>
+              )}
             </div>
 
             {!plan ? (
