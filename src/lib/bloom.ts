@@ -189,10 +189,14 @@ export async function listImages(key: string, brandId: string, limit = 5): Promi
               prompt: null, createdAt: new Date().toISOString(), brandId: "mock-brand" }];
   }
 
-  // No brand query param is documented, and guessing one has already cost this
-  // integration several rounds. Each image carries brand_session_id, so the
-  // filter happens here on a field we have actually seen in a live response.
-  const body = await call<unknown>(`/images?limit=${limit * 4}`, key);
+  // No query parameters. Their docs list cursor / status / action_type / ids /
+  // wait — and notably NOT limit, which is what the previous version sent. That
+  // call errored, the caller swallowed it, and a finished image sat uncollected
+  // with nothing anywhere saying why.
+  //
+  // Each image carries brand_session_id, so the brand filter happens here on a
+  // field observed in a live response rather than a parameter name invented.
+  const body = await call<unknown>(`/images`, key);
   const arr = findArray(body);
   if (!arr) throw new Error(`Bloom returned images in an unrecognised shape: ${describeShape(body)}`);
 

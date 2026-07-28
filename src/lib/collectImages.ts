@@ -69,18 +69,24 @@ export async function collectPendingImages(
       const state = await checkImage(key, imageId);
 
       if (state.status === "completed") {
+        // Clear any error from an earlier attempt, so a slot that recovered does
+        // not keep showing why it once failed.
         await db.from("content_plan_items").update({
           image_url: state.imageUrl, image_status: "completed",
-          bloom_image_id: null, media_id: null,
+          bloom_image_id: null, media_id: null, image_error: null,
         }).eq("id", row.id);
         collected++;
       } else if (state.status === "failed") {
         await db.from("content_plan_items")
           .update({ image_status: "failed", bloom_image_id: null }).eq("id", row.id);
       }
-    } catch {
-      // A hiccup on one slot must not stop the others being collected, and the
-      // next refresh will try again anyway.
+    } catch (e) {
+      // A hiccup on one slot must not stop the others, but it must not vanish
+      // either. Swallowing this is exactly how a finished image sat uncollected
+      // with nothing anywhere explaining it.
+      await db.from("content_plan_items")
+        .update({ image_error: (e as Error).message.slice(0, 300) })
+        .eq("id", row.id);
     }
   }
 
