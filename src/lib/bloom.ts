@@ -84,15 +84,49 @@ export async function listBrands(key: string): Promise<BloomBrand[]> {
 export async function startImage(key: string, brandId: string, prompt: string): Promise<string> {
   if (mockApis()) return "mock-image";
 
-  const created = await call<{ data?: { id?: string }; id?: string }>(
-    "/images/generations",
-    key,
-    { method: "POST", body: JSON.stringify({ brandSessionId: brandId, prompt }) }
-  );
+  const created = await call<unknown>("/images/generations", key, {
+    method: "POST",
+    body: JSON.stringify({ brandSessionId: brandId, prompt }),
+  });
 
-  const id = created?.data?.id ?? created?.id;
-  if (!id) throw new Error("Bloom accepted the request but returned no image id");
-  return String(id);
+  const id = findImageId(created);
+  if (!id) {
+    // Report the payload rather than the absence of a field. "Returned no image
+    // id" is unactionable; the shape is the fix.
+    throw new Error(
+      `Bloom accepted the request but no image id was found in its response: ${describeShape(created, 400)}`
+    );
+  }
+  return id;
+}
+
+/**
+ * Pull a generation id out of whatever Bloom returned.
+ *
+ * The docs describe {data:{id}}. That is not what came back, and rather than
+ * guess a second shape this looks in every plausible place and hands the raw
+ * payload to the caller when it finds nothing. A generation can also return
+ * several images, in which case the first is the one we asked about.
+ */
+function findImageId(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+
+  const direct = [
+    b.id, b.imageId, b.image_id, b.generationId, b.generation_id,
+    (b.data as Record<string, unknown>)?.id,
+    (b.data as Record<string, unknown>)?.imageId,
+    (b.data as Record<string, unknown>)?.image_id,
+    (b.image as Record<string, unknown>)?.id,
+  ].find((v) => typeof v === "string" || typeof v === "number");
+
+  if (direct != null) return String(direct);
+
+  // A list of created images: take the first.
+  const arr = findArray(body);
+  const first = arr?.[0] as Record<string, unknown> | undefined;
+  const fromList = first?.id ?? first?.imageId ?? first?.image_id;
+  return fromList != null ? String(fromList) : null;
 }
 
 export type ImageState =
@@ -104,13 +138,15 @@ export type ImageState =
 export async function checkImage(key: string, imageId: string): Promise<ImageState> {
   if (mockApis()) return { status: "completed", imageUrl: "https://example.test/mock.png" };
 
-  const body = await call<{
-    data?: { status?: string; imageUrl?: string };
-    status?: string; imageUrl?: string;
-  }>(`/images/${imageId}`, key);
+  const body = await call<unknown>(`/images/${imageId}`, key);
+  const b = (body ?? {}) as Record<string, unknown>;
+  const d = (b.data ?? {}) as Record<string, unknown>;
 
-  const status = body?.data?.status ?? body?.status;
-  const imageUrl = body?.data?.imageUrl ?? body?.imageUrl;
+  const status = (d.status ?? b.status) as string | undefined;
+  // Same tolerance on the way out: the URL field has several plausible names.
+  const imageUrl = (d.imageUrl ?? b.imageUrl ?? d.image_url ?? b.image_url ?? d.url ?? b.url) as
+    | string
+    | undefined;
 
   if (status === "completed" && imageUrl) return { status: "completed", imageUrl };
   if (status === "failed") {
