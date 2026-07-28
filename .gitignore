@@ -1,7 +1,12 @@
 node_modules/
 .next/
-.env.local
-.env*.local
+# Every env file, not just *.local. `vercel env pull <name>` writes whatever
+# filename it is given, and `.env.prod` slipped past the old two-line rule
+# straight into a commit. Deny all of them; add an explicit negation if a
+# checked-in example file is ever wanted.
+.env
+.env.*
+!.env.example
 .vercel
 *.tsbuildinfo
 next-env.d.ts
