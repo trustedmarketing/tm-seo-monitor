@@ -201,7 +201,33 @@ export async function ping(token: string, groupId: string): Promise<{ ok: boolea
   return { ok: true, posts: body.meta?.total ?? (body.data?.length ?? 0) };
 }
 
-export type SocialAccount = { id: string; name: string | null; network: string | null };
+export type SocialAccount = { id: string; name: string | null; network: string | null; groupId: string | null };
+
+type RawAccount = {
+  id?: string | number; name?: string | null; custom_name?: string | null;
+  username?: string | null; socialNetwork?: string | null; group_id?: string | number | null;
+};
+
+/**
+ * Every account the token can see, with its group.
+ *
+ * Exists for diagnosis: "this group has no accounts" and "my group matching is
+ * broken" produce the same symptom, and the only way to tell them apart is to
+ * look at what the token actually returns.
+ */
+export async function listAllSocialAccounts(token: string): Promise<SocialAccount[]> {
+  if (mockApis()) return [{ id: "mock-acct", name: "Mock IG", network: "instagram", groupId: "mock-group" }];
+
+  const body = await get<{ data?: RawAccount[] }>("/social-accounts", token, {});
+  return (body.data ?? [])
+    .filter((a) => a.id != null)
+    .map((a) => ({
+      id: String(a.id),
+      name: a.custom_name ?? a.name ?? a.username ?? null,
+      network: a.socialNetwork ?? null,
+      groupId: a.group_id != null ? String(a.group_id) : null,
+    }));
+}
 
 /**
  * Accounts a group publishes to — needed to target a draft.
@@ -212,31 +238,23 @@ export type SocialAccount = { id: string; name: string | null; network: string |
  * guesses, and both were wrong — the field is `socialNetwork`.
  */
 export async function listSocialAccounts(token: string, groupId: string): Promise<SocialAccount[]> {
-  if (mockApis()) return [{ id: "mock-acct", name: "Mock IG", network: "instagram" }];
+  const all = await listAllSocialAccounts(token);
+  const inGroup = all.filter((a) => a.groupId === String(groupId));
 
-  type Raw = {
-    id?: string | number; name?: string | null; custom_name?: string | null;
-    username?: string | null; socialNetwork?: string | null; group_id?: string | number | null;
-  };
-
-  const body = await get<{ data?: Raw[] }>("/social-accounts", token, {});
-  const all = body.data ?? [];
-
-  const inGroup = all.filter((a) => a.id != null && String(a.group_id ?? "") === String(groupId));
-
-  // A group with accounts we failed to match is worth distinguishing from a group
-  // with none, so the error names both numbers rather than just saying "empty".
-  if (inGroup.length === 0 && all.length > 0) {
+  // Three states, three different fixes. Reporting them identically is what sent
+  // Tom looking at a group that was fine.
+  if (all.length === 0) {
+    throw new Error("PostFlow token can see no social accounts at all — check the token's scope");
+  }
+  if (inGroup.length === 0) {
+    const groups = Array.from(new Set(all.map((a) => a.groupId).filter(Boolean)));
     throw new Error(
-      `No PostFlow accounts matched group ${groupId} (token can see ${all.length} account(s) across other groups)`
+      `No accounts are connected to PostFlow group ${groupId}. ` +
+      `The token sees ${all.length} account(s) across ${groups.length} other group(s) — ` +
+      `connect this client's profiles to their group in PostFlow, or check the group id in Settings.`
     );
   }
-
-  return inGroup.map((a) => ({
-    id: String(a.id),
-    name: a.custom_name ?? a.name ?? a.username ?? null,
-    network: a.socialNetwork ?? null,
-  }));
+  return inGroup;
 }
 
 /**

@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 import { getProfile } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
-import { ping, listGroups } from "@/lib/postflow";
+import { ping, listGroups, listAllSocialAccounts } from "@/lib/postflow";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 45;
@@ -43,6 +43,21 @@ export async function GET(req: Request) {
     out.available_groups_error = (e as Error).message.slice(0, 300);
   }
 
+  // Accounts per group. A group with no connected profile can be published to
+  // by nobody, and that is invisible from the group list alone.
+  try {
+    const accounts = await listAllSocialAccounts(token);
+    const byGroup: Record<string, { network: string | null; name: string | null }[]> = {};
+    for (const a of accounts) {
+      const k = a.groupId ?? "(none)";
+      (byGroup[k] ??= []).push({ network: a.network, name: a.name });
+    }
+    out.accounts_total = accounts.length;
+    out.accounts_by_group = byGroup;
+  } catch (e) {
+    out.accounts_error = (e as Error).message.slice(0, 200);
+  }
+
   const q = db.from("clients").select("id, name, postflow_group_id").eq("active", true);
   const { data: clients } = clientId ? await q.eq("id", clientId) : await q;
 
@@ -55,7 +70,15 @@ export async function GET(req: Request) {
     }
     try {
       const p = await ping(token, c.postflow_group_id);
-      results.push({ client: c.name, ok: true, group_id: c.postflow_group_id, posts_last_7d: p.posts });
+      const connected = ((out.accounts_by_group as Record<string, unknown[]>) ?? {})[c.postflow_group_id] ?? [];
+      results.push({
+        client: c.name, ok: true, group_id: c.postflow_group_id,
+        posts_last_7d: p.posts,
+        connected_accounts: connected.length,
+        // Publishing needs a connected profile; collecting does not. A client can
+        // look healthy on collection and still be unpublishable.
+        can_publish: connected.length > 0,
+      });
     } catch (e) {
       results.push({ client: c.name, ok: false, failed_at: "api_error",
         group_id: c.postflow_group_id, error: (e as Error).message.slice(0, 200) });
