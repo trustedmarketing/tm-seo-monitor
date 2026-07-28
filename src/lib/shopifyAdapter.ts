@@ -38,11 +38,35 @@ const API_VERSION = "2025-01";
 
 /** Change classes this adapter can execute. Deliberately narrow to start. */
 export type ShopifyChangeType =
-  | "page_seo_title"
+  | "page_title"                 // the page NAME — renders as the H1
+  | "page_seo_title"             // the <title> tag — search results only
   | "page_meta_description"
   | "page_body"
+  | "article_title"
   | "article_seo_title"
   | "article_meta_description";
+
+/**
+ * Human labels, in Shopify's OWN words.
+ *
+ * Shopify has two fields both called "title" and they are not the same thing:
+ * `Page.title` is the page name (rendered as the H1), while the SEO title is a
+ * `global.title_tag` metafield shown only in search results. Verified on a live
+ * page 2026-07-28 — changing the SEO title correctly left the page heading
+ * untouched, which looked like a bug because our label said "page seo title".
+ *
+ * A card that changes one and reads like the other is a trap, so the label says
+ * exactly what the merchant will see change in their admin.
+ */
+export const CHANGE_LABEL: Record<ShopifyChangeType, string> = {
+  page_title:               "Page title (the heading on the page)",
+  page_seo_title:           "Search engine listing title (search results only)",
+  page_meta_description:    "Search engine listing description",
+  page_body:                "Page content",
+  article_title:            "Article title (the heading on the post)",
+  article_seo_title:        "Article search listing title (search results only)",
+  article_meta_description: "Article search listing description",
+};
 
 export type ShopifyChange = {
   type: ShopifyChangeType;
@@ -115,12 +139,16 @@ export async function preflight(shopDomain: string, token: string): Promise<{ ca
 // Page and Article SEO overrides live in metafields under the `global`
 // namespace: `title_tag` and `description_tag`. That is a long-standing Shopify
 // convention rather than something discoverable from the type itself.
-type FieldKind = { kind: "metafield"; key: "title_tag" | "description_tag"; type: string } | { kind: "native"; field: "body" };
+type FieldKind =
+  | { kind: "metafield"; key: "title_tag" | "description_tag"; type: string }
+  | { kind: "native"; field: "body" | "title" };
 
 const FIELD_FOR: Record<ShopifyChangeType, FieldKind> = {
+  page_title:                { kind: "native",    field: "title" },
   page_seo_title:            { kind: "metafield", key: "title_tag",       type: "single_line_text_field" },
   page_meta_description:     { kind: "metafield", key: "description_tag", type: "multi_line_text_field" },
   page_body:                 { kind: "native",    field: "body" },
+  article_title:             { kind: "native",    field: "title" },
   article_seo_title:         { kind: "metafield", key: "title_tag",       type: "single_line_text_field" },
   article_meta_description:  { kind: "metafield", key: "description_tag", type: "multi_line_text_field" },
 };
@@ -187,7 +215,7 @@ export async function stage(
   // changed something that was never set.
   const current =
     field.kind === "native"
-      ? (data.node.body ?? "")
+      ? (field.field === "title" ? (data.node.title ?? "") : (data.node.body ?? ""))
       : field.key === "title_tag"
         ? (data.node.titleTag?.value ?? "")
         : (data.node.descriptionTag?.value ?? "");
@@ -275,9 +303,12 @@ async function write(
   // override is written through the same mutation as native fields. `type` is
   // supplied because it is required when the metafield does not yet exist, and
   // on a page whose SEO has never been edited it will not.
+  // Note: changing `title` does NOT change the handle, so existing URLs and any
+  // links to them survive. Shopify only regenerates a handle when one is passed
+  // explicitly, which we never do.
   const input: Record<string, unknown> =
     field.kind === "native"
-      ? { body: value }
+      ? (field.field === "title" ? { title: value } : { body: value })
       : {
           metafields: [
             { namespace: SEO_NAMESPACE, key: field.key, value, type: field.type },

@@ -12,11 +12,13 @@ import { getProfile } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
 import { writeAudit } from "@/lib/audit";
-import { connect, stage, type ShopifyChangeType } from "@/lib/shopifyAdapter";
+import { connect, stage, CHANGE_LABEL, type ShopifyChangeType } from "@/lib/shopifyAdapter";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+// SERP truncation only applies to fields that appear in search results. The page
+// title (the H1) has no such limit, so warning about it would be noise.
 const SERP_KIND: Partial<Record<ShopifyChangeType, "title" | "description">> = {
   page_seo_title: "title",
   article_seo_title: "title",
@@ -80,7 +82,7 @@ export async function GET(req: Request) {
       variant: "site",
       status: "staged",
       severity: "Medium",
-      title: `Update ${changeType.replace(/_/g, " ")} on ${staged.targetLabel}`,
+      title: `${CHANGE_LABEL[changeType]} — ${staged.targetLabel}`,
       why: why ?? null,
       staged_by: `Manual · ${profile.email}`,
       qc_passed: 1, qc_total: 1,
