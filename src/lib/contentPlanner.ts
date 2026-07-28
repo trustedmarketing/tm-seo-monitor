@@ -5,6 +5,10 @@
 // format mix and timing.
 //
 // ── Where the ideas come from, in priority order ─────────────────────────────
+//   0. What the BUSINESS is doing this month — an anniversary, a student sale,
+//      a launch. Nothing in our data can know about these, and a month that
+//      misses the anniversary is a bad month however well-sourced the rest is.
+//      Highest weight, because a commitment beats a correlation.
 //   1. THIS client's proven posts. A format that beat their own median is the
 //      strongest evidence available and it outranks everything else.
 //   2. The questions their customers actually ask (tracked_prompts). These were
@@ -139,7 +143,9 @@ export async function buildPlan(
   clientId: string,
   monthStart: Date,
   /** Plan for these networks only. Empty means every connected network. */
-  onlyNetworks: string[] = []
+  onlyNetworks: string[] = [],
+  /** What the business is doing this month, in the team's own words. */
+  campaignBrief = ""
 ): Promise<Plan> {
   const { data: client } = await db
     .from("clients")
@@ -308,6 +314,17 @@ export async function buildPlan(
   let evergreenCursor = 0;
   let questionCursor = 0;
   let productCursor = 0;
+  let campaignCursor = 0;
+
+  // ── the month's own commitments ────────────────────────────────────────────
+  // One per line or sentence. Split rather than parsed with a model: the team
+  // wrote these deliberately, and turning "student sale, 20% off, from the 8th"
+  // into something a model paraphrased would lose the specifics that make it
+  // worth posting about.
+  const campaigns = campaignBrief
+    .split(/\n+|(?<=[.;])\s+/)
+    .map((l) => l.trim().replace(/^[-*•]\s*/, ""))
+    .filter((l) => l.length > 3);
 
   const allEvergreen = EVERGREEN[(client.client_type as string) ?? "hybrid"] ?? EVERGREEN.hybrid;
   const evergreen = allEvergreen.filter((a) => !used.has(`e:${a}`));
@@ -320,9 +337,13 @@ export async function buildPlan(
    * median would be inventing evidence. Whatever is left over goes to evergreen,
    * which is unlimited by definition.
    */
-  type Source = "proven" | "question" | "product" | "evergreen";
-  const WEIGHT: Record<Source, number> = { proven: 4, question: 3, product: 2, evergreen: 1 };
+  type Source = "campaign" | "proven" | "question" | "product" | "evergreen";
+  // Campaign outweighs everything: a stated commitment beats a correlation.
+  const WEIGHT: Record<Source, number> = { campaign: 6, proven: 4, question: 3, product: 2, evergreen: 1 };
   const available: Record<Source, number> = {
+    // Each campaign line gets at least two slots — one post rarely lands a
+    // promotion, and a sale mentioned once reads as an afterthought.
+    campaign: campaigns.length * 2,
     proven: proven.length,
     question: questions.length,
     product: products.length,
@@ -330,7 +351,7 @@ export async function buildPlan(
   };
 
   function dealSources(n: number): Source[] {
-    const order: Source[] = ["proven", "question", "product", "evergreen"];
+    const order: Source[] = ["campaign", "proven", "question", "product", "evergreen"];
     const usableSources = order.filter((k) => available[k] > 0);
     const totalWeight = usableSources.reduce((a, k) => a + WEIGHT[k], 0);
 
@@ -377,12 +398,29 @@ export async function buildPlan(
       slot++;
       const source = sources[i];
 
+      const campaign = source === "campaign" ? campaigns[campaignCursor % campaigns.length] : undefined;
       const p = source === "proven" ? proven[provenCursor] : undefined;
       const useProven = !!p;
       const question = source === "question" ? questions[questionCursor] : undefined;
       const product = source === "product" ? products[productCursor] : undefined;
 
-      if (useProven) {
+      if (campaign) {
+        const nth = Math.floor(campaignCursor / campaigns.length) + 1;
+        campaignCursor++;
+        items.push({
+          slot,
+          scheduledFor: dates[i],
+          platform: network,
+          format: formats[i],
+          theme: "Campaign",
+          brief: nth === 1
+            ? `${campaign}. As a ${formats[i]} for ${book?.label ?? network}.`
+            : `${campaign} — a different angle on the same thing, not a repeat. As a ${formats[i]} for ${book?.label ?? network}.`,
+          why: `From this month's brief. This is something the business has committed to, so it outranks anything the performance data suggests.`,
+          sourcePostId: null,
+          seedRef: null,   // campaigns repeat across months by design
+        });
+      } else if (useProven) {
         provenCursor++;
         items.push({
           slot,
@@ -449,6 +487,7 @@ export async function buildPlan(
   }
 
   const counts = {
+    campaign: items.filter((i) => i.theme === "Campaign").length,
     proven: items.filter((i) => i.theme === "Repeat what worked").length,
     question: items.filter((i) => i.theme === "Answer a customer question").length,
     product: items.filter((i) => i.theme === "Show the product working").length,
@@ -458,6 +497,7 @@ export async function buildPlan(
   // Say where the month came from, source by source. A plan that reports only a
   // total invites the reader to assume it is all evidence-backed.
   const parts: string[] = [];
+  if (counts.campaign) parts.push(`${counts.campaign} cover what you briefed for this month`);
   if (counts.proven) parts.push(`${counts.proven} rework a post that beat this account's median`);
   if (counts.question) parts.push(`${counts.question} answer questions this client's buyers actually ask`);
   if (counts.product) parts.push(`${counts.product} feature something from the live catalogue`);
@@ -468,6 +508,9 @@ export async function buildPlan(
     parts.length ? `${parts.join("; ")}.` : "",
     counts.proven === 0
       ? `Nothing in this account's own posting history was strong enough to build on, so the plan is drawn from what their customers ask and what they sell rather than from social performance.`
+      : "",
+    campaigns.length === 0
+      ? `No brief was given for this month, so nothing here reflects a promotion, launch or date the business has planned. Add one and rebuild if there is something specific happening.`
       : "",
     networkSource === "connected"
       ? `Planned for ${usable.join(", ")} — the network${usable.length === 1 ? "" : "s"} actually connected in PostFlow.`

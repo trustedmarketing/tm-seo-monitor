@@ -46,10 +46,11 @@ export async function POST(req: Request) {
 
     // Networks come in as repeated checkbox values. Empty means "all connected".
     const onlyNetworks = form.getAll("network").map(String).filter(Boolean);
+    const campaignBrief = String(form.get("campaign_brief") ?? "").trim().slice(0, 2000);
 
     let plan;
     try {
-      plan = await buildPlan(db, clientId, monthStart, onlyNetworks);
+      plan = await buildPlan(db, clientId, monthStart, onlyNetworks, campaignBrief);
     } catch (e) {
       return back(req, clientId, `build-failed:${(e as Error).message.slice(0, 80)}`);
     }
@@ -67,6 +68,7 @@ export async function POST(req: Request) {
       client_id: clientId, month: plan.month, status: "draft",
       target_posts: plan.targetPosts, rationale: plan.rationale,
       networks: plan.networks,
+      campaign_brief: campaignBrief || null,
       created_by: profile?.id ?? null,
     }).select("id").single();
 

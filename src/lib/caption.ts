@@ -61,8 +61,9 @@ function systemPrompt(args: {
   examples: string[];
   network?: string | null;
   coreHashtags?: string[];
+  monthContext?: string | null;
 }): string {
-  const { clientName, domain, clientType, examples, network, coreHashtags } = args;
+  const { clientName, domain, clientType, examples, network, coreHashtags, monthContext } = args;
   const book = playbookFor(network);
 
   return [
@@ -103,6 +104,17 @@ function systemPrompt(args: {
       : "",
     "",
 
+    monthContext
+      ? [
+          "What the business has on this month:",
+          monthContext,
+          "Only mention it if this post is genuinely about it. Do not bolt a sale onto",
+          "an unrelated post — knowing the context is so you avoid writing something",
+          "that reads as though nothing is happening, not so you advertise in every post.",
+          "",
+        ].join("\n")
+      : "",
+
     coreHashtags?.length
       ? [
           "Hashtags:",
@@ -142,6 +154,8 @@ export async function draftPost(args: {
   sourcePost?: string | null;
   /** Network this post is for, so the drafter gets that platform's rules. */
   network?: string | null;
+  /** What the business has on this month, for awareness rather than promotion. */
+  monthContext?: string | null;
   /** The client's standing tags. Consistency is the point of a hashtag set. */
   coreHashtags?: string[];
 }): Promise<DraftedPost> {

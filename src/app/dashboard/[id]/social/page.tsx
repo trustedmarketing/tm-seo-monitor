@@ -107,7 +107,7 @@ export default async function Social({
 
   const { data: plan } = await db
     .from("content_plans")
-    .select("id, month, status, target_posts, rationale")
+    .select("id, month, status, target_posts, rationale, campaign_brief")
     .eq("client_id", params.id).eq("month", nextMonth).maybeSingle();
 
   const { data: planItems } = plan
@@ -279,7 +279,8 @@ export default async function Social({
                 {new Date(nextMonth + "T00:00:00Z").toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}
               </span>
 
-              <form action="/api/content-plan" method="post" style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <form action="/api/content-plan" method="post" id="build-plan"
+                    style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                 <input type="hidden" name="client_id" value={params.id} />
                 <input type="hidden" name="action" value="build" />
 
@@ -316,6 +317,30 @@ export default async function Social({
                   {plan ? "Rebuild plan" : "Build next month"}
                 </button>
               </form>
+            </div>
+
+            {/* What the business is doing this month. Nothing in our data can
+                know about an anniversary or a sale, and a month that misses one
+                is a bad month however well-sourced the rest of it is. */}
+            <div style={{ marginBottom: 16, maxWidth: 900 }}>
+              <label style={{
+                fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
+                color: "var(--fg3)", display: "block", marginBottom: 6,
+              }}>
+                Anything happening this month?
+              </label>
+              <textarea form="build-plan" name="campaign_brief" rows={3}
+                        defaultValue={(plan as { campaign_brief?: string | null } | null)?.campaign_brief ?? ""}
+                        placeholder={"Student sale from the 8th, 20% off\nTenth anniversary on the 14th\nPushing the new colourway"}
+                        style={{
+                          fontFamily: "var(--font-body)", fontSize: 13.5, padding: "10px 12px",
+                          border: "1px solid var(--border)", borderRadius: 10, width: "100%",
+                          boxSizing: "border-box", lineHeight: 1.55, resize: "vertical",
+                        }} />
+              <div style={{ fontSize: 12, color: "var(--fg3)", marginTop: 5 }}>
+                One per line. These outrank everything the data suggests, and each gets more than one post
+                — a sale mentioned once reads as an afterthought.
+              </div>
             </div>
 
             {!plan ? (

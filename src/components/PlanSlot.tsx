@@ -28,6 +28,8 @@ const SOURCE = {
   "Answer a customer question": { label: "Customer ask", fg: "#2F6F8F", bg: "#E7F4FB", edge: "#BFDDEC" },
   "Show the product working": { label: "Catalogue", fg: "#7A5AA8", bg: "#F1EBFA", edge: "#DCCCF0" },
   "Evergreen angle": { label: "Evergreen", fg: "var(--fg3)", bg: "var(--bg)", edge: "var(--border)" },
+  // Deliberately the loudest badge: this is the slot someone asked for.
+  Campaign: { label: "Campaign", fg: "#8A5A00", bg: "#FFF1D6", edge: "#EAD9A6" },
 } as const;
 
 const CARD: React.CSSProperties = {
