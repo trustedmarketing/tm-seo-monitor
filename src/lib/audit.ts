@@ -19,9 +19,29 @@
 import { dbClient } from "@/lib/db";
 import type { Profile } from "@/lib/supabaseServer";
 
+/**
+ * Punch list #1: how long a published change can be treated as a mistake rather
+ * than as history.
+ *
+ * Inside the window an undo removes the pending measurement, because a change
+ * that was live for four minutes has nothing to say. Outside it, the change ran,
+ * running is data, and reversing it writes a SECOND ledger entry rather than
+ * erasing the first.
+ *
+ * The audit log records both identically and permanently either way — this
+ * constant only governs the measurement queue.
+ */
+export const UNDO_WINDOW_MS = 60 * 60 * 1000;
+
 export type AuditAction =
   | "approve" | "decline" | "publish" | "pause" | "resume"
   | "budget_change" | "revert" | "undo" | "retry" | "request_approval";
+
+/** Whether a published change is still inside its undo window. */
+export function withinUndoWindow(publishedAt: string | null | undefined): boolean {
+  if (!publishedAt) return false;
+  return Date.now() - new Date(publishedAt).getTime() < UNDO_WINDOW_MS;
+}
 
 export type AuditEntry = {
   action: AuditAction;

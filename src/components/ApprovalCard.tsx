@@ -13,7 +13,7 @@
 //   · #5 a card above your role renders LOCKED and explained, never hidden.
 //   · #7 every card carries its own freshness line.
 import { diffWords, serpWarning, type DiffOp } from "@/lib/textDiff";
-import { canDecide } from "@/lib/audit";
+import { canDecide, withinUndoWindow } from "@/lib/audit";
 
 export type ApprovalRow = {
   id: string;
@@ -31,6 +31,7 @@ export type ApprovalRow = {
   decline_reason: string | null;
   error_detail: string | null;
   created_at: string;
+  published_at?: string | null;
   /** Content change payload — before/after text for the diff. */
   before?: string;
   after?: string;
@@ -104,6 +105,9 @@ export function ApprovalCard({
   const failed = row.status === "failed";
   const decided = ["published", "declined", "reverted"].includes(row.status);
   const busy = row.status === "publishing";
+  // The window, not the button, decides what happens — a stale page must not
+  // let someone skip the ledger entry an hour later.
+  const undoable = withinUndoWindow(row.published_at);
 
   const ops = row.before !== undefined && row.after !== undefined
     ? diffWords(row.before, row.after)
@@ -191,6 +195,22 @@ export function ApprovalCard({
         </span>
         {freshness && <span style={{ fontSize: 12, color: C.faint }}>· {freshness}</span>}
       </div>
+
+      {/* published: undo inside the window, revert after it (punch list #1) */}
+      {row.status === "published" && !locked && (
+        <div style={{ display: "flex", gap: 10, marginTop: 16, alignItems: "center", flexWrap: "wrap" }}>
+          <form action="/api/approvals" method="post">
+            <input type="hidden" name="id" value={row.id} />
+            <input type="hidden" name="action" value={undoable ? "undo" : "revert"} />
+            <button type="submit" style={btn("ghost")}>{undoable ? "Undo" : "Revert"}</button>
+          </form>
+          <span style={{ fontSize: 12.5, color: C.faint }}>
+            {undoable
+              ? "Undo reverses this cleanly — it has not been live long enough to measure."
+              : "This has been live long enough to count. Reverting keeps both entries in the record."}
+          </span>
+        </div>
+      )}
 
       {/* actions */}
       {!decided && (

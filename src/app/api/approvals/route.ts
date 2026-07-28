@@ -17,8 +17,8 @@ import { NextResponse } from "next/server";
 import { getProfile, isAgency } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
-import { writeAudit, canDecide } from "@/lib/audit";
-import { connect, publish, type ShopifyChangeType } from "@/lib/shopifyAdapter";
+import { writeAudit, canDecide, UNDO_WINDOW_MS } from "@/lib/audit";
+import { connect, publish, revert as revertChange, type ShopifyChangeType } from "@/lib/shopifyAdapter";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -94,6 +94,94 @@ export async function POST(req: Request) {
       profile
     );
     return back(req, "approval-requested");
+  }
+
+  // ── undo / revert ──────────────────────────────────────────────────────────
+  //
+  // Punch list #1. Two controls, one mechanism, and the difference is what
+  // happens to the MEASUREMENT record — never to the audit trail, which records
+  // both identically and permanently.
+  //
+  //   UNDO (< 60 min)   the change did not run long enough to mean anything.
+  //                     Reverse it and drop the ledger row, so the 28-day queue
+  //                     is not holding a verdict on something that was live for
+  //                     four minutes.
+  //   REVERT (>= 60 min) it ran. That is data. Reverse it and write a SECOND
+  //                     ledger entry rather than erasing the first — a change
+  //                     that ran three days and was then pulled is exactly the
+  //                     kind of thing measurement must not hide.
+  if (action === "undo" || action === "revert") {
+    if (row.status !== "published") return back(req, "not-published");
+
+    const payload0 = row.payload as Payload | null;
+    if (!payload0) return back(req, "no-payload");
+
+    const publishedAt = row.published_at ? new Date(row.published_at).getTime() : 0;
+    const withinUndoWindow = Date.now() - publishedAt < UNDO_WINDOW_MS;
+    // The window decides, not the button that was pressed. A stale page showing
+    // "Undo" an hour later must not quietly skip the ledger entry.
+    const mode = withinUndoWindow ? "undo" : "revert";
+
+    try {
+      const { data: store } = await db
+        .from("client_stores")
+        .select("domain, api_client_id, auth_ref")
+        .eq("client_id", row.client_id).eq("platform", "shopify").maybeSingle();
+      if (!store?.api_client_id || !store.auth_ref) throw new Error("shopify store not configured");
+
+      const secret = await readSecret(db, store.auth_ref);
+      if (!secret) throw new Error("shopify credentials missing from vault");
+
+      const token = await connect(store.domain, store.api_client_id, secret);
+
+      // Restore the value captured at stage time — the true original.
+      await revertChange(
+        store.domain, token,
+        { targetGid: payload0.targetGid, type: payload0.changeType, value: payload0.before },
+        { dryRun: false }
+      );
+
+      const now = new Date().toISOString();
+      await db.from("approvals").update({
+        status: "reverted", error_detail: null, updated_at: now,
+      }).eq("id", id);
+
+      if (mode === "undo") {
+        // Never ran meaningfully: take it out of the measurement queue. The
+        // audit log below still records that it happened, so nothing is lost —
+        // only the pending verdict goes.
+        await db.from("changes").delete()
+          .eq("client_id", row.client_id).eq("title", row.title).is("verdict", null);
+      } else {
+        await db.from("changes").insert({
+          client_id: row.client_id,
+          title: `Reverted: ${row.title}`,
+          description: `Restored ${payload0.changeType} on ${payload0.targetLabel ?? payload0.targetGid}`,
+          changed_at: now.slice(0, 10),
+          source: "growth-os",
+        });
+      }
+
+      await writeAudit(
+        { action: mode, targetType: "approval", targetId: id, clientId: row.client_id,
+          before: { value: payload0.after }, after: { value: payload0.before },
+          detail: mode === "undo"
+            ? "undone inside the 60-minute window; ledger entry removed"
+            : "reverted after the undo window; second ledger entry written",
+          ip },
+        profile
+      );
+
+      return back(req, mode === "undo" ? "undone" : "reverted");
+    } catch (e) {
+      const msg = (e as Error).message.slice(0, 500);
+      await writeAudit(
+        { action: mode, targetType: "approval", targetId: id, clientId: row.client_id,
+          detail: `FAILED: ${msg}`, ip },
+        profile
+      );
+      return back(req, "revert-failed");
+    }
   }
 
   if (action !== "approve" && action !== "retry") return back(req, "unknown-action");

@@ -19,6 +19,10 @@ const MESSAGES: Record<string, string> = {
   "needs-higher-role": "That card needs a higher role. Approval requested.",
   "reason-required": "Decline needs a reason.",
   "approval-requested": "Approval requested.",
+  undone: "Undone. It was not live long enough to measure, so no verdict is pending.",
+  reverted: "Reverted. Both the change and the reversal stay in the record.",
+  "revert-failed": "Revert failed. The change is still live — check the error and try again.",
+  "not-published": "That card is not in a published state.",
 };
 
 export default async function Approvals({
@@ -29,16 +33,27 @@ export default async function Approvals({
   const profile = await getProfile();
   const db = userClient();
 
-  const [{ data: rows }, { data: clients }] = await Promise.all([
+  // Recently published work stays visible so undo/revert is reachable without
+  // hunting through a change log. 24h is enough to cover the undo window plus
+  // the "I've just realised" gap after it.
+  const since = new Date(Date.now() - 24 * 3600_000).toISOString();
+
+  const [{ data: rows }, { data: recent }, { data: clients }] = await Promise.all([
     db.from("approvals")
       .select("*")
       .in("status", ["staged", "publishing", "failed"])
       .order("created_at", { ascending: true }),
+    db.from("approvals")
+      .select("*")
+      .eq("status", "published")
+      .gte("published_at", since)
+      .order("published_at", { ascending: false }),
     db.from("clients").select("id, name"),
   ]);
 
   const nameOf = new Map((clients ?? []).map((c) => [c.id, c.name]));
   const queue = (rows ?? []) as (ApprovalRow & { payload?: Record<string, string> })[];
+  const published = (recent ?? []) as (ApprovalRow & { payload?: Record<string, string> })[];
   const msg = searchParams.msg ? MESSAGES[searchParams.msg] : null;
 
   return (
@@ -94,6 +109,32 @@ export default async function Approvals({
               );
             })}
           </div>
+        )}
+
+        {published.length > 0 && (
+          <section style={{ marginTop: 44 }}>
+            <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 400, fontSize: 28, margin: "0 0 6px" }}>
+              Published today
+            </h2>
+            <p style={{ fontSize: 14, color: "var(--fg2)", margin: "0 0 18px" }}>
+              Live and being measured. Undo reverses cleanly inside the first hour; after that a
+              revert is recorded alongside the original rather than replacing it.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {published.map((row) => {
+                const p = row.payload ?? {};
+                return (
+                  <ApprovalCard
+                    key={row.id}
+                    row={{ ...row, before: p.before, after: p.after, target_label: p.targetLabel,
+                           serp_kind: p.serpKind as "title" | "description" | undefined }}
+                    actorRole={profile?.role}
+                    clientName={nameOf.get(row.client_id)}
+                  />
+                );
+              })}
+            </div>
+          </section>
         )}
       </div>
     </main>

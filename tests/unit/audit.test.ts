@@ -54,3 +54,30 @@ describe("canDecide · punch list #5, role-locked cards", () => {
     expect(canDecide("intern", "specialist")).toBe(false);
   });
 });
+
+describe("undo window · punch list #1", () => {
+  it("a change published moments ago is undoable", async () => {
+    const { withinUndoWindow } = await import("@/lib/audit");
+    expect(withinUndoWindow(new Date().toISOString())).toBe(true);
+  });
+
+  it("a change published two hours ago is NOT undoable — it ran, so it is data", async () => {
+    const { withinUndoWindow } = await import("@/lib/audit");
+    const twoHoursAgo = new Date(Date.now() - 2 * 3600_000).toISOString();
+    expect(withinUndoWindow(twoHoursAgo)).toBe(false);
+  });
+
+  it("treats a never-published change as not undoable", async () => {
+    const { withinUndoWindow } = await import("@/lib/audit");
+    expect(withinUndoWindow(null)).toBe(false);
+    expect(withinUndoWindow(undefined)).toBe(false);
+  });
+
+  it("the boundary is one hour", async () => {
+    const { withinUndoWindow, UNDO_WINDOW_MS } = await import("@/lib/audit");
+    expect(UNDO_WINDOW_MS).toBe(3_600_000);
+    // Just inside vs just outside.
+    expect(withinUndoWindow(new Date(Date.now() - UNDO_WINDOW_MS + 5000).toISOString())).toBe(true);
+    expect(withinUndoWindow(new Date(Date.now() - UNDO_WINDOW_MS - 5000).toISOString())).toBe(false);
+  });
+});
