@@ -158,15 +158,33 @@ export type PostFlowGroup = { id: string; name: string | null };
  * opaque identifier by hand is exactly the class of task that produced a wrong
  * GA4 property id and six days of silent failure.
  */
-export async function listGroups(token: string): Promise<PostFlowGroup[]> {
-  if (mockApis()) return [{ id: "mock-group", name: "Mock Group" }];
+export async function listGroups(token: string): Promise<{ groups: PostFlowGroup[]; rawShape?: unknown }> {
+  if (mockApis()) return { groups: [{ id: "mock-group", name: "Mock Group" }] };
 
-  const body = await get<{ data?: { id?: string | number; name?: string | null }[] }>(
-    "/groups", token, {}
-  );
-  return (body.data ?? [])
-    .filter((g) => g.id != null)
-    .map((g) => ({ id: String(g.id), name: g.name ?? null }));
+  const body = await get<unknown>("/groups", token, {});
+
+  // Vendors disagree about envelopes: some return { data: [...] }, some a bare
+  // array, some { groups: [...] }. Try the likely shapes rather than assuming
+  // one — the first version assumed `data` and silently returned nothing, which
+  // reads identically to "this account has no groups".
+  const candidates: unknown[] = [
+    (body as { data?: unknown })?.data,
+    (body as { groups?: unknown })?.groups,
+    (body as { results?: unknown })?.results,
+    body,
+  ];
+
+  const arr = candidates.find((c) => Array.isArray(c)) as
+    | { id?: string | number; name?: string | null; title?: string | null }[]
+    | undefined;
+
+  const groups = (arr ?? [])
+    .filter((g) => g && g.id != null)
+    .map((g) => ({ id: String(g.id), name: g.name ?? g.title ?? null }));
+
+  // If nothing parsed, hand back the raw payload so the shape is visible instead
+  // of being guessed at a second time. Group names and ids are not secrets.
+  return groups.length ? { groups } : { groups, rawShape: body };
 }
 
 /** Confirm the token works and the group exists, without pulling a full window. */

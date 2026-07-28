@@ -31,9 +31,16 @@ export async function GET(req: Request) {
   // Every group the token can see, so an unset client can be pointed at one
   // without anyone digging through the PostFlow UI for an opaque id.
   try {
-    out.available_groups = await listGroups(token);
+    const g = await listGroups(token);
+    out.available_groups = g.groups;
+    // Only present when parsing found nothing — an empty list and an
+    // unrecognised envelope look identical otherwise.
+    if (g.rawShape !== undefined) {
+      out.groups_raw_response = JSON.stringify(g.rawShape).slice(0, 1200);
+      out.groups_note = "No groups parsed. The raw response is above so the shape can be read rather than guessed.";
+    }
   } catch (e) {
-    out.available_groups_error = (e as Error).message.slice(0, 200);
+    out.available_groups_error = (e as Error).message.slice(0, 300);
   }
 
   const q = db.from("clients").select("id, name, postflow_group_id").eq("active", true);
