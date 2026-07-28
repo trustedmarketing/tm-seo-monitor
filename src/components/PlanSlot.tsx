@@ -73,6 +73,7 @@ function Hidden({ clientId, itemId, action }: { clientId: string; itemId: number
 type Slide = {
   id: number; position: number; headline: string | null; body: string | null;
   image_url: string | null; image_status: string | null; image_error: string | null;
+  shot: string | null;
 };
 
 export function PlanSlot(
@@ -362,14 +363,38 @@ export function PlanSlot(
                       </div>
                     )}
 
-                    {!sent && sl.image_status !== "generating" && (
-                      <form action="/api/content-plan/item" method="post" style={{ marginTop: 6 }}>
-                        <Hidden clientId={clientId} itemId={item.id} action="generate-slide" />
-                        <input type="hidden" name="slide_id" value={sl.id} />
-                        <button type="submit" style={{ ...BTN(!sl.image_url), width: "100%", padding: "6px 10px", fontSize: 12 }}>
-                          {sl.image_url ? "Redo" : "Generate"}
-                        </button>
-                      </form>
+                    {sl.shot && (
+                      // The shot is the thing most likely to be wrong, and it is
+                      // far cheaper to read it than to generate and look.
+                      <div style={{ fontSize: 11, color: "var(--fg3)", marginTop: 4, fontStyle: "italic", lineHeight: 1.4 }}>
+                        {sl.shot}
+                      </div>
+                    )}
+
+                    {!sent && (
+                      <>
+                        {sl.image_status !== "generating" && (
+                          <form action="/api/content-plan/item" method="post" style={{ marginTop: 6 }}>
+                            <Hidden clientId={clientId} itemId={item.id} action="generate-slide" />
+                            <input type="hidden" name="slide_id" value={sl.id} />
+                            <button type="submit" style={{ ...BTN(!sl.image_url), width: "100%", padding: "6px 10px", fontSize: 12 }}>
+                              {sl.image_url ? "Redo" : "Generate"}
+                            </button>
+                          </form>
+                        )}
+
+                        {/* The same escape hatch the single image has. A slide
+                            stuck generating, or one where a real photograph beats
+                            anything generated, must not be a dead end. */}
+                        <form action="/api/content-plan/item" method="post" style={{ marginTop: 5 }}>
+                          <Hidden clientId={clientId} itemId={item.id} action="slide-image" />
+                          <input type="hidden" name="slide_id" value={sl.id} />
+                          <input name="image_url" placeholder="or paste a URL"
+                                 style={{ ...INPUT, fontSize: 11, padding: "5px 6px", border: "none",
+                                          borderBottom: "1px solid var(--border)", borderRadius: 0,
+                                          textAlign: "center" }} />
+                        </form>
+                      </>
                     )}
                   </div>
                 ))}

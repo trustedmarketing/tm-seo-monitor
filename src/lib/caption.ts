@@ -23,7 +23,7 @@ export type DraftedPost = {
    *  hook rather than the image model reaching for the post's first sentence. */
   headline: string;
   /** Carousel slides, cover first. Empty for any other format. */
-  slides: { headline: string; body: string }[];
+  slides: { headline: string; body: string; shot: string }[];
 };
 
 const SCHEMA = {
@@ -54,8 +54,16 @@ const SCHEMA = {
         properties: {
           headline: { type: "string", description: "Two to five words, set large on the slide." },
           body: { type: "string", description: "One short sentence. Optional, may be empty." },
+          shot: {
+            type: "string",
+            description:
+              "What the PHOTOGRAPH shows for this slide, in one line. Must differ from every " +
+              "other slide. Describe the subject and the framing, e.g. 'close crop on the " +
+              "reinforced panel above the little toe' or 'hands measuring a foot on a " +
+              "measuring device'. Do not describe text or layout.",
+          },
         },
-        required: ["headline", "body"],
+        required: ["headline", "body", "shot"],
         additionalProperties: false,
       },
     },
@@ -111,6 +119,12 @@ function systemPrompt(args: {
           "- The first slide is the cover and carries the same headline as the artwork.",
           "- Then one slide per point, four to six in total including the cover.",
           "- Each slide headline is two to five words. The body is one short sentence or empty.",
+          "- Each slide also needs a SHOT: what its photograph actually shows.",
+          "  Every shot must be different. A carousel where each slide is the same",
+          "  product photo with different words on it is a slideshow of one image.",
+          "  Show the thing the slide is about — the panel, the lacing, the sole,",
+          "  someone doing the action — not the product on a plinth six times.",
+          "  The COVER is the exception: that one is the hero shot.",
           "- The caption should complement the slides, not repeat them. It can say",
           "  'swipe through' because the slides genuinely exist.",
           "",
@@ -212,7 +226,7 @@ export async function draftPost(args: {
 
   const { value } = await generate<{
     caption: string; hashtags: string[]; headline: string;
-    slides?: { headline: string; body: string }[];
+    slides?: { headline: string; body: string; shot: string }[];
   }>({
     db,
     feature: "social_caption",
@@ -249,7 +263,11 @@ export async function draftPost(args: {
     ? (value.slides ?? [])
         .filter((s) => s?.headline?.trim())
         .slice(0, 6)
-        .map((s) => ({ headline: s.headline.trim(), body: (s.body ?? "").trim() }))
+        .map((s) => ({
+          headline: s.headline.trim(),
+          body: (s.body ?? "").trim(),
+          shot: (s.shot ?? "").trim(),
+        }))
     : [];
 
   return {
@@ -274,8 +292,14 @@ const SLIDES_SCHEMA = {
         properties: {
           headline: { type: "string", description: "Two to five words, set large on the slide." },
           body: { type: "string", description: "One short sentence. May be empty." },
+          shot: {
+            type: "string",
+            description:
+              "What the PHOTOGRAPH shows for this slide, in one line, different from every " +
+              "other slide. Subject and framing only, never text or layout.",
+          },
         },
-        required: ["headline", "body"],
+        required: ["headline", "body", "shot"],
         additionalProperties: false,
       },
     },
@@ -297,10 +321,10 @@ export async function slidesFromCaption(args: {
   clientId: string;
   caption: string;
   headline?: string | null;
-}): Promise<{ headline: string; body: string }[]> {
+}): Promise<{ headline: string; body: string; shot: string }[]> {
   const { db, clientId, caption, headline } = args;
 
-  const { value } = await generate<{ slides: { headline: string; body: string }[] }>({
+  const { value } = await generate<{ slides: { headline: string; body: string; shot: string }[] }>({
     db,
     feature: "carousel_slides",
     clientId,
@@ -314,6 +338,10 @@ export async function slidesFromCaption(args: {
       "- Each slide headline is two to five words, no punctuation beyond a full stop.",
       "- The body is one short sentence taken from that point, or empty if the",
       "  headline already says it.",
+      "- Each slide needs a SHOT: what its photograph shows, in one line.",
+      "  Every shot must be DIFFERENT — show the specific thing that slide is about,",
+      "  the panel, the lacing, the sole, the action. Not the product on a box six",
+      "  times with different captions. The cover is the exception and is the hero shot.",
       "- No em dashes.",
     ].join("\n"),
     prompt: `Break this post into slides:\n\n${caption}`,
@@ -324,5 +352,9 @@ export async function slidesFromCaption(args: {
   return (value.slides ?? [])
     .filter((s) => s?.headline?.trim())
     .slice(0, 6)
-    .map((s) => ({ headline: s.headline.trim(), body: (s.body ?? "").trim() }));
+    .map((s) => ({
+      headline: s.headline.trim(),
+      body: (s.body ?? "").trim(),
+      shot: (s.shot ?? "").trim(),
+    }));
 }

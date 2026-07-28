@@ -153,7 +153,7 @@ export async function POST(req: Request) {
       await db.from("content_plan_slides").insert(
         slides.map((sl, idx) => ({
           item_id: itemId, position: idx,
-          headline: sl.headline, body: sl.body || null,
+          headline: sl.headline, body: sl.body || null, shot: sl.shot || null,
         }))
       );
 
@@ -175,7 +175,7 @@ export async function POST(req: Request) {
 
     try {
       const { data: slide } = await db
-        .from("content_plan_slides").select("id, position, headline, body").eq("id", slideId).maybeSingle();
+        .from("content_plan_slides").select("id, position, headline, body, shot").eq("id", slideId).maybeSingle();
       if (!slide) return back(req, clientId, "item-not-found");
 
       const { data: client } = await db
@@ -196,6 +196,10 @@ export async function POST(req: Request) {
         format: "carousel",
         headline: slide.headline,
         aspectRatio: ratio,
+        shot: slide.shot,
+        // Only the cover gets the hero framing. Applying it to every slide is
+        // what produced six photographs of the same shoes on the same box.
+        isCover: slide.position === 0,
         steer: String(form.get("steer") ?? "").trim() || null,
       });
 
@@ -402,6 +406,7 @@ export async function POST(req: Request) {
           position: idx,
           headline: sl.headline,
           body: sl.body || null,
+          shot: sl.shot || null,
         }))
       );
     }

@@ -283,8 +283,12 @@ export function imagePromptFor(args: {
   headline?: string | null;
   /** The ratio the slot needs, e.g. "9:16". */
   aspectRatio?: string | null;
+  /** What THIS slide's photograph shows. Replaces the hero framing. */
+  shot?: string | null;
+  /** The cover keeps the hero framing; later slides do not. */
+  isCover?: boolean;
 }): string {
-  const { brief, caption, format, steer, headline, aspectRatio } = args;
+  const { brief, caption, format, steer, headline, aspectRatio, shot, isCover } = args;
 
   const subject = brief
     .replace(/\s*(Platform|Format):\s*\w+\.?/gi, "")
@@ -302,11 +306,23 @@ export function imagePromptFor(args: {
     `Social media image. Subject: ${subject}`,
     gist ? `Context: ${gist}` : "",
 
-    // The house style, taken from what this brand already produces by hand:
-    // product hero in a real setting, natural light, one bold line of type.
-    "Style: photographic and real, not illustrated or rendered.",
-    "Shoot it as a product hero in the setting the product is actually used in, with natural light.",
-    "The product packaging should be clearly visible and legible.",
+    "Style: photographic and real, not illustrated or rendered. Natural light.",
+
+    // The hero framing is what made six carousel slides identical: the same
+    // "product hero, packaging visible" instruction produced the same photograph
+    // every time, with only the words changing. It belongs on the COVER and on
+    // single-image posts, not on a detail slide.
+    shot && !isCover
+      ? [
+          `Show this specifically: ${shot}`,
+          "This is a detail shot within a carousel. Do NOT repeat the cover's composition —",
+          "get close to the thing being described. The product does not need to be shown",
+          "whole, and the packaging does not need to appear.",
+        ].join(" ")
+      : [
+          "Shoot it as a product hero in the setting the product is actually used in.",
+          "The product packaging should be clearly visible and legible.",
+        ].join(" "),
 
     headline
       ? [

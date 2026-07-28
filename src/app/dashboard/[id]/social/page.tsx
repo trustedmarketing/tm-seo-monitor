@@ -206,7 +206,7 @@ export default async function Social({
   // Slides for every item on screen, fetched once rather than per card.
   const { data: allSlides } = itemIdList.length
     ? await svc.from("content_plan_slides")
-        .select("id, item_id, position, headline, body, image_url, image_status, image_error")
+        .select("id, item_id, position, headline, body, shot, image_url, image_status, image_error")
         .in("item_id", itemIdList).order("position")
     : { data: [] };
 
