@@ -5,9 +5,11 @@
 // {data:{id}}, and GET /images/{id}?wait=true returns {id, status, imageUrl}
 // with status analyzing | completed | failed.
 //
-// `wait=true` holds the connection until the image is done, so there is no
-// polling loop here. It does mean a generate call can take a minute, which is
-// why it never runs inside a page render.
+// Generation is ASYNCHRONOUS here by design. Bloom offers `wait=true`, which
+// holds the connection until the image is done, and the first version used it —
+// that blocked the browser for a minute with no feedback and would have been
+// killed by the platform's function timeout. startImage() records the job and
+// checkImage() collects it.
 //
 // ── The constraint that matters more than the code ───────────────────────────
 // Bloom declined a DPA (2026-07-28). We are on a limited pilot, and only assets
@@ -70,20 +72,15 @@ export async function listBrands(key: string): Promise<BloomBrand[]> {
 }
 
 /**
- * Generate one image for a brand and return its URL.
+ * Ask Bloom to start generating. Returns as soon as it has an id.
  *
- * Synchronous from the caller's point of view thanks to `wait=true`, but it can
- * genuinely take a minute — treat it as a background action, never something a
- * page render waits on.
+ * The first version used `wait=true` and held the request open for the whole
+ * generation. That blocked the browser for a minute with no feedback and would
+ * have been killed by the platform's function timeout anyway. Bloom hands back
+ * an id immediately; the right shape is to store it and check later.
  */
-export async function generateImage(
-  key: string,
-  brandId: string,
-  prompt: string
-): Promise<{ id: string; imageUrl: string }> {
-  if (mockApis()) {
-    return { id: "mock-image", imageUrl: "https://example.test/mock.png" };
-  }
+export async function startImage(key: string, brandId: string, prompt: string): Promise<string> {
+  if (mockApis()) return "mock-image";
 
   const created = await call<{ data?: { id?: string }; id?: string }>(
     "/images/generations",
@@ -92,26 +89,34 @@ export async function generateImage(
   );
 
   const id = created?.data?.id ?? created?.id;
-  if (!id) throw new Error(`Bloom accepted the request but returned no image id`);
+  if (!id) throw new Error("Bloom accepted the request but returned no image id");
+  return String(id);
+}
 
-  const done = await call<{
+export type ImageState =
+  | { status: "generating" }
+  | { status: "completed"; imageUrl: string }
+  | { status: "failed"; reason: string };
+
+/** Check a generation without waiting on it. */
+export async function checkImage(key: string, imageId: string): Promise<ImageState> {
+  if (mockApis()) return { status: "completed", imageUrl: "https://example.test/mock.png" };
+
+  const body = await call<{
     data?: { status?: string; imageUrl?: string };
     status?: string; imageUrl?: string;
-  }>(`/images/${id}?wait=true`, key);
+  }>(`/images/${imageId}`, key);
 
-  const status = done?.data?.status ?? done?.status;
-  const imageUrl = done?.data?.imageUrl ?? done?.imageUrl;
+  const status = body?.data?.status ?? body?.status;
+  const imageUrl = body?.data?.imageUrl ?? body?.imageUrl;
 
+  if (status === "completed" && imageUrl) return { status: "completed", imageUrl };
   if (status === "failed") {
-    throw new Error("Bloom could not generate that image. Try a different prompt.");
+    return { status: "failed", reason: "Bloom could not generate that image. Try a different direction." };
   }
-  if (status !== "completed" || !imageUrl) {
-    // `wait=true` should not return early, but a timeout on their side would
-    // look exactly like this and is worth naming rather than treating as a bug.
-    throw new Error(`Bloom returned status "${status ?? "unknown"}" with no image URL. Try again.`);
-  }
-
-  return { id: String(id), imageUrl };
+  // analyzing, or anything unrecognised. Treating an unknown status as still
+  // working is safer than declaring failure on a value we have not seen before.
+  return { status: "generating" };
 }
 
 /**

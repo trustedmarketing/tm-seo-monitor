@@ -54,7 +54,10 @@ const PLAN_MSG: Record<string, string> = {
   regenerated: "Rewritten.",
   "caption-saved": "Your copy saved.",
   "image-saved": "Image attached. It uploads when you send.",
-  "image-generated": "Artwork generated. Regenerate with a note if it is not right.",
+  "image-started": "Bloom is generating. It takes about a minute — press Check when you are ready.",
+  "image-still-generating": "Still generating. Give it a moment and check again.",
+  "image-ready": "Artwork ready. Regenerate with a note if it is not right.",
+  "nothing-generating": "No generation is running for that slot.",
   "image-not-https": "Image URL must start with https://.",
   sent: "Sent to PostFlow.",
   "already-sent": "That slot is already in PostFlow.",
@@ -103,7 +106,7 @@ export default async function Social({
 
   const { data: planItems } = plan
     ? await db.from("content_plan_items")
-        .select("id, slot, scheduled_for, platform, format, theme, brief, why, source_post_id, status, caption, postflow_id")
+        .select("id, slot, scheduled_for, platform, format, theme, brief, why, source_post_id, status, caption, hashtags, postflow_id, image_url, bloom_image_id, image_status")
         .eq("plan_id", plan.id).order("slot")
     : { data: [] };
 
@@ -370,7 +373,25 @@ export default async function Social({
 
                           {/* artwork */}
                           <div style={{ width: 150 }}>
-                            {it.image_url ? (
+                            {it.bloom_image_id ? (
+                              // A generation in flight. The check is manual rather
+                              // than a poll: one deliberate press beats a page that
+                              // refetches on a timer whether anyone is watching.
+                              <form action="/api/content-plan/item" method="post">
+                                <input type="hidden" name="client_id" value={params.id} />
+                                <input type="hidden" name="item_id" value={it.id as number} />
+                                <input type="hidden" name="action" value="check-image" />
+                                <div style={{
+                                  width: "100%", aspectRatio: "1", borderRadius: 8,
+                                  border: "1px dashed var(--border-strong)", display: "flex",
+                                  alignItems: "center", justifyContent: "center",
+                                  fontSize: 12, color: "var(--fg3)", textAlign: "center", padding: 8,
+                                }}>Generating…</div>
+                                <button type="submit" style={{ ...ITEM_BTN(true), marginTop: 5, width: "100%" }}>
+                                  Check
+                                </button>
+                              </form>
+                            ) : it.image_url ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={String(it.image_url)} alt="" style={{
                                 width: "100%", borderRadius: 8, display: "block",
@@ -385,7 +406,7 @@ export default async function Social({
                               }}>No image yet</div>
                             )}
 
-                            {String(it.status) !== "sent" && (
+                            {String(it.status) !== "sent" && !it.bloom_image_id && (
                               <>
                                 {/* Generate with Bloom, or bring your own. Both
                                     end in the same field, so neither is the

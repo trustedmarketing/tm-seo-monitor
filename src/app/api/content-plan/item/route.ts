@@ -25,7 +25,7 @@ import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
 import { listSocialAccounts, createDraft, uploadMediaFromUrl } from "@/lib/postflow";
 import { draftPost } from "@/lib/caption";
-import { generateImage, imagePromptFor } from "@/lib/bloom";
+import { startImage, checkImage, imagePromptFor } from "@/lib/bloom";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
 
   const { data: item } = await db
     .from("content_plan_items")
-    .select("id, plan_id, slot, brief, platform, format, scheduled_for, source_post_id, postflow_id, status, caption, hashtags, image_url")
+    .select("id, plan_id, slot, brief, platform, format, scheduled_for, source_post_id, postflow_id, status, caption, hashtags, image_url, bloom_image_id, image_status")
     .eq("id", itemId).maybeSingle();
   if (!item) return back(req, clientId, "item-not-found");
 
@@ -97,14 +97,48 @@ export async function POST(req: Request) {
         steer: steerImg || null,
       });
 
-      const img = await generateImage(key, client.bloom_brand_id, prompt);
+      const imageId = await startImage(key, client.bloom_brand_id, prompt);
 
-      // Stored, not uploaded. Upload happens at send, so a rejected image never
-      // becomes something to clean up in PostFlow.
-      await db.from("content_plan_items")
-        .update({ image_url: img.imageUrl, media_id: null }).eq("id", itemId);
+      // Record the job and return. Holding the request open for the whole
+      // generation blocked the browser and would hit the function timeout.
+      await db.from("content_plan_items").update({
+        bloom_image_id: imageId,
+        image_status: "generating",
+        image_requested_at: new Date().toISOString(),
+      }).eq("id", itemId);
 
-      return back(req, clientId, "image-generated");
+      return back(req, clientId, "image-started");
+    } catch (e) {
+      return back(req, clientId, `item-failed:${(e as Error).message.slice(0, 90)}`);
+    }
+  }
+
+  // ── collect a finished generation ──────────────────────────────────────────
+  if (action === "check-image") {
+    if (!item.bloom_image_id) return back(req, clientId, "nothing-generating");
+    try {
+      const key = await readSecret(db, "bloom");
+      if (!key) throw new Error("no Bloom key stored");
+
+      const state = await checkImage(key, String(item.bloom_image_id));
+
+      if (state.status === "completed") {
+        // Stored, not uploaded. Upload happens at send, so a rejected image
+        // never becomes something to clean up in PostFlow.
+        await db.from("content_plan_items").update({
+          image_url: state.imageUrl, image_status: "completed",
+          bloom_image_id: null, media_id: null,
+        }).eq("id", itemId);
+        return back(req, clientId, "image-ready");
+      }
+
+      if (state.status === "failed") {
+        await db.from("content_plan_items")
+          .update({ image_status: "failed", bloom_image_id: null }).eq("id", itemId);
+        return back(req, clientId, `item-failed:${state.reason}`);
+      }
+
+      return back(req, clientId, "image-still-generating");
     } catch (e) {
       return back(req, clientId, `item-failed:${(e as Error).message.slice(0, 90)}`);
     }
