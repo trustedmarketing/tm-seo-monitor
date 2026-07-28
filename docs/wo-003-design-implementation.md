@@ -159,8 +159,36 @@ Depends on: B (screenshots), C (states/flags). Front-end.
   GBP lags ~3 days. Without this, clients compare to platform UIs and find
   mismatches — which is the accuracy gate failing in public.
 
-> ⚠️ **OPEN DECISION before Wave 2 starts — which platform gets the first
-> execution path?** The feasibility review's step 3 says *WP staging → approval
+> ✅ **RESOLVED 2026-07-28 (Tom): Shopify first, on Salty Dog.**
+>
+> **Portfolio fact that settles it, and more besides:** *every* TM eCommerce build
+> is **Shopify**; *every* other build is **WordPress**. So the execution layer is
+> exactly two adapters, and which one a client needs is **derivable from
+> `client_type`** — no per-client configuration required:
+>
+> | `client_type` | Platform | Adapter |
+> |---|---|---|
+> | `national_ecom` | Shopify | Stream E-S |
+> | `local_service` | WordPress (WP Engine) | Stream E-W |
+> | `hybrid` | either — needs `store_platform` | both |
+>
+> That makes `store_platform` a fallback for exceptions rather than the primary
+> signal, and it means both adapters are needed eventually. Only the order was
+> ever in question.
+>
+> 🚨 **This escalates the screenshot problem.** Shopify blocking before/after
+> capture is no longer "our pilot client" — it is **the entire eCommerce book**.
+> The Approval Card's visual promise fails for every ecom client at once, not one.
+> A designed no-image state moves from prudent to **required**, and the proxy test
+> becomes worth doing properly rather than as a curiosity.
+>
+> ⚠️ **Shopify write scopes are a new dependency (Tom).** The existing custom app
+> authenticates via client-credentials for *reads* (orders → `conversions_daily`).
+> Publishing changes needs write scopes — `write_products`, `write_content`,
+> `write_themes` as applicable — on the custom app per store. Read access proves
+> nothing about write access.
+>
+> _Superseded context — the original fork:_ The feasibility review's step 3 says *WP staging → approval
 > card → publish → ledger → measurement*. But the portal pilot is **Salty Dog,
 > which is Shopify, not WordPress**. So the first end-to-end change type is
 > either:
