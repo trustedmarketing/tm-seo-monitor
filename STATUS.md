@@ -207,9 +207,29 @@ written to a real Shopify store, with a full record:
 
 **Punch list: 6 of 10 closed** — #1, #2, #5, #6, #7, #8, #9 *(7 of 10)*.
 
+- ✅ **Stream E-W · WordPress adapter — CONNECTED AND VERIFIED 2026-07-28** on Alpha Zeta Landscapes
+  (`alphazetaent.com`, `457cac65…`). REST API + application password on a dedicated `TMAI` **Editor**
+  account. `can_write: true`, Rank Math detected, `seo_fields_writable: true`.
+  **Both execution adapters are now live**, which covers the whole portfolio: Shopify for eCommerce,
+  WordPress for everything else.
+
+  Four things this connection surfaced, all now fixed and in the runbook:
+  1. **Over-privileged credential.** The first application password was on the owner's *administrator*
+     account — `edit_themes`, `edit_plugins`, `edit_files`, `edit_users`, `manage_options` — for an
+     integration that only edits page content. Now a dedicated Editor account (runbook 8b-ii).
+  2. **Rank Math meta invisible to REST.** WordPress does not expose arbitrary post meta; Rank Math
+     stores its SEO fields as plain meta without registering them. Fixed by
+     `wordpress-mu-plugins/tm-growth-os-seo-rest.php`, which ships as a standard onboarding artifact
+     because **every TM non-eCommerce build is WordPress** (runbook 8b-iii).
+  3. **SEO detection asked one question when there were two.** The first probe reported "no plugin"
+     when Rank Math was installed but unexposed — different problems, different fixes. Presence now
+     comes from the REST namespace list, writability is probed separately against pages *and* posts.
+  4. **Credential rotation was impossible.** `vault_write_secret` only inserted, so replacing an
+     existing secret failed on the unique constraint. Migration 017 adds `vault_rotate_secret`.
+     Not an edge case: app passwords get regenerated, Meta tokens expire, and a leaked credential
+     must be replaceable in seconds.
+
 ### Remaining in Wave 2
-- **WordPress adapter (Stream E-W)** for local-service clients — ⛔ needs WP Engine staging +
-  per-site application passwords from Tom, not yet started
 - **Recommendations engine feeding cards automatically** instead of manual staging. This is the
   difference between a queue you fill by hand and one that arrives full — the thing that makes it a
   product rather than a demo.
