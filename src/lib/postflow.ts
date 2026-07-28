@@ -201,6 +201,60 @@ export async function ping(token: string, groupId: string): Promise<{ ok: boolea
   return { ok: true, posts: body.meta?.total ?? (body.data?.length ?? 0) };
 }
 
+export type SocialAccount = { id: string; name: string | null; network: string | null };
+
+/** Accounts a group publishes to — needed to target a draft. */
+export async function listSocialAccounts(token: string, groupId: string): Promise<SocialAccount[]> {
+  if (mockApis()) return [{ id: "mock-acct", name: "Mock IG", network: "instagram" }];
+
+  const body = await get<{ data?: { id?: string | number; name?: string | null; social_network?: string | null }[] }>(
+    "/social-accounts", token, { groupId }
+  );
+  return (body.data ?? [])
+    .filter((a) => a.id != null)
+    .map((a) => ({ id: String(a.id), name: a.name ?? null, network: a.social_network ?? null }));
+}
+
+/**
+ * Create an UNSCHEDULED draft.
+ *
+ * `isDraft: true` with no publication_date, deliberately. The design is explicit:
+ * "Drafts land in PostFlow unscheduled — scheduling stays a human call." An
+ * approval here means the copy is good, not that it should go out on a
+ * particular Tuesday, and those are different decisions made by different people.
+ *
+ * Nothing in this codebase should ever set isPublishNow.
+ */
+export async function createDraft(
+  token: string,
+  args: { content: string; accountIds: string[]; name?: string; mediaIds?: string[] }
+): Promise<{ id: string | null }> {
+  if (mockApis()) return { id: "mock-draft-1" };
+
+  const res = await fetch(`${BASE}/posts`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      content: args.content.slice(0, 65_000),
+      selectedAccountIds: args.accountIds,
+      isDraft: true,
+      // isPublishNow and publication_date are intentionally absent.
+      ...(args.name ? { name: args.name.slice(0, 100) } : {}),
+      ...(args.mediaIds?.length ? { selected_media_ids: args.mediaIds } : {}),
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`PostFlow draft create failed ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+  const body = await res.json();
+  return { id: body?.data?.id != null ? String(body.data.id) : null };
+}
+
 const MOCK_POSTS: PostFlowPost[] = [
   {
     externalId: "mock-1", platform: "instagram", postType: "image",
