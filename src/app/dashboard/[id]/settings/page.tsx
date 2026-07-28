@@ -155,6 +155,15 @@ export default async function Settings({
               <div style={HINT}>The cadence this client is on. Leave blank and the planner uses the platform minimum and says so.</div>
             </div>
             <div>
+              <label style={L}>Bloom brand ID</label>
+              <input name="bloom_brand_id" defaultValue={client.bloom_brand_id ?? ""}
+                     placeholder="75f3bffa-8804-486b-b331-6ee103f8d325" style={I} />
+              <div style={HINT}>
+                Which Bloom brand generates artwork for this client. Pilot only, and public assets
+                only — Bloom declined a DPA, so nothing unreleased or customer-identifiable goes up.
+              </div>
+            </div>
+            <div>
               <label style={L}>Standing hashtags</label>
               <input name="hashtag_core"
                      defaultValue={(client.hashtag_core ?? []).join(" ")}

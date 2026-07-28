@@ -67,6 +67,7 @@ export async function POST(req: Request) {
       ga4_property_id: opt(form, "ga4_property_id"),
       clickup_list_id: opt(form, "clickup_list_id"),
       postflow_group_id: opt(form, "postflow_group_id"),
+      bloom_brand_id: opt(form, "bloom_brand_id"),
       // The monthly commitment the plan is built against. Null means "no stated
       // cadence", and the planner falls back to the playbook minimum and says so.
       social_posts_per_month: opt(form, "social_posts_per_month")
