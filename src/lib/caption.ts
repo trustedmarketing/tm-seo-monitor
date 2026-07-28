@@ -117,14 +117,21 @@ function systemPrompt(args: {
       ? [
           "This is a CAROUSEL. Return `slides`:",
           "- The first slide is the cover and carries the same headline as the artwork.",
-          "- Then one slide per point, four to six in total including the cover.",
+          "- Then one slide per point. As many as the content genuinely has, four to",
+          "  ten including the cover. Do not pad to reach a number, and do not",
+          "  compress two points into one slide to stay under it.",
           "- Each slide headline is two to five words. The body is one short sentence or empty.",
-          "- Each slide also needs a SHOT: what its photograph actually shows.",
-          "  Every shot must be different. A carousel where each slide is the same",
-          "  product photo with different words on it is a slideshow of one image.",
-          "  Show the thing the slide is about — the panel, the lacing, the sole,",
-          "  someone doing the action — not the product on a plinth six times.",
-          "  The COVER is the exception: that one is the hero shot.",
+          "- First decide the TREATMENT for the whole carousel, from what it is:",
+          "    · A checklist, a how-to, a comparison or anything explanatory is",
+          "      INFORMATIONAL. Its slides are clean and graphic — a single large",
+          "      point, a simple diagram, a labelled detail, a side-by-side. Product",
+          "      photography is wrong for these: six product shots with different",
+          "      words on them is a slideshow of one image pretending to be six.",
+          "    · A launch, a range, a customer story or anything showing the thing",
+          "      itself is PHOTOGRAPHIC. Its slides are real photographs.",
+          "- Then each slide needs a SHOT: what it actually shows, in that treatment.",
+          "  Every shot must be different from the others.",
+          "  The COVER is always the hero image regardless of treatment.",
           "- The caption should complement the slides, not repeat them. It can say",
           "  'swipe through' because the slides genuinely exist.",
           "",
@@ -262,7 +269,10 @@ export async function draftPost(args: {
   const slides = isCarousel
     ? (value.slides ?? [])
         .filter((s) => s?.headline?.trim())
-        .slice(0, 6)
+        // Ten, not six. The old cap was arbitrary and silently truncated a
+        // longer checklist. Instagram allows twenty; ten is where a carousel
+        // stops being read rather than where the platform stops accepting.
+        .slice(0, 10)
         .map((s) => ({
           headline: s.headline.trim(),
           body: (s.body ?? "").trim(),
@@ -334,14 +344,18 @@ export async function slidesFromCaption(args: {
       "Rules:",
       "- Do NOT rewrite the post. Use the points it already makes, in the same order.",
       "- The first slide is the cover" + (headline ? `, carrying the headline "${headline}".` : "."),
-      "- Then one slide per point the post makes. Four to six slides in total.",
+      "- Then one slide per point the post makes, four to ten in total. As many as",
+      "  the copy genuinely has — do not pad, and do not merge points to fit.",
       "- Each slide headline is two to five words, no punctuation beyond a full stop.",
       "- The body is one short sentence taken from that point, or empty if the",
       "  headline already says it.",
-      "- Each slide needs a SHOT: what its photograph shows, in one line.",
-      "  Every shot must be DIFFERENT — show the specific thing that slide is about,",
-      "  the panel, the lacing, the sole, the action. Not the product on a box six",
-      "  times with different captions. The cover is the exception and is the hero shot.",
+      "- First decide the TREATMENT from what this post is. A checklist, how-to or",
+      "  comparison is INFORMATIONAL: clean graphic slides, a single large point, a",
+      "  simple diagram, a labelled detail. Product photography is wrong for those —",
+      "  six product shots with different words on them is one image pretending to",
+      "  be six. A launch, range or customer story is PHOTOGRAPHIC.",
+      "- Then each slide needs a SHOT: what it shows, in that treatment, in one line.",
+      "  Every shot must be different. The cover is always the hero image.",
       "- No em dashes.",
     ].join("\n"),
     prompt: `Break this post into slides:\n\n${caption}`,
@@ -351,7 +365,7 @@ export async function slidesFromCaption(args: {
 
   return (value.slides ?? [])
     .filter((s) => s?.headline?.trim())
-    .slice(0, 6)
+    .slice(0, 10)
     .map((s) => ({
       headline: s.headline.trim(),
       body: (s.body ?? "").trim(),

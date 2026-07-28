@@ -315,9 +315,11 @@ export function imagePromptFor(args: {
     shot && !isCover
       ? [
           `Show this specifically: ${shot}`,
-          "This is a detail shot within a carousel. Do NOT repeat the cover's composition —",
-          "get close to the thing being described. The product does not need to be shown",
-          "whole, and the packaging does not need to appear.",
+          "This is one slide within a carousel. Do NOT repeat the cover's composition.",
+          "If the shot describes a diagram, comparison or labelled detail, make it clean and",
+          "graphic rather than a product photograph — an explanatory slide is not a product",
+          "shot with words on it. If it describes a real scene or object, photograph that.",
+          "The product need not be shown whole, and the packaging need not appear.",
         ].join(" ")
       : [
           "Shoot it as a product hero in the setting the product is actually used in.",
