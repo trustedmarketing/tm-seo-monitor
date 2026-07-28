@@ -184,11 +184,37 @@ written to a real Shopify store, with a full record:
    ambiguously. A card that changes one field and reads like another is a trap. Both fixed; labels
    now use Shopify's own wording.
 
+### Wave 2 continued — shipped 2026-07-28
+- ✅ **Undo / revert (#1).** Two controls, one mechanism; the difference is what
+  happens to the *measurement* record, never the audit trail. Undo inside 60 min drops the pending
+  ledger row (a change live for four minutes has nothing to say); revert after it writes a **second**
+  entry rather than erasing the first. **The window decides, not the button** — a stale page cannot
+  be used to skip the ledger entry.
+- ✅ **Changes log (#6)** — the receipts, with a *Decided by* column and an **Automatic** filter, so
+  alt-text/schema/internal-link changes that ship with no human in the loop are still visible.
+  Migration 016. Measurement shows "Measuring, N days left" rather than a verdict the data cannot
+  yet support.
+- ✅ **SLA escalation (#9)** — notify at 24h, escalate at 48h, wired into the daily cron and
+  non-fatal. One message per run, not one per card: a wall of notifications is indistinguishable
+  from no notification, which is exactly how the GA4 failure went unseen for six days.
+- ✅ **Bulk approve (#8)** — one client, low-risk only, role-checked, enforced **server-side** by
+  re-deriving the eligible set rather than trusting form ids. The button renders per client group so
+  no cross-client affordance exists. All approve paths now share one `publishOne()`.
+- 🐛 **Diff fix found on the first live card:** shared *whitespace* was anchoring the LCS, so an
+  unrelated rewrite interleaved into an unreadable mess. Words now match on the word alone. For
+  content changes the diff is the entire evidence, and one people cannot read is one they stop
+  trusting.
+
+**Punch list: 6 of 10 closed** — #1, #2, #5, #6, #7, #8, #9 *(7 of 10)*.
+
 ### Remaining in Wave 2
-- WordPress adapter (Stream E-W) for local-service clients
-- Changes-log screen + undo/revert as a UI action (punch list #1)
-- Recommendations engine feeding cards automatically instead of manual staging
-- Bulk approve with client isolation (#8), SLA escalation (#9)
+- **WordPress adapter (Stream E-W)** for local-service clients — ⛔ needs WP Engine staging +
+  per-site application passwords from Tom, not yet started
+- **Recommendations engine feeding cards automatically** instead of manual staging. This is the
+  difference between a queue you fill by hand and one that arrives full — the thing that makes it a
+  product rather than a demo.
+- Punch list #3 (slipped playbook items), #4 (client decline round-trip), #10 ("Share this page")
+  — all portal-side, Wave 4
 
 ## Next (unblocked, not started)
 - Scale Shopify + Meta wiring across the remaining clients.
