@@ -162,13 +162,26 @@ export default async function Social({
   // Bloom takes about 90 seconds; a person should not be the polling mechanism.
   const svc = dbClient();
   const bloomBrand = (client as { bloom_brand_id?: string | null }).bloom_brand_id ?? null;
-  await collectPendingImages(svc, params.id, bloomBrand);
 
-  const { count: stillGenerating } = await svc
-    .from("content_plan_items")
-    .select("id, content_plans!inner(client_id)", { count: "exact", head: true })
-    .eq("content_plans.client_id", params.id)
-    .eq("image_status", "generating");
+  let collectError: string | null = null;
+  try {
+    await collectPendingImages(svc, params.id, bloomBrand);
+  } catch (e) {
+    // Surfaced rather than swallowed. Collection failing quietly is what left a
+    // finished image sitting behind a "Generating…" that never resolved.
+    collectError = (e as Error).message.slice(0, 220);
+  }
+
+  const { data: planRows } = await svc
+    .from("content_plans").select("id").eq("client_id", params.id);
+  const planIdList = (planRows ?? []).map((p: { id: number }) => p.id);
+
+  const { count: stillGenerating } = planIdList.length
+    ? await svc.from("content_plan_items")
+        .select("id", { count: "exact", head: true })
+        .in("plan_id", planIdList)
+        .eq("image_status", "generating")
+    : { count: 0 };
 
   const rawMsg = searchParams.msg ?? "";
   const planMsg = rawMsg.startsWith("built:")
@@ -228,6 +241,15 @@ export default async function Social({
           clientType={type} active="social" pending={pending ?? 0}
           sub={posts.length ? `${posts.length} posts collected via PostFlow` : "No posts collected yet"}
         />
+
+        {collectError && (
+          <div style={{
+            background: "#FBE7E4", border: "1px solid #EBC9C4", borderRadius: 10,
+            padding: "12px 16px", marginBottom: 18, fontSize: 13.5, color: "var(--danger)", maxWidth: 900,
+          }}>
+            <strong>Could not collect finished artwork.</strong> {collectError}
+          </div>
+        )}
 
         {connectError && (
           <div style={{

@@ -28,14 +28,31 @@ export async function collectPendingImages(
 ): Promise<number> {
   if (!brandId) return 0;
 
-  const { data: pending } = await db
+  // Two plain queries rather than one embedded-filter query.
+  //
+  // The previous version used PostgREST's `content_plans!inner(client_id)` with
+  // `.eq("content_plans.client_id", …)`. Whatever it was doing, it returned
+  // nothing — and because the error was never checked, collection reported
+  // "0 pending" while a finished image sat waiting. A query that silently finds
+  // nothing is indistinguishable from a queue that is genuinely empty, which is
+  // the whole reason this took four attempts to find.
+  const { data: plans, error: planErr } = await db
+    .from("content_plans").select("id").eq("client_id", clientId);
+
+  if (planErr) throw new Error(`could not read plans: ${planErr.message}`);
+  const planIds = (plans ?? []).map((p: { id: number }) => p.id);
+  if (planIds.length === 0) return 0;
+
+  const { data: pending, error: itemErr } = await db
     .from("content_plan_items")
-    .select("id, bloom_image_id, image_requested_at, image_prompt, content_plans!inner(client_id)")
-    .eq("content_plans.client_id", clientId)
+    .select("id, bloom_image_id, image_requested_at, image_prompt")
+    .in("plan_id", planIds)
     .eq("image_status", "generating")
     .limit(12);
 
-  const rows = (pending ?? []) as unknown as Row[];
+  if (itemErr) throw new Error(`could not read pending images: ${itemErr.message}`);
+
+  const rows = (pending ?? []) as Row[];
   if (rows.length === 0) return 0;
 
   const key = await readSecret(db, "bloom");
