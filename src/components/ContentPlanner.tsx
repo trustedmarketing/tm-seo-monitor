@@ -7,6 +7,7 @@
 // then refreshes must not lose three of them, and the surest way to guarantee
 // that is to have no unsaved state to lose.
 import type { ContentIdea } from "@/lib/contentIdeas";
+import type { MovementRow } from "@/lib/keywordMovement";
 import { fmtDate } from "@/lib/time";
 import "@/styles/tm-tokens.css";
 
@@ -267,6 +268,147 @@ export function WindowNote({ windowEnd, capped }: { windowEnd: string | null; ca
     <div className="caption" style={{ color: "var(--fg3)", marginTop: "var(--space-3)" }}>
       Search Console, 28 days to {fmtDate(windowEnd)}. Top {capped} queries by impressions — the tail
       below that is mostly single-impression noise. Search Console reports about two days behind.
+    </div>
+  );
+}
+
+// ── keyword movement table ──────────────────────────────────────────────────
+//
+// The design's "Conversion keyword" table. Renamed, and the reason is in
+// lib/keywordMovement.ts: we cannot attribute a conversion to a keyword, and a
+// column heading that claims we can is the kind of small lie that costs an
+// account manager's trust in every other number on the screen.
+
+
+const TREND: Record<MovementRow["trend"], { label: string; colour: string }> = {
+  rising:  { label: "Rising",  colour: "var(--success)" },
+  slipped: { label: "Slipped", colour: "var(--danger)" },
+  holding: { label: "Holding", colour: "var(--fg2)" },
+  new:     { label: "New",     colour: "var(--fg3)" },
+};
+
+/** Serif numerals, matching the design's rank treatment. */
+function Rank({ n, muted }: { n: number | null; muted?: boolean }) {
+  if (n == null) return <span style={{ color: "var(--fg3)" }}>—</span>;
+  return (
+    <span style={{
+      fontFamily: "var(--font-display)", fontSize: muted ? 16 : 22,
+      color: muted ? "var(--fg3)" : "var(--fg1)", letterSpacing: "-0.01em",
+    }}>#{n % 1 === 0 ? n : n.toFixed(1)}</span>
+  );
+}
+
+export function KeywordMovementTable({
+  rows, shown = 8,
+}: { rows: MovementRow[]; shown?: number }) {
+  const visible = rows.slice(0, shown);
+
+  return (
+    <section style={{
+      background: "var(--surface)", border: "1px solid var(--border)",
+      borderRadius: "var(--radius-lg)", overflow: "hidden",
+    }}>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620 }}>
+          <thead>
+            <tr>
+              {["Keyword", "Was", "Now", "Δ", "Volume", "Trend"].map((h, i) => (
+                <th key={h} className="eyebrow" style={{
+                  textAlign: i === 0 ? "left" : "right",
+                  padding: "var(--space-3) var(--space-5)",
+                  color: "var(--fg3)", fontWeight: 700,
+                  borderBottom: "1px solid var(--border)", whiteSpace: "nowrap",
+                }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((r, i) => {
+              const t = TREND[r.trend];
+              return (
+                <tr key={r.query} style={{
+                  borderTop: i === 0 ? "none" : "1px solid var(--divider)",
+                  background: i % 2 ? "var(--tm-stone-100)" : "transparent",
+                }}>
+                  <td style={{ padding: "var(--space-3) var(--space-5)", fontSize: 14, color: "var(--fg1)" }}>
+                    {r.query}
+                  </td>
+                  <td style={{ padding: "var(--space-3) var(--space-5)", textAlign: "right" }}>
+                    <Rank n={r.was} muted />
+                  </td>
+                  <td style={{ padding: "var(--space-3) var(--space-5)", textAlign: "right" }}>
+                    <Rank n={r.now} />
+                  </td>
+                  <td style={{
+                    padding: "var(--space-3) var(--space-5)", textAlign: "right",
+                    fontSize: 13, fontWeight: 600, color: t.colour, whiteSpace: "nowrap",
+                  }}>
+                    {r.delta == null ? "—" : r.delta === 0 ? "0" : `${r.delta > 0 ? "+" : ""}${r.delta}`}
+                  </td>
+                  <td style={{
+                    padding: "var(--space-3) var(--space-5)", textAlign: "right",
+                    fontSize: 13.5, color: r.volume == null ? "var(--fg3)" : "var(--fg1)", whiteSpace: "nowrap",
+                  }}>
+                    {/* Volume is not impressions. Until DataForSEO fills it in
+                        this is honestly blank rather than quietly showing the
+                        wrong measurement under the right heading. */}
+                    {r.volume != null ? r.volume.toLocaleString("en-US") : "–"}
+                  </td>
+                  <td style={{
+                    padding: "var(--space-3) var(--space-5)", textAlign: "right",
+                    fontSize: 13, fontWeight: 600, color: t.colour, whiteSpace: "nowrap",
+                  }}>{t.label}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="caption" style={{
+        padding: "var(--space-3) var(--space-5)", color: "var(--fg3)",
+        borderTop: "1px solid var(--divider)",
+      }}>
+        {rows.length === 0
+          ? "No queries above the noise floor yet."
+          : `Ranked by impressions, so the top row is what most traffic depends on. ` +
+            `${rows.length} queries with meaningful impressions, ${visible.length} shown. ` +
+            `Position is Search Console's average across the window, not a live check.`}
+      </div>
+    </section>
+  );
+}
+
+// ── stat tiles ──────────────────────────────────────────────────────────────
+
+export function StatTiles({ tiles }: {
+  tiles: { label: string; value: string; sub?: string; tone?: "up" | "down" | "flat" }[];
+}) {
+  return (
+    <div style={{
+      background: "var(--surface)", border: "1px solid var(--border)",
+      borderRadius: "var(--radius-lg)", display: "flex", overflowX: "auto",
+      marginBottom: "var(--space-6)",
+    }}>
+      {tiles.map((t, i) => (
+        <div key={t.label} style={{
+          flex: "1 1 0", minWidth: 190,
+          padding: "var(--space-5) var(--space-6)",
+          borderLeft: i === 0 ? "none" : "1px solid var(--divider)",
+        }}>
+          <div className="eyebrow" style={{ color: "var(--fg3)" }}>{t.label}</div>
+          <div style={{
+            fontFamily: "var(--font-display)", fontSize: 38, lineHeight: 1.1,
+            letterSpacing: "-0.01em", margin: "var(--space-2) 0 2px",
+            color: t.value === "–" ? "var(--fg3)" : "var(--fg1)",
+          }}>{t.value}</div>
+          {t.sub && (
+            <div className="caption" style={{
+              color: t.tone === "up" ? "var(--success)" : t.tone === "down" ? "var(--danger)" : "var(--fg3)",
+            }}>{t.sub}</div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

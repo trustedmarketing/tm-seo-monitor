@@ -9,7 +9,8 @@ import "@/styles/tm-tokens.css";
 import { fmtDate } from "@/lib/time";
 import { readWindows } from "@/lib/organicCollector";
 import { buildIdeas, topIdeas } from "@/lib/contentIdeas";
-import { ContentPipelineRail, ContentIdeaCard, WindowNote, type PipelineItem } from "@/components/ContentPlanner";
+import { ContentPipelineRail, ContentIdeaCard, WindowNote, KeywordMovementTable, StatTiles, type PipelineItem } from "@/components/ContentPlanner";
+import { keywordMovement, topTenCount, topTenDelta } from "@/lib/keywordMovement";
 
 export const dynamic = "force-dynamic";
 
@@ -277,6 +278,81 @@ export default async function ClientDetail({
 
   const ideas = topIdeas(buildIdeas(windows.current, windows.prior, exclude), 2);
 
+  // ── keyword movement + the four tiles ────────────────────────────────────
+  const { data: volRows } = await db
+    .from("tracked_keywords")
+    .select("keyword, search_volume")
+    .eq("client_id", params.id)
+    .not("search_volume", "is", null);
+
+  const volumes = new Map<string, number>(
+    (volRows ?? []).map((k) => [String(k.keyword).toLowerCase(), Number(k.search_volume)])
+  );
+
+  const movement = keywordMovement(windows.current, windows.prior, volumes);
+  const inTopTen = topTenCount(movement);
+  const topTenChange = topTenDelta(movement);
+
+  const publishedThisMonth = allItems.filter(
+    (r) => r.status === "published" && r.published_at &&
+      new Date(r.published_at) >= new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+  ).length;
+  const measuring = pipeline.filter((r) => r.status === "published" && r.clicksSincePublish != null).length;
+
+  const sessionDelta = gClicksPrev > 0 ? Math.round(((gClicks - gClicksPrev) / gClicksPrev) * 100) : null;
+
+  // The design's fourth tile is "Calls from organic". That is a local_service
+  // metric AND it is blocked on the call-tracking decision (plan §10 decision 0).
+  // For an eCommerce client it is simply the wrong measure, so the tile derives
+  // from client_type — the Stream M rule — rather than showing a blank labelled
+  // with something this client will never have.
+  const clientType = (client as any)?.client_type as string | null;
+
+  // Both variants are honestly blank, for different reasons, and each says which.
+  //
+  // eCommerce: `conversions_daily` records revenue per SOURCE PLATFORM (shopify,
+  // ga4) — not per channel. Summing it and calling the total "revenue from
+  // organic" would attribute paid, email and direct revenue to SEO, which is the
+  // single most flattering lie an SEO dashboard can tell. It needs GA4's channel
+  // grouping, which we do not collect yet.
+  //
+  // local_service: blocked on the call-tracking decision (plan §10 decision 0).
+  const fourthTile =
+    clientType === "national_ecom"
+      ? {
+          label: "Revenue from organic",
+          value: "–",
+          sub: "needs GA4 channel data — revenue is stored per platform, not per channel",
+        }
+      : {
+          label: "Calls from organic",
+          value: "–",
+          sub: "call tracking not connected",
+        };
+
+  const tiles = [
+    {
+      label: "Organic clicks",
+      value: gClicks > 0 ? gClicks.toLocaleString("en-US") : "–",
+      sub: sessionDelta != null ? `${sessionDelta >= 0 ? "+" : ""}${sessionDelta}% vs prior 28` : "no prior period",
+      tone: sessionDelta == null ? ("flat" as const) : sessionDelta >= 0 ? ("up" as const) : ("down" as const),
+    },
+    {
+      label: "Keywords in top 10",
+      value: movement.length > 0 ? String(inTopTen) : "–",
+      sub: movement.length > 0
+        ? `of ${movement.length} visible${topTenChange != null ? ` · ${topTenChange >= 0 ? "+" : ""}${topTenChange}` : ""}`
+        : "no query data yet",
+      tone: topTenChange == null ? ("flat" as const) : topTenChange >= 0 ? ("up" as const) : ("down" as const),
+    },
+    {
+      label: "Published this month",
+      value: String(publishedThisMonth),
+      sub: measuring > 0 ? `${measuring} measuring` : "none measuring yet",
+    },
+    fourthTile,
+  ];
+
   return (
     <main style={{ padding: "40px 32px 64px" }}>
       <InfoStyles />
@@ -298,6 +374,8 @@ export default async function ClientDetail({
         </div>
 
         <ChannelNav clientId={params.id} active="organic" clientType={(client as any)?.client_type ?? null} />
+
+        <StatTiles tiles={tiles} />
 
         {/* ── content recommendations + pipeline ─────────────────────────── */}
         <section style={{ display: "grid", gridTemplateColumns: "minmax(0, 2.2fr) minmax(260px, 1fr)", gap: 24, marginBottom: 28, alignItems: "start" }}>
@@ -351,6 +429,16 @@ export default async function ClientDetail({
 
           <ContentPipelineRail items={pipeline} />
         </section>
+
+        {/* ── keyword movement ───────────────────────────────────────────── */}
+        {movement.length > 0 && (
+          <section style={{ marginBottom: 28 }}>
+            <div className="eyebrow" style={{ color: "var(--fg3)", marginBottom: 14 }}>
+              Keyword movement
+            </div>
+            <KeywordMovementTable rows={movement} shown={10} />
+          </section>
+        )}
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 24 }}>
           {RANGES.map((r) => {
