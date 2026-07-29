@@ -46,9 +46,52 @@ New **"Parked"** section in `STATUS.md` with enough detail to resume cold:
 4. **Google Ads Basic access — still not submitted** (Tom). Explorer token vaulted
    since 07-22, collector built and wired. Pure calendar time not being burned.
 
-### Started
-**Organic tab** rebuild against the design screen: conversion-keyword table,
-content pipeline, and the recommendation queue with staged diffs.
+### Shipped — WO-005 Organic (migration 036)
+- **`gsc_query_windows`.** The blocker behind the whole Organic screen was that
+  `gsc_history` stores one aggregate row per day: we knew a client got 9,420
+  clicks and nothing about which searches produced them. Now stores GSC query and
+  query×page performance over a rolling 28-day window, top 250 by impressions.
+- **`content_items`.** The pipeline, idea through published, carrying the
+  rationale AND the prediction. Recording what we expected before the outcome is
+  known is the only way the verdict later means anything.
+- **`lib/contentIdeas.ts`.** Ranked recommendations with evidence: striking
+  distance, content gap, question, rising demand, cannibalisation. No impact
+  number ships without a stated basis, and a query we cannot measure gets no
+  estimate rather than a plausible guess. 22 tests.
+- **Organic tab** — recommendation cards, pipeline rail, "Collect now" button.
+
+**Caught before shipping:** PostgREST cannot name an expression index in
+`onConflict`, so the `coalesce(page,'')` unique index would have forced every
+write into a delete-then-insert. `page` is now NOT NULL with an `''` sentinel.
+The two places `''`/`null` meet are marked and tested both directions — `?? null`
+does not catch empty string, and getting it wrong would have made every rollup
+row look like a page and broken cannibalisation detection silently.
+
+### ⚠️ Branch finding — two days of work was not on main
+Discovered on the first push today: the working tree was on
+**`module/qc-crawl-reliability`**, not `main`, and had been for both sessions.
+Every WO-004 social commit, the design port and all of WO-005 were on that
+branch. Local `main` was 27 behind; remote `main` was at `58fd024`.
+
+The branch was **local-only** (never pushed), so nothing of anyone else's was
+entangled and nothing was lost. `origin/main` was a direct ancestor of the branch
+tip, so recovery was a plain fast-forward — `git push origin HEAD:main` — with no
+history rewritten. Local `main` fast-forwarded to match, and the branch's other
+contents (the QC session's `onPageTask.test.ts`) came with it.
+
+Also cleared: a corrupt ref file `.git/refs/remotes/origin/main 2` — a
+sync-artifact duplicate, verified to be an ancestor of HEAD before deleting —
+which was making `git fetch` fail with "did not send all necessary objects" and
+producing a misleading "branch is behind" message on every push.
+
+**Standing fix:** check `git branch --show-current` before the first commit of a
+session, not after the first failed push.
+
+### Next
+Salty Dog and DAPS both have Search Console properties. The Organic tab has a
+**Collect now** button; nothing renders until it is pressed or the daily cron
+runs. Local dev has no `GOOGLE_SERVICE_ACCOUNT_JSON`, so the collector is proven
+against fixtures only — first real run is the verification.
 
 ---
 
