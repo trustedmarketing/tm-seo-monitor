@@ -170,6 +170,19 @@ export default async function Settings({
                      placeholder="#SaltyDog #BoatCare" style={I} />
               <div style={HINT}>Applied to every post for this client, before the post-specific ones. Max 5.</div>
             </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={L}>Competitor domains</label>
+              <input name="competitor_domains"
+                     defaultValue={((client as any).competitor_domains ?? []).join(", ")}
+                     placeholder="salt-away.com, saltsgone.com" style={I} />
+              <div style={HINT}>
+                Never linked to from generated content, including their subdomains. This is enforced
+                in code rather than asked for in a prompt, because a model has no idea who this
+                client competes with and the best-written page on a commercial topic is very often a
+                rival&apos;s. <strong>Empty means no protection.</strong> Domains only, no https and
+                no www.
+              </div>
+            </div>
             <div>
               <label style={L}>ClickUp list ID</label>
               <input name="clickup_list_id" defaultValue={client.clickup_list_id ?? ""} style={I} />

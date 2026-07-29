@@ -12,6 +12,7 @@ import { getProfile, isAgency, userClient } from "@/lib/supabaseServer";
 import { PageHeader } from "@/components/PageHeader";
 import { fmtDateTime } from "@/lib/time";
 import type { ContentBrief } from "@/lib/contentBrief";
+import type { ContentDraft } from "@/lib/contentDraft";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,7 @@ export default async function ContentItem({
   if (!item || !client) notFound();
 
   const brief = item.brief as ContentBrief | null;
+  const draft = item.draft as ContentDraft | null;
   const stageIndex = FLOW.findIndex((f) => f.key === item.status);
 
   return (
@@ -247,8 +249,160 @@ export default async function ContentItem({
             </div>
           )}
         </section>
+
+        {/* ── the article ─────────────────────────────────────────────────── */}
+        <section style={{ ...card, marginTop: "var(--space-5)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)", marginBottom: "var(--space-3)", flexWrap: "wrap" }}>
+            <div className="eyebrow" style={{ color: "var(--fg3)" }}>Article</div>
+            {draft && (
+              <span className="caption" style={{ color: "var(--fg3)" }}>
+                {draft.wordCount} words · {draft.sections.length} sections · {draft.faqs.length} FAQs
+              </span>
+            )}
+            <form action="/api/content" method="post" style={{ marginLeft: "auto" }}>
+              <input type="hidden" name="action" value="draft" />
+              <input type="hidden" name="client_id" value={params.id} />
+              <input type="hidden" name="id" value={item.id} />
+              <button type="submit" disabled={!brief} style={{
+                fontFamily: "var(--font-body)", fontSize: 12.5, fontWeight: 600,
+                padding: "7px 14px", borderRadius: "var(--radius-pill)",
+                cursor: brief ? "pointer" : "not-allowed", opacity: brief ? 1 : 0.5,
+                border: draft ? "1px solid var(--border-strong)" : "none",
+                background: draft ? "transparent" : "var(--tm-performance-green)",
+                color: draft ? "var(--fg2)" : "var(--tm-deep-charcoal)",
+              }}>{draft ? "Rewrite" : "Write the article"}</button>
+            </form>
+          </div>
+
+          <div className="caption" style={{ color: "var(--fg3)", marginBottom: "var(--space-4)" }}>
+            {brief
+              ? "A full post takes a minute or two. Every link is checked before it is kept: competitors blocked, internal links matched against pages Search Console has actually recorded, external links fetched."
+              : "Write the brief first — the article is written to it."}
+          </div>
+
+          {draft && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
+              {/* Links first: this is the part that needs checking, and burying
+                  it under 1,500 words means nobody checks it. */}
+              <div style={{
+                padding: "var(--space-4)", borderRadius: "var(--radius-md)",
+                background: "var(--tm-stone-100)", border: "1px solid var(--border)",
+              }}>
+                <div className="eyebrow" style={{ color: "var(--fg3)", marginBottom: "var(--space-3)" }}>Links</div>
+
+                <LinkList label="Internal" links={draft.internalLinks} empty="None — no suitable page on the site." />
+                <LinkList label="External" links={draft.externalLinks} empty="None survived checking." />
+
+                {draft.rejectedLinks && draft.rejectedLinks.length > 0 && (
+                  <div style={{ marginTop: "var(--space-3)" }}>
+                    <div className="caption" style={{ color: "var(--danger)", fontWeight: 600, marginBottom: 3 }}>
+                      Removed by policy
+                    </div>
+                    <ul className="caption" style={{ margin: 0, paddingLeft: 18, color: "var(--fg3)", lineHeight: 1.8 }}>
+                      {draft.rejectedLinks.map((r, i) => (
+                        <li key={i}>
+                          {r.link.url} — {
+                            r.reason === "competitor" ? "competitor" :
+                            r.reason === "not_on_site" ? "page does not exist on the site" :
+                            r.reason === "unreachable" ? `did not resolve${r.status ? ` (${r.status})` : ""}` :
+                            r.reason
+                          }
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="eyebrow" style={{ color: "var(--fg3)", marginBottom: "var(--space-2)" }}>
+                  Meta · slug /{draft.slug}
+                </div>
+                <div className="body-sm" style={{ color: "var(--fg1)" }}>
+                  {draft.metaTitle} <span style={{ color: "var(--fg3)" }}>({draft.metaTitle.length}/60)</span>
+                </div>
+                <div className="body-sm" style={{ color: "var(--fg2)", marginTop: 3 }}>{draft.metaDescription}</div>
+              </div>
+
+              <div>
+                <h2 style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 400, margin: "0 0 var(--space-3)" }}>
+                  {draft.title}
+                </h2>
+                {/* The answer-first paragraph, marked because it is the bit an
+                    assistant is most likely to quote. */}
+                <div style={{
+                  padding: "var(--space-4)", borderLeft: "3px solid var(--tm-performance-green)",
+                  background: "var(--tm-stone-100)", borderRadius: "0 var(--radius-md) var(--radius-md) 0",
+                }}>
+                  <div className="eyebrow" style={{ color: "var(--fg3)", marginBottom: 5 }}>Answer up front</div>
+                  <p className="body-sm" style={{ margin: 0, color: "var(--fg1)", lineHeight: 1.6 }}>{draft.answer}</p>
+                </div>
+
+                {draft.sections.map((sec, i) => (
+                  <div key={i} style={{ marginTop: "var(--space-5)" }}>
+                    <h3 style={{ fontSize: 17, fontWeight: 600, margin: "0 0 var(--space-2)", color: "var(--fg1)" }}>
+                      {sec.heading}
+                    </h3>
+                    <div className="body-sm" style={{ color: "var(--fg1)", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
+                      {sec.body}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {draft.faqs.length > 0 && (
+                <div>
+                  <div className="eyebrow" style={{ color: "var(--fg3)", marginBottom: "var(--space-3)" }}>FAQs</div>
+                  {draft.faqs.map((f, i) => (
+                    <div key={i} style={{ padding: "var(--space-3) 0", borderTop: i === 0 ? "none" : "1px solid var(--divider)" }}>
+                      <div style={{ fontSize: 14.5, fontWeight: 600, color: "var(--fg1)" }}>{f.question}</div>
+                      <div className="body-sm" style={{ color: "var(--fg2)", marginTop: 3, lineHeight: 1.6 }}>{f.answer}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {draft.jsonLd && (
+                <details>
+                  <summary className="eyebrow" style={{ color: "var(--fg3)", cursor: "pointer" }}>
+                    Structured data (Article + FAQPage)
+                  </summary>
+                  <pre style={{
+                    fontSize: 11, lineHeight: 1.5, overflowX: "auto", marginTop: "var(--space-3)",
+                    padding: "var(--space-3)", background: "var(--tm-stone-100)",
+                    borderRadius: "var(--radius-md)", color: "var(--fg2)",
+                  }}>{JSON.stringify(draft.jsonLd, null, 2)}</pre>
+                </details>
+              )}
+            </div>
+          )}
+        </section>
       </div>
     </main>
+  );
+}
+
+function LinkList({ label, links, empty }: { label: string; links: { url: string; anchor: string }[]; empty: string }) {
+  return (
+    <div style={{ marginBottom: "var(--space-3)" }}>
+      <div className="caption" style={{ color: "var(--fg2)", fontWeight: 600, marginBottom: 3 }}>
+        {label} · {links.length}
+      </div>
+      {links.length === 0 ? (
+        <div className="caption" style={{ color: "var(--fg3)" }}>{empty}</div>
+      ) : (
+        <ul className="caption" style={{ margin: 0, paddingLeft: 18, color: "var(--fg2)", lineHeight: 1.8 }}>
+          {links.map((l, i) => (
+            <li key={i}>
+              <a href={l.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--fg2)" }}>
+                {l.anchor}
+              </a>{" "}
+              <span style={{ color: "var(--fg3)" }}>{l.url.replace(/^https?:\/\//, "")}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

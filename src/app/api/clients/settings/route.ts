@@ -84,6 +84,16 @@ export async function POST(req: Request) {
               .map((t) => (t.startsWith("#") ? t : `#${t}`))
           )).slice(0, 5)
         : null,
+      // Normalised hard: someone will paste "https://www.Salt-Away.com/products"
+      // and the matcher compares hostnames, so it has to be stored as a bare
+      // lower-case domain or the block silently fails.
+      competitor_domains: String(opt(form, "competitor_domains") ?? "")
+        .split(/[\s,]+/)
+        .map((d) => d.trim().toLowerCase()
+          .replace(/^https?:\/\//, "")
+          .replace(/^www\./, "")
+          .split("/")[0])
+        .filter((d) => d.length > 2 && d.includes(".")),
       active: form.get("active") === "on",
     };
 

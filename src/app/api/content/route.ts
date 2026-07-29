@@ -6,6 +6,8 @@
 import { getProfile, isAgency } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
 import { draftBrief, clusterFor } from "@/lib/contentBrief";
+import { draftArticle } from "@/lib/contentDraft";
+import { normalisePath } from "@/lib/linkPolicy";
 import { readWindows } from "@/lib/organicCollector";
 import { BudgetExceededError } from "@/lib/ai";
 
@@ -166,6 +168,70 @@ export async function POST(req: Request) {
       // The ceiling is a control, not a crash. Say what happened and what to do.
       if (e instanceof BudgetExceededError) return backToItem(id, e.message);
       return backToItem(id, `Brief failed: ${(e as Error).message}`);
+    }
+  }
+
+  // ── draft: write the whole article ────────────────────────────────────────
+  if (action === "draft") {
+    const id = str("id");
+    if (!id) return Response.json({ error: "id required" }, { status: 400 });
+
+    const { data: item, error: itemErr } = await db
+      .from("content_items").select("*").eq("id", id).eq("client_id", clientId).maybeSingle();
+    if (itemErr) return Response.json({ error: itemErr.message }, { status: 500 });
+    if (!item) return Response.json({ error: "not found" }, { status: 404 });
+
+    // The brief is the spec. Drafting without one produces a generic article,
+    // which is exactly the output this whole pipeline exists to avoid.
+    if (!item.brief) return backToItem(id, "Write the brief first — the draft is written to it.");
+
+    const { data: client } = await db
+      .from("clients").select("name, domain, competitor_domains").eq("id", clientId).single();
+    if (!client) return Response.json({ error: "client not found" }, { status: 404 });
+
+    const windows = await readWindows(db, clientId);
+    const target = item.target_query ?? item.title;
+    const cluster = clusterFor(target, windows.current, item.url ?? null);
+
+    // Pages we KNOW exist, because Search Console recorded impressions for
+    // them. This is the whole defence against invented internal links: it is
+    // evidence the URL is served and indexed, not an assumption.
+    const knownPages = [...new Set(
+      windows.current
+        .filter((r) => r.page)
+        .map((r) => normalisePath(r.page as string))
+    )];
+
+    try {
+      const { draft, costUsd } = await draftArticle(db, {
+        clientId,
+        clientName: client.name,
+        domain: String(client.domain).replace(/^https?:\/\//, "").replace(/\/$/, ""),
+        brief: item.brief,
+        targetQuery: item.target_query,
+        cluster,
+        knownPages,
+        competitors: (client.competitor_domains ?? []) as string[],
+      });
+
+      const { error: saveErr } = await db.from("content_items").update({
+        draft,
+        draft_generated_at: new Date().toISOString(),
+        // Drafting is where this now is, whatever it said before.
+        status: item.status === "queued" ? "drafting" : item.status,
+        updated_at: new Date().toISOString(),
+      }).eq("id", id).eq("client_id", clientId);
+
+      if (saveErr) return Response.json({ error: `draft written but not saved: ${saveErr.message}` }, { status: 500 });
+
+      const dropped = draft.rejectedLinks?.length ?? 0;
+      return backToItem(id,
+        `Draft written · ${draft.wordCount} words · $${costUsd.toFixed(3)}` +
+        (dropped ? ` · ${dropped} link${dropped === 1 ? "" : "s"} removed by policy` : "")
+      );
+    } catch (e) {
+      if (e instanceof BudgetExceededError) return backToItem(id, e.message);
+      return backToItem(id, `Draft failed: ${(e as Error).message}`);
     }
   }
 
