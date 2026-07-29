@@ -52,17 +52,17 @@ const SCHEMA = {
              "sections", "targetQueries", "wordCount", "gaps", "openQuestions"],
   additionalProperties: false,
   properties: {
-    metaTitle: { type: "string", maxLength: 60 },
-    metaDescription: { type: "string", maxLength: 160 },
+    // Length limits live in the PROMPT and in the trim below, not here:
+    // lib/ai.ts strips string constraints because the validator rejects them.
+    metaTitle: { type: "string" },
+    metaDescription: { type: "string" },
     h1: { type: "string" },
     audience: { type: "string" },
     goal: { type: "string" },
-    // NO minItems. The structured-output validator rejects any value above 1:
-    //   "For 'array' type, 'minItems' values other than 0 or 1 are not supported"
-    // It is a 400 at request time, so the whole call fails rather than degrading.
-    // The floor is enforced after the fact instead — see checkShape below.
+    // No array constraints — see sanitiseSchema in lib/ai.ts. The count is
+    // asked for in the prompt and the floor is enforced after the call.
     sections: {
-      type: "array", maxItems: 9,
+      type: "array",
       items: {
         type: "object",
         required: ["heading", "covers", "answers"],
@@ -75,7 +75,7 @@ const SCHEMA = {
       },
     },
     targetQueries: { type: "array", items: { type: "string" } },
-    wordCount: { type: "integer", minimum: 300, maximum: 4000 },
+    wordCount: { type: "integer" },
     gaps: { type: "array", items: { type: "string" } },
     openQuestions: { type: "array", items: { type: "string" } },
   },
@@ -131,7 +131,8 @@ Rules, in order of importance:
 3. Ground every section in the supplied queries. Those are real searches this site already appears for. Do not add sections for topics with no query behind them.
 4. metaTitle must be under 60 characters and metaDescription under 160. These are hard limits, not targets.
 5. Write plainly. No marketing throat-clearing, no "in today's world", no em-dashes.
-6. wordCount should match the intent: a comparison or how-to needs depth, a product or service page usually does not.
+6. wordCount should match the intent: a comparison or how-to needs depth, a product or service page usually does not. Between 300 and 4000.
+7. Give the outline between 3 and 9 sections.
 
 Return only the structured brief.`;
 

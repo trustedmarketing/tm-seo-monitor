@@ -88,6 +88,68 @@ type GenerateArgs = {
   maxTokens?: number;
 };
 
+
+// ── schema sanitisation ─────────────────────────────────────────────────────
+//
+// The structured-output validator accepts a SUBSET of JSON Schema and rejects
+// the rest with a 400 at request time — the call fails outright rather than
+// ignoring the keyword. Per the API docs, unsupported:
+//
+//   · numerical constraints  minimum, maximum, exclusiveMinimum,
+//                            exclusiveMaximum, multipleOf
+//   · string constraints     minLength, maxLength, pattern
+//   · array constraints      minItems, maxItems, uniqueItems
+//                            (minItems 0 or 1 is tolerated; not worth the
+//                             special case)
+//
+// Learned the expensive way on 2026-07-29. The content-brief schema carried
+// FOUR of these and surfaced them one per deploy: minItems, then maxItems, and
+// maxLength and minimum still waiting behind them. Fixing them one at a time is
+// four round-trips through a production deploy to discover a documented list.
+//
+// Stripped centrally so no caller can hit it again. The constraints still
+// belong in the PROMPT, where they influence the output, and in the caller's own
+// validation, where they can be enforced — they just cannot travel in the schema.
+const UNSUPPORTED_KEYWORDS = new Set([
+  "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+  "minLength", "maxLength", "pattern",
+  "minItems", "maxItems", "uniqueItems",
+  "minProperties", "maxProperties",
+]);
+
+/**
+ * A copy of `schema` with every unsupported constraint removed, recursively.
+ *
+ * Returns a new object; the caller's schema is left alone so a `const` schema
+ * declared once at module scope is not mutated on first use.
+ */
+export function sanitiseSchema(schema: unknown): Record<string, unknown> {
+  return sanitise(schema) as Record<string, unknown>;
+}
+
+function sanitise(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(sanitise);
+  if (!schema || typeof schema !== "object") return schema;
+
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(schema as Record<string, unknown>)) {
+    if (UNSUPPORTED_KEYWORDS.has(k)) continue;
+    // `properties` can legitimately contain a FIELD named "pattern" or
+    // "maximum". Recurse into its values without filtering its keys, or a
+    // schema describing a form field called "pattern" loses that field.
+    if (k === "properties" && v && typeof v === "object" && !Array.isArray(v)) {
+      const props: Record<string, unknown> = {};
+      for (const [name, sub] of Object.entries(v as Record<string, unknown>)) {
+        props[name] = sanitise(sub);
+      }
+      out[k] = props;
+      continue;
+    }
+    out[k] = sanitise(v);
+  }
+  return out;
+}
+
 /**
  * One structured generation, metered.
  *
@@ -128,7 +190,7 @@ export async function generate<T>(args: GenerateArgs): Promise<{ value: T; usage
     model: MODEL,
     max_tokens: maxTokens,
     thinking: { type: "adaptive" },
-    output_config: { effort: "low", format: { type: "json_schema", schema } },
+    output_config: { effort: "low", format: { type: "json_schema", schema: sanitiseSchema(schema) } },
     system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: prompt }],
   });
