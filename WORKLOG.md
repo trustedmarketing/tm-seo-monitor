@@ -5,6 +5,53 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-07-29 · Session 1 · Design port finished, work parked, Organic started — `main`
+
+### Shipped
+- **Portfolio + sidebar ported to the design export** (`bf57455`). `PageHeader.tsx`
+  now carries the pattern every screen shares — eyebrow, display-serif title,
+  subtitle — plus `AttentionRail`. Portfolio moved from stacked scorecards to the
+  design's table, which is why the design uses a table: the stack does not survive
+  13 clients. Kept Revenue/MER/Ad spend columns rather than reducing to the
+  export's four, since the export predates that data existing.
+
+### Two bugs found while porting
+- **The sidebar's active state never moved.** `active` was hardcoded to
+  `"/dashboard"` in the layout, so Portfolio stayed highlighted on every page.
+  Now read from `usePathname`.
+- **A badge that would have read zero forever.** Wiring the nav counts, the first
+  attempt counted `qc_scans.status = 'failed'`. There is no `status` column on
+  `qc_scans` — the verdict lives in the `checks` jsonb. PostgREST would have
+  errored, the count would have come back null, and the badge would have rendered
+  a confident 0 indefinitely. Computed through `classifyChecks` instead.
+  Same failure mode as the seven vendor-envelope bugs on 07-28: writing the shape
+  I expected rather than reading the shape that exists.
+
+### Corrected the record
+`STATUS.md`'s punch-list table claimed **all 10 items NOT STARTED** and had said so
+since 2026-07-27. Verified against `src/` — items **1, 2, 5, 7 and 9 are built**
+(`ApprovalCard.tsx`, `lib/slaEscalation.ts`), #4 is half-built by WO-004's PostFlow
+decline handling. The table now carries a verified status column. A status file
+that overstates open work is as misleading as one that understates it.
+
+Stream M's specced attention-rail double-count was also already fixed.
+
+### Parked, in priority order
+New **"Parked"** section in `STATUS.md` with enough detail to resume cold:
+1. **Verify the social pipeline against real data** — campaign date windows,
+   decline round-trip, cross-month dedup. All shipped, none observed working.
+   The only client-visible risk currently live.
+2. **Wave 4 — Salty Dog portal.** No client-facing surface exists yet.
+3. **Finish the token conversion** — `PlanSlot`, `ClientHeader`, tab bar, queue.
+4. **Google Ads Basic access — still not submitted** (Tom). Explorer token vaulted
+   since 07-22, collector built and wired. Pure calendar time not being burned.
+
+### Started
+**Organic tab** rebuild against the design screen: conversion-keyword table,
+content pipeline, and the recommendation queue with staged diffs.
+
+---
+
 ## 2026-07-28 · Session 3 · WO-004 social content planner — `main`
 
 Built the month planner end to end: **build a month → decide slot by slot → write copy →

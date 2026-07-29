@@ -1,6 +1,6 @@
 # Growth OS — STATUS
 
-_Last updated: 2026-07-27_
+_Last updated: 2026-07-29_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
 
 ### Social content planner — WO-004 (2026-07-28)
@@ -58,21 +58,88 @@ Bloom artwork, and PostFlow delivery as unscheduled drafts.
 - **`docs/wo-003-design-implementation.md`** — ✅ **APPROVED 2026-07-27, Wave 1 in progress.** Six
   waves, 12 agent-parallel streams, every punch-list item assigned to a stream.
 
-## Punch list — 10 items, all NOT STARTED
-Each is assigned to a WO-003 stream (see that doc); none is unowned.
+## Punch list — corrected 2026-07-29
+This table read "all 10 NOT STARTED" from 2026-07-27 until 2026-07-29. It was
+wrong: Stream D and F work landed in between and the table was never updated.
+Verified against the code on 2026-07-29 — status column below is what is
+actually in `src/`, not what was planned.
 
-| # | Item | WO-003 stream |
-|---|---|---|
-| 1 | Undo (60 min) vs Revert (writes a second ledger entry) | E · `module/wp-adapter` |
-| 2 | Failed-job state — publish fails, card stays in queue | D · `module/approval-card` |
-| 3 | Slipped playbook items — status chip + reason + owner date | J · `module/portal-shell` |
-| 4 | Client decline round-trip back to the agency queue | K · `module/portal-approvals` |
-| 5 | Role-aware locked card + Request approval | D · `module/approval-card` |
-| 6 | Automatic-changes audit surface (filter in Changes log) | C · `module/audit-log` / I · `module/changes-log` |
-| 7 | Per-module data freshness lines | D · `module/approval-card` |
-| 8 | Bulk approve never crosses clients | F · `module/approvals-queue` |
-| 9 | SLA breach consequence — notify 24h, escalate 48h | F · `module/approvals-queue` |
-| 10 | "Share this page" — signed expiring link, or cut from v1 | J · `module/portal-shell` (decision) |
+Each item is assigned to a WO-003 stream (see that doc); none is unowned.
+
+| # | Item | WO-003 stream | Status (verified 2026-07-29) |
+|---|---|---|---|
+| 1 | Undo (60 min) vs Revert (writes a second ledger entry) | E · `module/wp-adapter` | ✅ in `ApprovalCard.tsx` |
+| 2 | Failed-job state — publish fails, card stays in queue | D · `module/approval-card` | ✅ `status: "failed"` keeps the card queued with the real error |
+| 3 | Slipped playbook items — status chip + reason + owner date | J · `module/portal-shell` | ⛔ not started (Wave 4) |
+| 4 | Client decline round-trip back to the agency queue | K · `module/portal-approvals` | 🟡 half-built — WO-004 does it for PostFlow social declines (`lib/postflowApproval.ts`); the portal half is Wave 4 |
+| 5 | Role-aware locked card + Request approval | D · `module/approval-card` | ✅ `canDecide(actorRole, requires_role)` |
+| 6 | Automatic-changes audit surface (filter in Changes log) | C · `module/audit-log` / I · `module/changes-log` | ⛔ not started |
+| 7 | Per-module data freshness lines | D · `module/approval-card` | ✅ `freshness` prop on every card |
+| 8 | Bulk approve never crosses clients | F · `module/approvals-queue` | ⛔ not started |
+| 9 | SLA breach consequence — notify 24h, escalate 48h | F · `module/approvals-queue` | ✅ `lib/slaEscalation.ts` |
+| 10 | "Share this page" — signed expiring link, or cut from v1 | J · `module/portal-shell` (decision) | ⛔ undecided |
+
+## Parked — picked up in this order when Organic is done (noted 2026-07-29)
+
+Written down because we moved to the Organic tab mid-stream. Nothing here is
+blocked; it is all sequenced behind a deliberate choice, and none of it should be
+rediscovered from scratch.
+
+### 1. Verify the social pipeline against real data — HIGHEST RISK OPEN ITEM
+Three WO-004 paths shipped without ever being watched working. This is the only
+**client-visible** risk currently live in production.
+
+- **Campaign date windows.** `lib/campaignDates.ts` has 13 unit tests; no real
+  month has been observed posting inside its window. The failure mode is a post
+  advertising a sale three days before it opens, which sends people to a page
+  that is not live. Test: put a dated campaign line on a Salty Dog month, build
+  the plan, confirm the slot dates land inside the window and that the parsed
+  window is shown back correctly on the card.
+- **Decline round-trip end to end.** `lib/postflowApproval.ts` polls
+  `/posts?include=postComments` for `approvals[].rejected_at`. Never exercised
+  with a genuine client decline. Test: decline a real draft in PostFlow, confirm
+  the alert fires with the client's reason attached and the card returns to
+  editable.
+- **Cross-month dedup.** The planner is supposed to avoid repeating a post used
+  in a previous month. Only provable by building two consecutive months for the
+  same client and diffing the source items.
+
+### 2. Wave 4 — the Salty Dog client portal
+`/portal` is an honest placeholder (Stream A). Everything built so far is
+agency-internal; no client-facing surface exists. Salty Dog is the decided pilot
+and is eCommerce, so it sidesteps the call-tracking blocker (plan §10 decision 0)
+that has now surfaced four times. Picks up punch-list **#4** (client decline
+round-trip), which WO-004 already half-built for social.
+
+This is also the test of the agency-in-a-box question: it gets answered by a
+client logging in and finding it useful, not by more internal tooling.
+
+### 3. Finish the design-token conversion
+`PageHeader.tsx` now exists, so each remaining surface drops its hand-rolled
+header and picks up the shared one. Mechanical, not a redesign. Remaining:
+`PlanSlot`, `ClientHeader`, the workspace tab bar, the approvals queue.
+Completes WO-003 Stream M.
+
+### 4. Still pending Tom — external actions only he can take
+- ⛔ **Google Ads Basic access application: STILL NOT SUBMITTED.** The
+  Explorer-tier token has been vaulted since 2026-07-22 and the collector is
+  built and wired into cron. This is pure calendar time not being burned.
+  Two faster, non-application steps alongside it (~2 min each): link Salty Dog's
+  Google Ads account under **MCC 711-022-5227**, and seed its customer ID into
+  `ad_platform_accounts`. Those two alone get first real Google data flowing
+  without waiting on the upgrade.
+- ⏳ **GBP** — submitted 2026-07-27, pure waiting, expect Google ~2026-08-10.
+- ⛔ **Call-tracking decision** (plan §10 decision 0). Blocks the "calls from
+  organic" tile and the local_service revenue variant. Not on the critical path
+  while the portal pilot is eCommerce.
+
+### 5. Known limits accepted, not bugs
+- Bloom signed URLs expire after ~7 days, so plans older than that show broken
+  thumbnails. Assets are meant to be re-hosted into our own storage; not done.
+- Video slots produce an opening frame, not video. Higgsfield is connected but
+  not wired.
+
+---
 
 ## In flight
 - **Bloom (trybloom.ai) — vendor answers received 2026-07-27, RECOMMENDATION: ADOPT FOR SUBSET.**
