@@ -58,7 +58,17 @@ New **"Parked"** section in `STATUS.md` with enough detail to resume cold:
   distance, content gap, question, rising demand, cannibalisation. No impact
   number ships without a stated basis, and a query we cannot measure gets no
   estimate rather than a plausible guess. 22 tests.
-- **Organic tab** — recommendation cards, pipeline rail, "Collect now" button.
+- **Organic tab** — recommendation cards, pipeline rail, "Collect now" button,
+  **keyword movement table** and the **four stat tiles**. Screen complete.
+- **`lib/keywordMovement.ts`** — was/now/delta/trend between windows. 12 tests.
+
+**Two headings deliberately differ from the design**, both because its version
+claims something we cannot measure. "Conversion keyword" is "Keyword movement":
+conversions are recorded per source platform, not per keyword, and GSC does not
+attribute conversions at all. "Calls from organic" derives from `client_type` and
+is blank either way — for local_service it is the call-tracking blocker, for
+eCommerce summing `conversions_daily` would credit paid, email and direct revenue
+to SEO. Both variants name what is missing rather than showing a zero.
 
 **Caught before shipping:** PostgREST cannot name an expression index in
 `onConflict`, so the `coalesce(page,'')` unique index would have forced every
