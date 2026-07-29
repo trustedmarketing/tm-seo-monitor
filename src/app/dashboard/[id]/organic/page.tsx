@@ -7,6 +7,9 @@ import { RecActions, ChangeLogger } from "@/components/Tracking";
 import { ChannelNav } from "@/components/ChannelNav";
 import "@/styles/tm-tokens.css";
 import { fmtDate } from "@/lib/time";
+import { readWindows } from "@/lib/organicCollector";
+import { buildIdeas, topIdeas } from "@/lib/contentIdeas";
+import { ContentPipelineRail, ContentIdeaCard, WindowNote, type PipelineItem } from "@/components/ContentPlanner";
 
 export const dynamic = "force-dynamic";
 
@@ -215,6 +218,65 @@ export default async function ClientDetail({
 
   const rangeHref = (key: string) => `/dashboard/${params.id}/organic?range=${key}`;
 
+  // ── content: what to write next, and what is already being written ───────
+  // WO-005. Wrapped because a client with no Search Console property must still
+  // get a working Organic tab — the section says why it is empty instead of the
+  // whole page failing.
+  let windows: Awaited<ReturnType<typeof readWindows>> = { current: [], prior: [], windowEnd: null };
+  let contentError: string | null = null;
+  try {
+    windows = await readWindows(db, params.id);
+  } catch (e) {
+    contentError = (e as Error).message;
+  }
+
+  const { data: pipelineRows, error: pipelineErr } = await db
+    .from("content_items")
+    .select("id, title, status, status_note, url, published_at, target_query, declined_at")
+    .eq("client_id", params.id)
+    .order("created_at", { ascending: false })
+    .limit(60);
+
+  if (pipelineErr) contentError = contentError ?? pipelineErr.message;
+
+  const allItems = pipelineRows ?? [];
+
+  // In-flight work only. Declined and published rows stay in the table as
+  // history but do not belong in a "what is happening now" rail — except the
+  // most recent publications, which are how the rail shows measurement.
+  const pipeline: PipelineItem[] = allItems
+    .filter((r) => r.status !== "declined")
+    .slice(0, 6)
+    .map((r) => {
+      // Clicks the published URL has won in the current window. Real measured
+      // data, not a model — this is what the page dimension was added for.
+      const clicks = r.url
+        ? windows.current
+            .filter((w) => w.page && w.page.replace(/\/$/, "") === r.url!.replace(/\/$/, ""))
+            .reduce((a, w) => a + w.clicks, 0)
+        : null;
+      return {
+        id: r.id, title: r.title, status: r.status,
+        status_note: r.status_note, url: r.url, published_at: r.published_at,
+        clicksSincePublish: r.status === "published" ? clicks : null,
+      };
+    });
+
+  // Suppression set: anything open, plus anything declined in the last 60 days.
+  // Without the date bound a single decline would mute a topic forever, which is
+  // wrong — markets change and a bad idea in March can be right in October.
+  const MUTE_DAYS = 60;
+  const muteBefore = Date.now() - MUTE_DAYS * 86400000;
+  const exclude = new Set<string>();
+  for (const r of allItems) {
+    if (!r.target_query) continue;
+    const declinedRecently =
+      r.status === "declined" && r.declined_at && new Date(r.declined_at).getTime() > muteBefore;
+    if (r.status !== "declined" || declinedRecently) exclude.add(r.target_query.toLowerCase());
+  }
+
+  const ideas = topIdeas(buildIdeas(windows.current, windows.prior, exclude), 2);
+
   return (
     <main style={{ padding: "40px 32px 64px" }}>
       <InfoStyles />
@@ -236,6 +298,59 @@ export default async function ClientDetail({
         </div>
 
         <ChannelNav clientId={params.id} active="organic" clientType={(client as any)?.client_type ?? null} />
+
+        {/* ── content recommendations + pipeline ─────────────────────────── */}
+        <section style={{ display: "grid", gridTemplateColumns: "minmax(0, 2.2fr) minmax(260px, 1fr)", gap: 24, marginBottom: 28, alignItems: "start" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+              <div className="eyebrow" style={{ color: "var(--fg3)" }}>Content recommendations</div>
+              {ideas.shown.length > 0 && (
+                <span className="caption" style={{ color: "var(--fg3)" }}>
+                  {ideas.shown.length} shown{ideas.heldBack > 0 ? ` · ${ideas.heldBack} more held back` : ""}
+                </span>
+              )}
+            </div>
+
+            {contentError ? (
+              <div className="body-sm" style={{ padding: 16, borderRadius: 8, background: "#FBE7E4", color: "var(--danger)" }}>
+                Could not build recommendations: {contentError}
+              </div>
+            ) : !client.gsc_property ? (
+              // Named cause, and the fix. "No recommendations" on its own reads
+              // as "nothing to do", which is a different and wrong message.
+              <div className="body-sm" style={{ padding: 20, borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)", color: "var(--fg2)" }}>
+                No Search Console property is connected for {client.name}, so there is no query data to
+                recommend from. Add it in Settings.
+              </div>
+            ) : windows.current.length === 0 ? (
+              <div style={{ padding: 20, borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)" }}>
+                <div className="body-sm" style={{ color: "var(--fg2)", marginBottom: 12 }}>
+                  No query data collected yet. The daily collector fills this, or pull it now.
+                </div>
+                <form action={`/api/ops/organic-collect?client=${params.id}`} method="post">
+                  <button type="submit" style={{
+                    fontFamily: "var(--font-body)", fontSize: 13.5, fontWeight: 600,
+                    padding: "9px 18px", borderRadius: "var(--radius-pill)", cursor: "pointer",
+                    border: "none", background: "var(--tm-performance-green)", color: "var(--tm-deep-charcoal)",
+                  }}>Collect now</button>
+                </form>
+              </div>
+            ) : ideas.shown.length === 0 ? (
+              <div className="body-sm" style={{ padding: 20, borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)", color: "var(--fg2)" }}>
+                Nothing new to recommend. Every opportunity above the noise floor is already in the
+                pipeline or was declined in the last 60 days.
+              </div>
+            ) : (
+              ideas.shown.map((idea) => (
+                <ContentIdeaCard key={`${idea.kind}:${idea.query}`} idea={idea} clientId={params.id} />
+              ))
+            )}
+
+            <WindowNote windowEnd={windows.windowEnd} capped={250} />
+          </div>
+
+          <ContentPipelineRail items={pipeline} />
+        </section>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 24 }}>
           {RANGES.map((r) => {
