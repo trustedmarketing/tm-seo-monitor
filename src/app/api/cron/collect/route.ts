@@ -28,6 +28,7 @@ import { collectSocial } from "@/lib/socialCollector";
 import { syncApprovedRecs } from "@/lib/clickupSync";
 import { checkTokenExpiry } from "@/lib/tokenExpiry";
 import { findBreaches, reportBreaches } from "@/lib/slaEscalation";
+import { collectOrganicQueries } from "@/lib/organicCollector";
 
 export const maxDuration = 300;
 
@@ -103,6 +104,31 @@ export async function GET(req: Request) {
         done.push(`core FAILED: ${msg}`);
         failures.push({ module: "core", client: c.domain, error: msg });
         await recordRun(db, "core", c.id, { status: "error", error: msg, duration_ms: Date.now() - t0 });
+      }
+    }
+
+    // ── Organic query windows (GSC query × page) ──────────────────
+    // No frequency gate: four GSC calls per client against a 30k/day quota is
+    // nothing, and the Organic tab is only as good as its freshest window.
+    // Skipped silently only when there is no property to ask — that is a
+    // configuration fact, not a failure, and recording it as an error every
+    // morning would train everyone to ignore the failure list.
+    if (c.gsc_property) {
+      const t0 = Date.now();
+      try {
+        const r = await collectOrganicQueries(db, c.id, c.gsc_property);
+        done.push("organic_queries");
+        await recordRun(db, "organic_queries", c.id, {
+          status: "success",
+          detail: `window=${r.windowEnd} prior=${r.priorWindowEnd} rows=${r.rowsWritten}`,
+          rows_written: r.rowsWritten,
+          duration_ms: Date.now() - t0,
+        });
+      } catch (e) {
+        const msg = (e as Error).message;
+        done.push(`organic_queries FAILED: ${msg}`);
+        failures.push({ module: "organic_queries", client: c.domain, error: msg });
+        await recordRun(db, "organic_queries", c.id, { status: "error", error: msg, duration_ms: Date.now() - t0 });
       }
     }
 
