@@ -99,7 +99,8 @@ describe("buildIdeas", () => {
 
   it("does not flag cannibalisation when only one page is on page one", () => {
     const ideas = buildIdeas([
-      row({ query: "ac repair", impressions: 800, position: 7 }),
+      // Healthy CTR for #7, so this reaches the striking-distance rule.
+      row({ query: "ac repair", impressions: 800, clicks: 26, position: 7 }),
       row({ query: "ac repair", page: "/services/ac", position: 7, impressions: 500 }),
       row({ query: "ac repair", page: "/blog/ac", position: 34, impressions: 300 }),
     ]);
@@ -145,6 +146,68 @@ describe("buildIdeas", () => {
     // Every rationale must contain a number. A recommendation with no evidence
     // is the thing this module exists to prevent.
     for (const i of ideas) expect(i.rationale).toMatch(/\d/);
+  });
+});
+
+describe("ctr_gap — the rule the first real data pull exposed", () => {
+  // Salty Dog, window ending 2026-07-27. This query ranked #5.1 with 136
+  // impressions and 5 clicks and produced NO recommendation at all, because
+  // positions 1-6 fell between the striking-distance and gap rules.
+  it("flags a page-one ranking that is not earning its clicks", () => {
+    const ideas = buildIdeas([
+      row({ query: "commercial hvac maintenance", impressions: 1400, clicks: 14, position: 5 }),
+    ]);
+    expect(ideas[0].kind).toBe("ctr_gap");
+    expect(ideas[0].action).toBe("improve_page");
+    expect(ideas[0].expectedClicks).toBeGreaterThanOrEqual(5);
+    expect(ideas[0].basis).toMatch(/Measured shortfall/);
+  });
+
+  // The calibration lesson from the first real pull, pinned so it cannot regress.
+  it("stays quiet when a real shortfall is worth almost nothing", () => {
+    // Salty Dog: #5.1, 136 impressions, 5 clicks. 3.7% against a 5.2% curve is a
+    // genuine shortfall worth ~2 clicks a month. True, and not worth a card.
+    const ideas = buildIdeas([
+      row({ query: "best salt remover for boats", impressions: 136, clicks: 5, position: 5.1 }),
+    ]);
+    expect(ideas.find((i) => i.kind === "ctr_gap")).toBeUndefined();
+  });
+
+  it("leaves a healthy click rate alone", () => {
+    // #3 earning 9.5% against a 9.9% curve — normal variation.
+    const ideas = buildIdeas([row({ query: "x", impressions: 2000, clicks: 190, position: 3 })]);
+    expect(ideas.find((i) => i.kind === "ctr_gap")).toBeUndefined();
+  });
+
+  it("does not rewrite titles for brand terms", () => {
+    // "salty dog pods" — #1.4, below-curve CTR, but people searching the brand
+    // have already decided. Sitelinks absorb these clicks.
+    const ideas = buildIdeas(
+      [row({ query: "salty dog pods", impressions: 3000, clicks: 200, position: 1.4 })],
+      [], new Set(), ["salty", "dog", "getsaltydog"]
+    );
+    expect(ideas.find((i) => i.kind === "ctr_gap")).toBeUndefined();
+  });
+
+  it("needs enough impressions before calling a click rate low", () => {
+    // 12 impressions and 0 clicks is not evidence of anything.
+    const ideas = buildIdeas([row({ query: "best boat salt remover", impressions: 12, clicks: 0, position: 2.5 })]);
+    expect(ideas.find((i) => i.kind === "ctr_gap")).toBeUndefined();
+  });
+
+  it("ranks a click gap above a striking-distance move", () => {
+    // The ranking is already won, so it is the cheaper fix and should lead.
+    const ideas = buildIdeas([
+      row({ query: "cheap win", impressions: 1400, clicks: 14, position: 5 }),
+      row({ query: "harder win", impressions: 500, clicks: 2, position: 14 }),
+    ]);
+    expect(ideas[0].kind).toBe("ctr_gap");
+  });
+
+  it("catches a zero-click page-one query once the volume justifies it", () => {
+    const ideas = buildIdeas([row({ query: "salty cleaner", impressions: 600, clicks: 0, position: 9.0 })]);
+    expect(ideas[0].kind).toBe("ctr_gap");
+    expect(ideas[0].confidence).toBe("high");
   });
 });
 

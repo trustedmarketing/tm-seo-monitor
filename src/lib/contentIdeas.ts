@@ -31,6 +31,7 @@ export type WindowRow = {
 };
 
 export type IdeaKind =
+  | "ctr_gap"             // ranks on page one but the title is not earning clicks
   | "striking_distance"   // ranks 8-20: a page exists and is close
   | "content_gap"         // demand exists, nothing of ours answers it
   | "question"            // phrased as a question — blog format specifically
@@ -134,7 +135,14 @@ function money(n: number): string {
 export function buildIdeas(
   current: WindowRow[],
   prior: WindowRow[] = [],
-  exclude: Set<string> = new Set()
+  exclude: Set<string> = new Set(),
+  /**
+   * Brand words for this client, lower-cased. A brand term ranking #1 does not
+   * need its title rewritten — people searching your name have already decided,
+   * and a below-curve CTR there usually means sitelinks or a knowledge panel
+   * absorbed the click rather than anything being wrong.
+   */
+  brandWords: string[] = []
 ): ContentIdea[] {
   // The query rollup rows are the demand signal. Page rows are used separately
   // for cannibalisation and for naming the page to improve.
@@ -162,6 +170,7 @@ export function buildIdeas(
     // one-off searches out of a list someone is meant to act on.
     if (row.impressions < 10) continue;
 
+    const isBrand = brandWords.some((w) => w.length >= 3 && key.includes(w));
     const rankingPages = pagesFor.get(key) ?? [];
     const best = rankingPages[0] ?? null;
     const priorRow = priorByQuery.get(key);
@@ -190,6 +199,57 @@ export function buildIdeas(
         position: best?.position ?? null,
       });
       continue;
+    }
+
+    // ── click-through gap ───────────────────────────────────────────────────
+    // Ranks on page one and still is not clicked. This is the cheapest win
+    // available anywhere on this screen: the ranking is already won, and the
+    // fix is a title and meta description rather than an article.
+    //
+    // Added 2026-07-29 after the first real pull. "best salt remover for boats"
+    // sat at #5.1 with 136 impressions and 5 clicks — a third of the clicks that
+    // position should earn — and the rules produced NOTHING for it, because
+    // positions 1-6 fell between striking distance and the gap rules.
+    if (!isBrand && row.position <= 10 && row.impressions >= 50) {
+      const expected = ctrAt(row.position);
+      const actual = row.impressions > 0 ? row.clicks / row.impressions : 0;
+      const gain = Math.round(row.impressions * (expected - actual));
+
+      // TWO conditions, not one. The ratio says the shortfall is real; the
+      // absolute floor says it is worth doing something about.
+      //
+      // Learned from the first real pull: on Salty Dog's volume a 29% CTR
+      // shortfall is worth two clicks a month. A rule that fired on the ratio
+      // alone would have filled the queue with true observations that are not
+      // worth anyone's twenty minutes, which is how a recommendation queue stops
+      // being read at all.
+      //
+      // 75% of the curve catches genuine title problems without tripping on
+      // ordinary SERP variation; 5 clicks a month is the floor for "act on this".
+      if (actual < expected * 0.75 && gain >= 5) {
+        ideas.push({
+          kind: "ctr_gap",
+          query: row.query,
+          title: workingTitle(row.query, "ctr_gap"),
+          rationale:
+            `Position ${row.position.toFixed(1)} with ${money(row.impressions)} impressions, but only ` +
+            `${money(row.clicks)} click${row.clicks === 1 ? "" : "s"} — ` +
+            `${(actual * 100).toFixed(1)}% where this position usually earns ${(expected * 100).toFixed(1)}%. ` +
+            `The ranking is already won; the title is not earning the click.`,
+          expectedClicks: gain > 0 ? gain : null,
+          basis: gain > 0 ? `Measured shortfall against the CTR curve at #${row.position.toFixed(0)}` : null,
+          // The strongest evidence in this file: measured clicks against a
+          // measured position, no assumption about a page that does not exist.
+          confidence: row.impressions >= 100 ? "high" : "medium",
+          action: "improve_page",
+          page: best?.page ?? null,
+          // Ranked top: cheapest fix, fastest payback, already-earned ranking.
+          score: gain * 25 + row.impressions,
+          impressions: row.impressions,
+          position: row.position,
+        });
+        continue;
+      }
     }
 
     // ── striking distance ───────────────────────────────────────────────────

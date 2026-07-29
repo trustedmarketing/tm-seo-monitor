@@ -111,6 +111,7 @@ export function ContentPipelineRail({ items }: { items: PipelineItem[] }) {
 // ── the recommendation card ─────────────────────────────────────────────────
 
 const KIND_LABEL: Record<ContentIdea["kind"], string> = {
+  ctr_gap:           "Click gap · ranking won, title is not",
   striking_distance: "Rank gap · page one within reach",
   content_gap:       "Content gap · demand with no page",
   question:          "Question · nothing of yours answers it",
@@ -261,13 +262,40 @@ export function ContentIdeaCard({
   );
 }
 
-/** Window provenance line. Every number above is only as fresh as this. */
-export function WindowNote({ windowEnd, capped }: { windowEnd: string | null; capped: number }) {
-  if (!windowEnd) return null;
+/**
+ * Window provenance line, with the re-collect control.
+ *
+ * The button used to render ONLY when there was no data, so it disappeared the
+ * moment it succeeded and there was no way to refresh. Same dead-end shape as
+ * the stuck-generating carousel: every state a screen can reach needs an action
+ * available, and "already has data" is a state.
+ */
+export function WindowNote({
+  windowEnd, capped, clientId,
+}: { windowEnd: string | null; capped: number; clientId: string }) {
   return (
-    <div className="caption" style={{ color: "var(--fg3)", marginTop: "var(--space-3)" }}>
-      Search Console, 28 days to {fmtDate(windowEnd)}. Top {capped} queries by impressions — the tail
-      below that is mostly single-impression noise. Search Console reports about two days behind.
+    <div style={{
+      display: "flex", alignItems: "center", gap: "var(--space-4)",
+      marginTop: "var(--space-3)", flexWrap: "wrap",
+    }}>
+      <div className="caption" style={{ color: "var(--fg3)", flex: 1, minWidth: 260 }}>
+        {windowEnd
+          ? <>Search Console, 28 days to {fmtDate(windowEnd)}. Top {capped} queries by impressions —
+             the tail below that is mostly single-impression noise. Search Console reports about two
+             days behind, so today and yesterday are never included.</>
+          : <>No window collected yet.</>}
+      </div>
+
+      <form action={`/api/ops/organic-collect?client=${clientId}`} method="post">
+        <button type="submit" style={{
+          fontFamily: "var(--font-body)", fontSize: 12.5, fontWeight: 600,
+          padding: "7px 14px", borderRadius: "var(--radius-pill)", cursor: "pointer",
+          border: "1px solid var(--border-strong)", background: "transparent", color: "var(--fg2)",
+          whiteSpace: "nowrap",
+        }}>
+          {windowEnd ? "Re-collect" : "Collect now"}
+        </button>
+      </form>
     </div>
   );
 }

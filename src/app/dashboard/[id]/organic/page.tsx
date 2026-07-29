@@ -276,7 +276,19 @@ export default async function ClientDetail({
     if (r.status !== "declined" || declinedRecently) exclude.add(r.target_query.toLowerCase());
   }
 
-  const ideas = topIdeas(buildIdeas(windows.current, windows.prior, exclude), 2);
+  // Brand words: the client's own name and domain. A brand term ranking #1 does
+  // not need a title rewrite — the searcher already decided before they typed.
+  //
+  // The full name as a PHRASE, not its individual words. Splitting "Salty Dog"
+  // into ["salty","dog"] would treat "salty hull foam gun" and "dog treats" as
+  // brand searches, which they are not. The phrase plus the domain token catches
+  // the real brand queries without swallowing the product ones.
+  const brandWords = [
+    String(client.name ?? "").toLowerCase().trim(),
+    String(client.domain ?? "").toLowerCase().replace(/^www\./, "").split(".")[0],
+  ].filter((w) => w.length >= 3);
+
+  const ideas = topIdeas(buildIdeas(windows.current, windows.prior, exclude, brandWords), 2);
 
   // ── keyword movement + the four tiles ────────────────────────────────────
   const { data: volRows } = await db
@@ -424,7 +436,7 @@ export default async function ClientDetail({
               ))
             )}
 
-            <WindowNote windowEnd={windows.windowEnd} capped={250} />
+            <WindowNote windowEnd={windows.windowEnd} capped={250} clientId={params.id} />
           </div>
 
           <ContentPipelineRail items={pipeline} />
