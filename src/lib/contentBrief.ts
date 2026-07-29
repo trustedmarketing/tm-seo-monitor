@@ -57,8 +57,12 @@ const SCHEMA = {
     h1: { type: "string" },
     audience: { type: "string" },
     goal: { type: "string" },
+    // NO minItems. The structured-output validator rejects any value above 1:
+    //   "For 'array' type, 'minItems' values other than 0 or 1 are not supported"
+    // It is a 400 at request time, so the whole call fails rather than degrading.
+    // The floor is enforced after the fact instead — see checkShape below.
     sections: {
-      type: "array", minItems: 3, maxItems: 9,
+      type: "array", maxItems: 9,
       items: {
         type: "object",
         required: ["heading", "covers", "answers"],
@@ -192,6 +196,16 @@ export async function draftBrief(
     metaTitle: value.metaTitle.slice(0, 60),
     metaDescription: value.metaDescription.slice(0, 160),
   };
+
+  // The floor the schema cannot express. A one-section "outline" is not a brief,
+  // and saving it would leave someone looking at a paid-for empty page wondering
+  // whether the button worked.
+  if (brief.sections.length < 2) {
+    throw new Error(
+      `The brief came back with ${brief.sections.length} section(s), which is not usable. ` +
+      `Try again, or add more tracked keywords so there is a richer query cluster to work from.`
+    );
+  }
 
   return { brief, costUsd: usage.costUsd };
 }

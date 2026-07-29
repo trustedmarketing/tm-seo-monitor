@@ -173,6 +173,12 @@ export default async function ContentItem({
             </form>
           </div>
 
+          {/* A form POST that takes most of a minute with no spinner reads as a
+              broken page — which is exactly how this looked the first time. */}
+          <div className="caption" style={{ color: "var(--fg3)", marginBottom: "var(--space-4)" }}>
+            Writing a brief takes around thirty seconds. The page will sit still until it finishes.
+          </div>
+
           {!brief ? (
             <div className="body-sm" style={{ color: "var(--fg2)", lineHeight: 1.6 }}>
               No brief yet. Generating one uses the client&apos;s own Search Console cluster — every
