@@ -439,7 +439,7 @@ export default async function ClientDetail({
             <WindowNote windowEnd={windows.windowEnd} capped={250} clientId={params.id} />
           </div>
 
-          <ContentPipelineRail items={pipeline} />
+          <ContentPipelineRail items={pipeline} clientId={params.id} />
         </section>
 
         {/* ── keyword movement ───────────────────────────────────────────── */}

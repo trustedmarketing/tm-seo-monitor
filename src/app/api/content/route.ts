@@ -5,6 +5,9 @@
 // unsaved state sitting in a component.
 import { getProfile, isAgency } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
+import { draftBrief, clusterFor } from "@/lib/contentBrief";
+import { readWindows } from "@/lib/organicCollector";
+import { BudgetExceededError } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -24,9 +27,15 @@ export async function POST(req: Request) {
   if (!clientId) return Response.json({ error: "client_id required" }, { status: 400 });
 
   const db = dbClient();
+  const origin = new URL(req.url).origin;
   const back = (msg?: string) =>
     Response.redirect(
-      `${new URL(req.url).origin}/dashboard/${clientId}/organic${msg ? `?msg=${encodeURIComponent(msg)}` : ""}`,
+      `${origin}/dashboard/${clientId}/organic${msg ? `?msg=${encodeURIComponent(msg)}` : ""}`,
+      303
+    );
+  const backToItem = (id: string, msg?: string) =>
+    Response.redirect(
+      `${origin}/dashboard/${clientId}/content/${id}${msg ? `?msg=${encodeURIComponent(msg)}` : ""}`,
       303
     );
 
@@ -37,7 +46,7 @@ export async function POST(req: Request) {
 
     const expected = str("expected_clicks_mo");
 
-    const { error } = await db.from("content_items").insert({
+    const { data: inserted, error } = await db.from("content_items").insert({
       client_id: clientId,
       title,
       target_query: str("target_query"),
@@ -50,7 +59,7 @@ export async function POST(req: Request) {
       status: "queued",
       status_note: `Accepted by ${profile?.full_name ?? profile?.email ?? "agency"}`,
       source: "agent",
-    });
+    }).select("id").maybeSingle();
 
     // 23505 is unique_violation — the partial index that stops the same topic
     // being queued twice. Not an error worth showing as a failure: the desired
@@ -58,7 +67,11 @@ export async function POST(req: Request) {
     if (error && error.code !== "23505") {
       return Response.json({ error: error.message }, { status: 500 });
     }
-    return back(error?.code === "23505" ? "Already in the pipeline" : "Added to the pipeline");
+    if (error?.code === "23505") return back("Already in the pipeline");
+
+    // Land on the item, not back on the list. "Added to the pipeline" with no
+    // onward route was the dead end this whole change exists to remove.
+    return inserted?.id ? backToItem(inserted.id, "Added to the pipeline") : back("Added to the pipeline");
   }
 
   // ── decline: recorded with a reason, and muted ────────────────────────────
@@ -104,7 +117,56 @@ export async function POST(req: Request) {
 
     const { error } = await db.from("content_items").update(patch).eq("id", id).eq("client_id", clientId);
     if (error) return Response.json({ error: error.message }, { status: 500 });
-    return back("Updated");
+    return backToItem(id, status === "published" ? "Published — measurement starts now" : "Moved");
+  }
+
+  // ── brief: generate what a writer works from ──────────────────────────────
+  if (action === "brief") {
+    const id = str("id");
+    if (!id) return Response.json({ error: "id required" }, { status: 400 });
+
+    const { data: item, error: itemErr } = await db
+      .from("content_items").select("*").eq("id", id).eq("client_id", clientId).maybeSingle();
+    if (itemErr) return Response.json({ error: itemErr.message }, { status: 500 });
+    if (!item) return Response.json({ error: "not found" }, { status: 404 });
+
+    const { data: client } = await db.from("clients").select("name").eq("id", clientId).single();
+
+    // The cluster is what makes this different from asking a model for an
+    // outline: real searches this site already appears for.
+    const windows = await readWindows(db, clientId);
+    const target = item.target_query ?? item.title;
+    const cluster = clusterFor(target, windows.current, item.url ?? null);
+
+    try {
+      const { brief, costUsd } = await draftBrief(db, {
+        clientId,
+        clientName: client?.name ?? "the client",
+        title: item.title,
+        targetQuery: item.target_query,
+        // A rework when we know which page; a new article otherwise.
+        action: item.url ? "improve_page" : "new_article",
+        page: item.url,
+        rationale: item.rationale,
+        cluster,
+      });
+
+      const { error: saveErr } = await db.from("content_items").update({
+        brief,
+        brief_generated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", id).eq("client_id", clientId);
+
+      // Checked: a brief generated, paid for, and then silently not saved is the
+      // worst outcome here — it costs money and looks like the button did nothing.
+      if (saveErr) return Response.json({ error: `brief generated but not saved: ${saveErr.message}` }, { status: 500 });
+
+      return backToItem(id, `Brief written · $${costUsd.toFixed(3)}`);
+    } catch (e) {
+      // The ceiling is a control, not a crash. Say what happened and what to do.
+      if (e instanceof BudgetExceededError) return backToItem(id, e.message);
+      return backToItem(id, `Brief failed: ${(e as Error).message}`);
+    }
   }
 
   return Response.json({ error: `unknown action: ${action}` }, { status: 400 });

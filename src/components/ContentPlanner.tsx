@@ -53,7 +53,7 @@ function daysLive(publishedAt: string | null): number | null {
   return d >= 0 ? d : null;
 }
 
-export function ContentPipelineRail({ items }: { items: PipelineItem[] }) {
+export function ContentPipelineRail({ items, clientId }: { items: PipelineItem[]; clientId: string }) {
   return (
     <section style={{
       background: "var(--surface)", border: "1px solid var(--border)",
@@ -78,12 +78,13 @@ export function ContentPipelineRail({ items }: { items: PipelineItem[] }) {
                 padding: i === 0 ? "0 0 var(--space-4)" : "var(--space-4) 0",
                 borderTop: i === 0 ? "none" : "1px solid var(--divider)",
               }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg1)", lineHeight: 1.35 }}>
-                  {it.url
-                    ? <a href={it.url} target="_blank" rel="noopener noreferrer"
-                         style={{ color: "inherit", textDecoration: "none" }}>{it.title}</a>
-                    : it.title}
-                </div>
+                {/* Links to the item, not the published URL. The article is one
+                    click further on; the thing you need from here is the brief
+                    and the stage controls. */}
+                <a href={`/dashboard/${clientId}/content/${it.id}`} style={{
+                  fontSize: 14, fontWeight: 600, color: "var(--fg1)",
+                  lineHeight: 1.35, textDecoration: "none", display: "block",
+                }}>{it.title}</a>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginTop: 5, flexWrap: "wrap" }}>
                   <StatusChip status={it.status} />
