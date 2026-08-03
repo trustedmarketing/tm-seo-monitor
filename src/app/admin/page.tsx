@@ -9,6 +9,8 @@ type Client = {
   id: string; name: string; domain: string; tier: string | null;
   location_code: number; gsc_property: string | null;
   core_frequency: string; serp_frequency: string; crawl_frequency: string;
+  client_type: string | null; ga4_property_id: string | null;
+  service_areas: Array<{ city?: string; location_code?: number }> | null;
 };
 type Keyword = { id: string; client_id: string; keyword: string };
 type Prompt = { id: string; client_id: string; prompt: string };
@@ -16,6 +18,12 @@ type Suggestion = { keyword: string; source: string; note: string };
 
 const FREQS = ["daily", "weekly", "biweekly", "monthly", "paused"];
 const TIERS = ["", "Consistency", "Momentum", "Dominate"];
+const TYPES: Array<[string, string]> = [
+  ["", "Unclassified"],
+  ["local_service", "Local service"],
+  ["national_ecom", "National eCommerce"],
+  ["hybrid", "Hybrid"],
+];
 
 const S = {
   input: {
@@ -54,6 +62,8 @@ export default function Admin() {
   const [kwInput, setKwInput] = useState("");
   const [promptInput, setPromptInput] = useState("");
   const [gscInput, setGscInput] = useState<string | null>(null);
+  const [locInput, setLocInput] = useState<string | null>(null);
+  const [areasInput, setAreasInput] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [form, setForm] = useState<Partial<Client>>({});
 
@@ -124,8 +134,22 @@ export default function Admin() {
                   onChange={(e) => setForm({ ...form, tier: e.target.value })}>
                   {TIERS.map((t) => <option key={t} value={t}>{t || "No tier"}</option>)}
                 </select>
+                {/* Classify at creation. Left null the workspace falls back to the
+                    universal tab set, so Revenue and GBP are decided by nobody. */}
+                <select style={S.input} value={form.client_type ?? ""}
+                  onChange={(e) => setForm({ ...form, client_type: e.target.value })}>
+                  {TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
                 <input style={S.input} placeholder="GSC property (sc-domain:domain.com)" value={form.gsc_property ?? ""}
                   onChange={(e) => setForm({ ...form, gsc_property: e.target.value })} />
+                <input style={S.input} placeholder="GA4 property ID (539468239)" value={form.ga4_property_id ?? ""}
+                  onChange={(e) => setForm({ ...form, ga4_property_id: e.target.value })} />
+                {/* 2840 is the whole United States. For a local client that tracks
+                    national rankings for a business competing in one metro, and
+                    the numbers look plausible either way. */}
+                <input style={S.input} placeholder="DataForSEO location code (2840 = US)"
+                  value={form.location_code ?? ""}
+                  onChange={(e) => setForm({ ...form, location_code: e.target.value as unknown as number })} />
                 <button style={S.btn} onClick={() => run("Add client", async () => {
                   await api({ action: "upsert_client", ...form });
                   setForm({}); await load();
@@ -135,7 +159,10 @@ export default function Admin() {
 
             <div style={{ ...S.card, padding: 12 }}>
               {clients.map((c) => (
-                <button key={c.id} onClick={() => { setSelected(c.id); setSuggestions([]); setGscInput(null); }}
+                <button key={c.id} onClick={() => {
+                    setSelected(c.id); setSuggestions([]);
+                    setGscInput(null); setLocInput(null); setAreasInput(null);
+                  }}
                   style={{
                     display: "flex", width: "100%", alignItems: "center", gap: 8,
                     padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer",
@@ -144,6 +171,16 @@ export default function Admin() {
                     fontFamily: "var(--font-body)", fontSize: 14, fontWeight: 600, textAlign: "left",
                   }}>
                   {c.name}
+                  {/* Migration 013 leaves client_type null rather than guessing, on the
+                      condition that /admin keeps the gap visible. This is that. */}
+                  {!c.client_type && (
+                    <span title="No client type — the workspace falls back to the universal tab set"
+                      style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
+                               padding: "2px 7px", borderRadius: 999, border: "1px solid var(--border-strong)",
+                               color: c.id === selected ? "#fff" : "var(--fg3)" }}>
+                      unclassified
+                    </span>
+                  )}
                   <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 600, color: c.id === selected ? "var(--tm-performance-green)" : "var(--fg3)" }}>
                     {keywords.filter((k) => k.client_id === c.id).length} kw
                   </span>
@@ -160,6 +197,12 @@ export default function Admin() {
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
                   <span style={{ fontSize: 17, fontWeight: 600 }}>{sel.name}</span>
                   <span style={{ fontSize: 13, color: "var(--fg3)" }}>{sel.domain}</span>
+                  {/* Credentials, GA4, ClickUp and the store connections live on the
+                      client's own Settings screen — this page never sees a secret. */}
+                  <a href={`/dashboard/${sel.id}/settings`} target="_blank" rel="noreferrer"
+                    style={{ marginLeft: "auto", fontSize: 13, fontWeight: 600, color: "var(--fg2)" }}>
+                    Connections &amp; credentials ↗
+                  </a>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
                   {(["core_frequency", "serp_frequency", "crawl_frequency"] as const).map((f) => (
@@ -167,7 +210,10 @@ export default function Admin() {
                       <label style={S.label}>{f.replace("_frequency", "")}</label>
                       <select style={S.input} value={sel[f]}
                         onChange={(e) => run("Update frequency", async () => {
-                          await api({ action: "upsert_client", ...sel, [f]: e.target.value });
+                          // Send only what changed. Resending the whole client from
+                          // this page's copy would revert anything Settings changed
+                          // in another tab.
+                          await api({ action: "upsert_client", id: sel.id, [f]: e.target.value });
                           await load();
                         })}>
                         {FREQS.map((x) => <option key={x} value={x}>{x}</option>)}
@@ -182,9 +228,37 @@ export default function Admin() {
                       placeholder="sc-domain:client.com"
                       onChange={(e) => setGscInput(e.target.value)} />
                     <button style={S.btnGhost} onClick={() => run("Save GSC property", async () => {
-                      await api({ action: "upsert_client", ...sel, gsc_property: (gscInput ?? sel.gsc_property ?? "").trim() });
+                      await api({ action: "upsert_client", id: sel.id, gsc_property: (gscInput ?? sel.gsc_property ?? "").trim() });
                       setGscInput(null); await load();
                     })}>Save</button>
+                  </div>
+                </div>
+
+                {/* Rank-tracking geography. No other screen writes these, and the
+                    default (2840, the whole US) is wrong for every local client. */}
+                <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 12, marginTop: 16, alignItems: "start" }}>
+                  <div>
+                    <label style={S.label}>Location code</label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input style={S.input} value={locInput ?? String(sel.location_code ?? "")}
+                        onChange={(e) => setLocInput(e.target.value)} />
+                      <button style={S.btnGhost} onClick={() => run("Save location", async () => {
+                        await api({ action: "upsert_client", id: sel.id, location_code: locInput ?? sel.location_code });
+                        setLocInput(null); await load();
+                      })}>Save</button>
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--fg3)", marginTop: 5 }}>2840 = United States.</div>
+                  </div>
+                  <div>
+                    <label style={S.label}>Service areas — one per line, &ldquo;City, ST | location_code&rdquo;</label>
+                    <textarea style={{ ...S.input, minHeight: 72, resize: "vertical", fontFamily: "var(--font-body)" }}
+                      placeholder={"Dallas, TX | 1026339\nFort Worth, TX | 1026460"}
+                      value={areasInput ?? (sel.service_areas ?? []).map((a) => `${a.city} | ${a.location_code}`).join("\n")}
+                      onChange={(e) => setAreasInput(e.target.value)} />
+                    <button style={{ ...S.btnGhost, marginTop: 8 }} onClick={() => run("Save service areas", async () => {
+                      await api({ action: "upsert_client", id: sel.id, service_areas: areasInput ?? "" });
+                      setAreasInput(null); await load();
+                    })}>Save areas</button>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
