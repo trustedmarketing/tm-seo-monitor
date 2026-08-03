@@ -5,6 +5,56 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-03 · Session 1 · Onboarding a client was broken — `module/client-onboarding`
+
+Started as "add Emporium Threads", found that **no client could be added at all**.
+
+### The blocker
+`/admin` → Add client returned `null value in column "organization_id" of relation
+"clients" violates not-null constraint`. Migration 012 added `organization_id`,
+backfilled the rows that existed and set NOT NULL; `upsert_client` never set it.
+Salty Dog and DAPS predate 012, so the first person to hit it was the first
+person to onboard a client after 2026-07-27.
+
+Fixed by resolving the organization at insert: one organization is unambiguous,
+more than one must be passed explicitly. Attaching a client to the wrong agency
+is not a mistake RLS lets you see afterwards.
+
+### Three more the same path was getting wrong
+- **Lost update.** `upsert_client` rebuilt the entire row from the page's copy of
+  the client, so changing a collection frequency in `/admin` rewrote tier, GSC
+  property and location code — reverting whatever Settings had changed in another
+  tab. Updates are partial now and the page sends only what changed.
+- **`location_code` had no UI anywhere** and defaulted to 2840, the whole US.
+  For a local client that tracks national rankings for a business competing in
+  one metro, and it looks plausible either way. Now a field, with `service_areas`
+  alongside it — also previously SQL-only.
+- **`client_type` could only be set after creation**, so every client started
+  unclassified. On the create form now; unclassified clients are badged in the
+  list, which is the condition migration 013 attached to its null default.
+
+GA4 property IDs are validated by class — measurement ID, GTM container and UA
+property each named rather than a generic "invalid". A wrong value in that exact
+field failed daily for six days and GA4's error never named the property.
+
+### Corrected the record
+An earlier read of this session claimed `client_type` and `ga4_property_id` were
+SQL-only. They are not — `/dashboard/[id]/settings` has covered both, plus the
+Shopify and WordPress connections, since WO-003. The gap was only that Settings
+edits a client that already exists, and `/admin` is the only thing that creates one.
+
+### Verified
+`lib/clientProfile.ts` (21 tests) · 378/378 unit · tsc clean · build clean ·
+end to end against staging: create, partial update, both rejection paths. Probe
+row deleted.
+
+### Next
+Emporium Threads still not added — needs this branch merged (main auto-deploys),
+then Appendix A steps 1–7. Outstanding from Tom: client type, store platform,
+GA4 property ID, keyword list, AI prompts.
+
+---
+
 ## 2026-07-29 · Session 1 · Design port finished, work parked, Organic started — `main`
 
 ### Shipped
