@@ -4,6 +4,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { rankedKeywords } from "@/lib/dataforseo";
 import { dailyHistory, topQueries } from "@/lib/gsc";
+import { buildClientRow } from "@/lib/clientProfile";
 
 function db() {
   return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -11,6 +12,35 @@ function db() {
 
 function unauthorized(req: Request): boolean {
   return req.headers.get("authorization") !== `Bearer ${process.env.ADMIN_PASSWORD}`;
+}
+
+/**
+ * Which organization a new client belongs to.
+ *
+ * Migration 012 made `clients.organization_id` NOT NULL and backfilled the rows
+ * that existed, but nothing here ever set it — so every client added through
+ * this endpoint since 2026-07-27 failed on the constraint. The two live clients
+ * predate the migration, which is why it went unnoticed.
+ *
+ * This endpoint authenticates with a shared password rather than a Supabase
+ * user, so there is no session to read an org from. With one organization the
+ * answer is unambiguous; with more than one it must be stated, because silently
+ * attaching a client to the wrong agency is not a mistake RLS would let you see
+ * afterwards.
+ */
+async function resolveOrganizationId(
+  s: ReturnType<typeof db>,
+  explicit?: unknown
+): Promise<string> {
+  if (typeof explicit === "string" && explicit) return explicit;
+
+  const { data, error } = await s.from("organizations").select("id, name").limit(2);
+  if (error) throw error;
+  if (!data?.length) throw new Error("No organization exists — run migration 012.");
+  if (data.length > 1) {
+    throw new Error("More than one organization exists; pass organization_id explicitly.");
+  }
+  return data[0].id as string;
 }
 
 export async function GET(req: Request) {
@@ -32,21 +62,19 @@ export async function POST(req: Request) {
   try {
     switch (body.action) {
       // ── Add / update a client ───────────────────────────────────
+      // Validation and shaping live in lib/clientProfile so they can be tested
+      // without a database, and so an UPDATE only writes the fields it was
+      // actually given (see buildClientRow — this used to clobber the rest).
       case "upsert_client": {
-        const { id, name, domain, tier, location_code, gsc_property,
-                core_frequency, serp_frequency, crawl_frequency } = body;
-        const row = {
-          name, domain: domain?.replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
-          tier: tier || null,
-          location_code: location_code || 2840,
-          gsc_property: gsc_property || null,
-          core_frequency: core_frequency || "weekly",
-          serp_frequency: serp_frequency || "weekly",
-          crawl_frequency: crawl_frequency || "monthly",
-        };
+        const { id, ...fields } = body;
+        const built = buildClientRow(fields, id ? "update" : "insert");
+        if ("error" in built) return Response.json({ error: built.error }, { status: 400 });
+
         const q = id
-          ? s.from("clients").update(row).eq("id", id).select().single()
-          : s.from("clients").insert(row).select().single();
+          ? s.from("clients").update(built.row).eq("id", id).select().single()
+          : s.from("clients")
+              .insert({ ...built.row, organization_id: await resolveOrganizationId(s, fields.organization_id) })
+              .select().single();
         const { data, error } = await q;
         if (error) throw error;
         return Response.json({ client: data });
