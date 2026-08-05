@@ -1,0 +1,14 @@
+[
+  {
+    "campaign": { "id": "17300000001", "name": "Search - Brand", "status": "ENABLED", "advertising_channel_type": "SEARCH" },
+    "campaign_budget": { "amount_micros": "30000000" }
+  },
+  {
+    "campaign": { "id": "17300000002", "name": "Search - Non-Brand", "status": "ENABLED", "advertising_channel_type": "SEARCH" },
+    "campaign_budget": { "amount_micros": "60000000" }
+  },
+  {
+    "campaign": { "id": "17300000003", "name": "Performance Max - Catalog", "status": "PAUSED", "advertising_channel_type": "PERFORMANCE_MAX" },
+    "campaign_budget": { "amount_micros": "45000000" }
+  }
+]
