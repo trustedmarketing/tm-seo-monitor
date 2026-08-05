@@ -1,10 +1,12 @@
 // lib/recSync.ts — persist recommendations per collection, measure shipped changes.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildRecommendations } from "@/lib/recommendations";
+import { buildPaidRecommendations } from "@/lib/paidRecommendations";
+import { buildCampaignRollups, type CampaignRollupInput, type MetricRow } from "@/lib/paidRollup";
 
 // ── Sync: recompute rules from latest data, upsert preserving status ──
 export async function syncRecommendations(db: SupabaseClient, clientId: string) {
-  const [{ data: snaps }, { data: kws }, { data: ranks }, { data: tprompts }, { data: presults }] =
+  const [{ data: snaps }, { data: kws }, { data: ranks }, { data: tprompts }, { data: presults }, { data: campaignRows }, { data: campaignMetrics }] =
     await Promise.all([
       db.from("metric_snapshots").select("*").eq("client_id", clientId)
         .order("captured_at", { ascending: false }).limit(2),
@@ -14,6 +16,9 @@ export async function syncRecommendations(db: SupabaseClient, clientId: string) 
       db.from("tracked_prompts").select("id, prompt").eq("client_id", clientId).eq("active", true),
       db.from("prompt_results").select("prompt_id, mentioned, cited, checked_at").eq("client_id", clientId)
         .order("checked_at", { ascending: false }).limit(200),
+      db.from("campaigns").select("id, platform, campaign_id, campaign_name, status, daily_budget").eq("client_id", clientId),
+      db.from("ad_metrics_daily").select("campaign_id, platform, date, spend, revenue").eq("client_id", clientId)
+        .gte("date", new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)),
     ]);
 
   const [cur, prev] = (snaps ?? []) as any[];
@@ -42,7 +47,12 @@ export async function syncRecommendations(db: SupabaseClient, clientId: string) 
     return { prompt: tp.prompt, mentioned: r ? r.mentioned : null, cited: r ? r.cited : null };
   });
 
-  const recs = buildRecommendations(cur, prev, kwRows, promptRows);
+  const rollups = buildCampaignRollups(
+    (campaignRows ?? []) as CampaignRollupInput[],
+    (campaignMetrics ?? []) as MetricRow[]
+  );
+
+  const recs = [...buildRecommendations(cur, prev, kwRows, promptRows), ...buildPaidRecommendations(rollups)];
   const activeKeys = recs.map((r) => r.key);
 
   const { data: existing } = await db.from("recommendations")

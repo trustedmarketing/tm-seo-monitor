@@ -14,6 +14,8 @@ type Conv = { source: string; revenue: number | null };
 
 const STATUS_LABEL: Record<string, string> = { active: "Running", paused: "Paused", removed: "Removed" };
 const STATUS_COLOR: Record<string, string> = { active: "var(--tm-green-deep)", paused: "var(--fg3)", removed: "var(--fg3)" };
+const SEVERITY_COLOR: Record<string, string> = { high: "#B8433D", medium: "#B8860B", low: "var(--fg3)" };
+type PaidRec = { id: string; severity: "high" | "medium" | "low"; title: string; detail: string };
 
 function roasCell(v: number | null): string {
   return v != null ? v.toFixed(2) + "×" : "–";
@@ -34,7 +36,7 @@ const PLATFORMS = [
 
 export default async function Paid({ params }: { params: { id: string } }) {
   const db = userClient();
-  const [{ data: client }, { data: ads }, { data: convs }, { data: campaignRows }, { data: campaignMetrics }] = await Promise.all([
+  const [{ data: client }, { data: ads }, { data: convs }, { data: campaignRows }, { data: campaignMetrics }, { data: paidRecRows }] = await Promise.all([
     db.from("clients").select("id, name, domain, tier, client_type").eq("id", params.id).single(),
     db.from("ad_metrics_daily").select("spend, revenue, platform, conversions").eq("client_id", params.id),
     db.from("conversions_daily").select("source, revenue").eq("client_id", params.id),
@@ -45,8 +47,22 @@ export default async function Paid({ params }: { params: { id: string } }) {
       .select("campaign_id, platform, date, spend, revenue")
       .eq("client_id", params.id)
       .gte("date", new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)),
+    // Paid-category recommendations (WO-006 stream C) — same recommendations
+    // table/lifecycle as SEO, filtered to this channel and to what's still
+    // actionable (not dismissed/resolved/already shipped).
+    db
+      .from("recommendations")
+      .select("id, severity, title, detail")
+      .eq("client_id", params.id)
+      .eq("category", "Paid")
+      .in("status", ["open", "approved"]),
   ]);
   if (!client) return <main style={{ padding: 48 }}>Client not found. <Link href="/dashboard">Back</Link></main>;
+
+  const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+  const paidRecs = ((paidRecRows ?? []) as PaidRec[]).sort(
+    (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]
+  );
 
   const campaignRollups = buildCampaignRollups(
     (campaignRows ?? []) as CampaignRollupInput[],
@@ -163,6 +179,20 @@ export default async function Paid({ params }: { params: { id: string } }) {
             </div>
           )}
         </section>
+
+        {paidRecs.length > 0 && (
+          <section style={{ ...card, padding: "20px 24px", marginTop: 16 }}>
+            <div style={eyebrow}>Recommendations</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
+              {paidRecs.map((r) => (
+                <div key={r.id} style={{ padding: "10px 12px", borderLeft: `3px solid ${SEVERITY_COLOR[r.severity] ?? "var(--fg3)"}`, background: "var(--bg)", borderRadius: 6 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.title}</div>
+                  <div style={{ fontSize: 12.5, color: "var(--fg2)", marginTop: 3, lineHeight: 1.5 }}>{r.detail}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </main>
   );
