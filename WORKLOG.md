@@ -5,6 +5,58 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-05 · Session 1 · Paid ads control surface built end to end — WO-006, six branches
+
+Tom asked for: campaign-level ROAS on `/paid` (day-prior/7-day/30-day),
+recommendations + a pause/amend/create-campaign execution path, Bloom
+creative for ads (4:5 first, fan out to 1:1/9:16 only after approval), and a
+customer-persona layer. `docs/wo-006-paid-ads-control-surface.md` has the
+full writeup; summary here.
+
+**This isn't from scratch.** `docs/spec-growth-os-two-sided.md` §7/§9 and
+`docs/tm-growth-os-plan.md` Module C/D already scoped almost exactly this —
+approval tiers, a spend-guard hard guardrail, paused-by-default staging, and
+the Bloom→ads creative loop. WO-006 **supersedes** `wo-003`'s Wave 3 Stream G
+(`module/paid-controls`), which was reserved but never built. Named WO-006
+because WO-005 is already taken (organic content, shipped).
+
+### Shipped, six module branches, not yet merged
+- **`module/paid-campaign-registry`** (migration 039) — `campaigns` entity
+  registry with real status/budget, synced by each collector.
+- **`module/paid-dashboard`** — campaign ROAS table on `/paid`
+  (`lib/paidRollup.ts`), anchored on the latest date actually in the data.
+- **`module/paid-recommendations`** — `lib/paidRecommendations.ts`, a new
+  `"Paid"` category in the existing recs lifecycle, surfaced on `/paid`.
+- **`module/paid-controls`** (migration 040) — pause/resume/updateBudget/
+  createCampaign adapters for all three platforms, wired into
+  `api/approvals/route.ts`'s publish path with a spend-guard check that
+  fails the card rather than approving through a ceiling breach.
+- **`module/paid-personas`** (migration 041) — `client_personas` + a new
+  `/paid/personas` page. Copy/creative context only, no platform targeting
+  API touched, per Tom's confirmed scope.
+- **`module/paid-creative`** (migration 042) — `creatives` library +
+  `lib/adCreative.ts`. The fan-out gate (`fanOutSizes()`) is the one piece
+  worth reading closely: 1:1/9:16 are only ever generated for an approved
+  4:5, never as a default.
+
+### Escalation for Tom, not a blocker
+Live pause/amend against real Meta/Google/Microsoft ad accounts needs
+write-scope tokens — today's `auth_ref` credentials are read-only. Per
+CLAUDE.md's escalation list, provisioning those is a Tom-only step. Every
+adapter is built and tested against `MOCK_APIS=1` and stays dry-run-only
+against real accounts until that lands.
+
+### Honest gap
+**Could not run `npm test`** — this environment has no Node/npm installed.
+Every test file was hand-traced against the implementation instead of
+executed. Run the real suite before merging any of these six branches.
+
+### Next phase, explicitly not started
+Landing pages. Tom's direction: CTO starts researching landing-page
+technology now, in parallel — nothing in WO-006 blocks on it or depends on it.
+
+---
+
 ## 2026-08-03 · Session 1 · Onboarding a client was broken — `module/client-onboarding`
 
 Started as "add Emporium Threads", found that **no client could be added at all**.
