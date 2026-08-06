@@ -1,27 +1,33 @@
 # Growth OS — STATUS
 
-_Last updated: 2026-08-05_
+_Last updated: 2026-08-06_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
 
-### Paid ads control surface — WO-006 (2026-08-05)
+### Paid ads control surface — WO-006 (2026-08-06)
 
-Built across six module branches (`module/paid-campaign-registry` →
-`-dashboard` → `-recommendations` → `-controls` → `-personas` → `-creative`),
-**not yet merged** — awaiting Tom's daily merge review and a real `npm test`
-run (this build environment has no Node/npm; every test was hand-verified
-against the implementation, not executed). Full writeup:
-`docs/wo-006-paid-ads-control-surface.md`; session summary in `WORKLOG.md`.
+Built across eight module branches (`module/paid-campaign-registry` →
+`-dashboard` → `-recommendations` → `-controls` → `-personas` → `-creative` →
+`-ad-copy` → `-ad-previews`), **not yet merged** — awaiting Tom's daily merge
+review. `npm test` (455/455) and `tsc --noEmit` are now verified clean on all
+eight branches merged together locally (Node installed via Homebrew this
+session; the earlier "no Node/npm, hand-verified only" caveat no longer
+applies). Full writeup: `docs/wo-006-paid-ads-control-surface.md`; session
+summaries in `WORKLOG.md`.
 
 Ships: campaign-level day-prior/7-day/30-day ROAS on `/paid`, a `"Paid"`
 recommendations category, dry-run-first pause/resume/budget/create-campaign
 adapters behind the existing approval-card flow with a spend-guard hard
 guardrail, a customer-persona data model (copy/creative context only, no
-platform targeting sync), and Bloom ad creative that generates 4:5 first and
-only fans out to 1:1/9:16 after a human approves the concept.
+platform targeting sync), Bloom ad creative that generates 4:5 first and only
+fans out to 1:1/9:16 after a human approves the concept, generated ad copy
+per platform (Google RSA/PMax, Microsoft RSA, Meta feed) with verified
+real character/count limits, and locally-rendered previews of how each
+format's copy will look. Staging a new campaign now bundles creative + copy
+generation together — the turnkey path.
 
 **Open before this is client-visible:** write-scope OAuth tokens for live
-Meta/Google/Microsoft Ads writes (escalation — Tom-only, see CLAUDE.md);
-`npm test` actually run; one pilot client walked through end to end.
+Meta/Google/Microsoft Ads writes (escalation — Tom-only, see CLAUDE.md); one
+pilot client walked through end to end on a real preview deploy.
 
 ### Social content planner — WO-004 (2026-07-28)
 

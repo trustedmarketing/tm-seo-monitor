@@ -5,6 +5,61 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-06 · Session 2 · Ad copy generation + previews, and tests actually ran this time
+
+Tom's follow-up on WO-006: campaigns need the actual TEXT assets each
+platform requires (Google RSA headlines/descriptions, PMax's larger set,
+Meta primary text/headline/description, Microsoft's RSA equivalent) and a
+way to preview how they'll render — "a total turnkey solution," not just
+budget + an image.
+
+### Verified limits before writing any code
+Web search, not memory, since these change and getting them wrong ships a
+broken tool: **Google RSA** 3-15 headlines (30 chars) / 2-4 descriptions
+(90 chars). **Google PMax** adds 1-5 long headlines (90 chars) + business
+name (25 chars). **Microsoft RSA** mirrors Google's. **Meta feed** is 1-5
+primary texts (125 chars) / 1-5 headlines (40 chars) / 1-5 descriptions
+(30 chars).
+
+### Shipped, two more module branches (PRs #22, #23)
+- **`module/paid-ad-copy`** (migration 043, `ad_copy_sets`) — `lib/adCopy.ts`
+  reuses `lib/ai.ts`'s `generate()` (the same Claude wrapper social captions
+  already use). Two gotchas discovered and designed around: the
+  structured-output schema can't carry length/count constraints (the API
+  rejects them outright — they live in the prompt and in post-processing
+  instead, same as `lib/caption.ts` already does), and `generate()`'s own
+  mock branch returns a caption-shaped fixture regardless of `feature` (new
+  code checks `mockApis()` itself first). Over-limit copy is flagged, never
+  truncated.
+- **`module/paid-ad-previews`** — three preview components (Google/Microsoft
+  search, PMax, Meta feed), wired into `/paid/creative`. The actual turnkey
+  piece: staging a new campaign now generates a 4:5 creative AND a matching
+  copy set together, tagged with the approval id until the real campaign
+  exists, then backfilled on approval.
+
+### The other thing that actually changed this session: tests ran for real
+Earlier in this WO, every test was hand-traced because this machine had no
+Node/npm. This session: installed Node via Homebrew (it was already
+`brew`-installed but not linked to PATH — used the direct
+`/opt/homebrew/opt/node/bin` path rather than fighting `brew link`), ran
+`npm install`, and actually executed the suite. **All eight WO-006 branches
+merged together locally and verified as one unit: `npm test` 455/455,
+`tsc --noEmit` clean.** The merges were conflict-free, which is real
+confirmation the streams are as independent as the WO doc claims — not
+just an assertion. Scratch merge branch deleted after verification; nothing
+merged was ever pushed.
+
+### Also produced this session, for Tom to actually see the UI
+Chrome's browser-automation tools refused to navigate to `localhost` (looks
+like a deliberate security restriction, not a bug) — worked around it by
+taking the real server-rendered HTML/CSS from `/paid`, `/paid/personas`,
+and `/paid/creative` under a `DEMO_MODE=1` flag (temporarily stubbed
+`userClient()`/`middleware.ts`, never committed, fully reverted) seeded
+with realistic fake data, and packaging it as a local preview artifact.
+Confirms the pages actually render, not just that they typecheck.
+
+---
+
 ## 2026-08-05 · Session 1 · Paid ads control surface built end to end — WO-006, six branches
 
 Tom asked for: campaign-level ROAS on `/paid` (day-prior/7-day/30-day),

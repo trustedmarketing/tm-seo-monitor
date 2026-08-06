@@ -1,6 +1,8 @@
 # WO-006 — Paid Ads Control Surface
 
-**Status:** Built across six module branches, awaiting Tom's merge review.
+**Status:** Built across eight module branches, awaiting Tom's merge review.
+`npm test` (455/455) and `tsc --noEmit` verified clean on the full 8-branch
+merge in this session — no longer just hand-traced.
 **Opened:** 2026-08-05 · **Owner:** CTO
 **Update channel:** `WORKLOG.md` (repo root).
 
@@ -34,6 +36,14 @@ once a human approves the concept.
   doesn't gather yet).
 - A real code-level allowlist for Bloom's "pilot-only, two brands" DPA
   constraint (still enforced by convention only — flagged in stream F).
+- Per-headline editing/approval for generated ad copy (stream G stores one
+  jsonb set per platform/format, all-or-nothing in v1).
+- Meta Reels/Stories-specific character variants (stream G covers Feed
+  limits only).
+- Rendering the turnkey creative+copy bundle inside `ApprovalCard.tsx`
+  itself (stream H) — seeing it happens on `/paid/creative`, not the card.
+- Any live platform preview API — stream H's previews are locally-rendered
+  approximations of documented layout conventions, not pixel-exact output.
 
 ---
 
@@ -46,7 +56,7 @@ merge review — same as every prior WO.
 
 ---
 
-## Streams — all six built
+## Streams — all eight built
 
 ### Stream A · `module/paid-campaign-registry` — campaign entity + status sync
 **Migration 039** (`campaigns` table). `ad_metrics_daily` has no status
@@ -108,6 +118,33 @@ reusing the exact approved prompt text for the fan-out siblings. New
 `/dashboard/[id]/paid/creative` page shows concepts grouped by
 `concept_group_id` with per-size status.
 
+### Stream G · `module/paid-ad-copy` — ad copy generation engine
+**Migration 043** (`ad_copy_sets`, plus an `approval_id` column added to
+both `ad_copy_sets` and `creatives`). Tom's follow-up ask: a turnkey
+campaign needs the actual text assets each platform requires, not just
+budget and an image. `lib/adCopyLimits.ts` encodes verified (web search,
+not memory) per-platform/format limits — Google RSA, Google PMax (adds long
+headlines + business name), Microsoft RSA (mirrors Google's), Meta feed
+(primary text + headline + description). `lib/adCopy.ts` reuses
+`lib/ai.ts`'s `generate()` (the same Claude wrapper `lib/caption.ts` uses
+for social captions), working around two real gotchas: the structured-output
+schema can't carry length/count constraints (they live in the prompt and in
+post-processing instead), and `generate()`'s own mock branch returns a
+caption-shaped fixture regardless of feature (this file checks `mockApis()`
+itself first). Over-limit text is flagged, never truncated.
+
+### Stream H · `module/paid-ad-previews` — previews + turnkey bundling
+Three preview components (`SearchAdPreview` shared by Google/Microsoft,
+`PerformanceMaxPreview`, `MetaFeedPreview`) — approximate documented
+layouts, not pixel-exact clones, wired into `/paid/creative` alongside the
+existing image concept groups. The actual "total turnkey solution" piece:
+`stage-ad-action`'s `create_campaign` now generates a 4:5 creative AND a
+matching copy set in the same call, both tagged with the new approval's id
+(the real campaign doesn't exist yet at staging time); `approvals/route.ts`
+backfills `campaign_id` on both once the campaign is actually created.
+Best-effort — a missing Bloom brand id or copy-generation failure warns,
+never blocks staging the campaign card itself.
+
 ---
 
 ## Integration note for the merge session
@@ -118,6 +155,15 @@ paid/`. B and C share one branch chain (C branches from B) so their edits to
 (`/paid/personas`, `/paid/creative`) specifically to avoid touching that same
 file from independent branches — the one remaining integration step is a
 one-line nav link from `/paid` to each sub-route once everything lands.
+
+G branches from F (extends `creatives` + reuses `AdCreativeBrief`). H
+branches from G, and additionally merges in D (`module/paid-controls`)
+because its turnkey wiring extends `stage-ad-action`/`approvals/route.ts`
+directly — once D merges to `main`, H's PR diff will shrink to just its own
+commits. All eight branches were merged together locally and verified as
+one unit (`npm test` 455/455, `tsc --noEmit` clean) before any of this was
+pushed — the merges were conflict-free, which is the real confirmation that
+the streams are as independent as this doc claims.
 
 ---
 
@@ -136,14 +182,20 @@ Per-stream vitest with `MOCK_APIS=1` fixtures, matching the existing
 collector/adapter convention — campaign-registry upserts, ROAS window math
 (including the divide-by-zero "no spend" case), each recommendation rule at
 its threshold boundary, spend-guard math, every adapter's dry-run default,
-and the fan-out gate's four cases (approved/unapproved × primary/non-primary).
+the fan-out gate's four cases (approved/unapproved × primary/non-primary),
+per-platform ad-copy limit boundaries, and the copy schema never carrying a
+keyword the structured-output API rejects.
 
-**Not run in this session:** the actual `npm test` suite — this environment
-has no Node/npm installed, so all of the above was verified by hand-tracing
-the implementation against each test's assertions, not by executing vitest.
-Run `npm test` for real before merging any of these six branches.
+**Run for real in this session**, after Node/npm were installed via
+Homebrew (this environment had neither at first): `npm test` — **455/455
+passing, 51 files** — and `tsc --noEmit` — **clean** — on all eight branches
+merged together locally (never pushed as merged; each branch ships as its
+own PR per the usual convention). Superseded the earlier "not run this
+session" caveat.
 
 **Manual, once a preview deploy exists:** walk one pilot client through
 dashboard → recommendation → approval card → dry-run publish → (stream F)
-4:5 generate → approve → 1:1/9:16 generate, per the repo's "prove on one
-client first" habit (Salty Dog).
+4:5 generate → approve → 1:1/9:16 generate → (streams G/H) stage a new
+campaign end to end and confirm the creative + copy bundle lands and
+backfills correctly on approval, per the repo's "prove on one client first"
+habit (Salty Dog).
