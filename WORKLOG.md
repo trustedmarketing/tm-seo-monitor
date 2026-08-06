@@ -5,6 +5,33 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-06 · Session 3 · The forms — stream I, WO-006's ninth branch
+
+Everything through stream H worked, but only by typing an API URL into a
+browser. Tom said keep going; the flagged gap was the obvious next pick.
+
+### Shipped (PR #24)
+**`module/paid-ui-actions`** — a "New test campaign" form and per-campaign
+Pause/Resume + budget-change controls on `/paid`; "Generate creative" and
+"Generate copy" forms on `/paid/creative`, replacing the placeholder
+instructional text left in streams F and H. New `api/ops/ad-copy` route
+for on-demand copy generation against a campaign that already exists (the
+`create_campaign` bundle only covers brand-new ones). `lib/personaContext.ts`
+lets a persona `<select>` resolve into the brief fields the generation
+functions expect, so a form needs one picker, not separately-typed name/
+angle/pain-point text — wired into all three generate paths (`ad-creative`,
+the new `ad-copy`, and `stage-ad-action`).
+
+Branches off H, merges in B+C (`module/paid-recommendations`) since the new
+forms attach to the campaign table that stream builds.
+
+### Verified
+All nine module branches + docs merged together locally (never pushed
+merged): `npm test` 455/455, `tsc --noEmit` clean. Scratch merge branch
+deleted after.
+
+---
+
 ## 2026-08-06 · Session 2 · Ad copy generation + previews, and tests actually ran this time
 
 Tom's follow-up on WO-006: campaigns need the actual TEXT assets each

@@ -1,7 +1,7 @@
 # WO-006 — Paid Ads Control Surface
 
-**Status:** Built across eight module branches, awaiting Tom's merge review.
-`npm test` (455/455) and `tsc --noEmit` verified clean on the full 8-branch
+**Status:** Built across nine module branches, awaiting Tom's merge review.
+`npm test` (455/455) and `tsc --noEmit` verified clean on the full 9-branch
 merge in this session — no longer just hand-traced.
 **Opened:** 2026-08-05 · **Owner:** CTO
 **Update channel:** `WORKLOG.md` (repo root).
@@ -50,13 +50,13 @@ once a human approves the concept.
 ## Conventions (WO-001 §4, unchanged)
 
 One agent = one stream = one branch. Migrations reserved per stream, applied
-in numeric order regardless of merge order (039 → 040 → 041 → 042).
+in numeric order regardless of merge order (039 → 040 → 041 → 042 → 043).
 Definition of done per stream: tests green, preview renders, then Tom's
 merge review — same as every prior WO.
 
 ---
 
-## Streams — all eight built
+## Streams — all nine built
 
 ### Stream A · `module/paid-campaign-registry` — campaign entity + status sync
 **Migration 039** (`campaigns` table). `ad_metrics_daily` has no status
@@ -145,6 +145,19 @@ backfills `campaign_id` on both once the campaign is actually created.
 Best-effort — a missing Bloom brand id or copy-generation failure warns,
 never blocks staging the campaign card itself.
 
+### Stream I · `module/paid-ui-actions` — in-app generate/action buttons
+Everything through stream H was reachable only by typing an API URL into a
+browser (owner-only, manual-for-now — a deliberate convention, but not a
+"total turnkey solution" if the only door in is a raw query string). This
+stream is real forms: a "New test campaign" form and per-campaign Pause/
+Resume + budget-change controls on `/paid`; "Generate creative" and
+"Generate copy" forms on `/paid/creative`, replacing the placeholder
+instructional text. New `api/ops/ad-copy` route covers the on-demand path
+(copy for a campaign that already exists, not just the `create_campaign`
+bundle). `lib/personaContext.ts` lets a persona `<select>` resolve into the
+brief fields the generation functions expect, so a form only needs one
+picker instead of separately-typed name/angle text.
+
 ---
 
 ## Integration note for the merge session
@@ -159,11 +172,14 @@ one-line nav link from `/paid` to each sub-route once everything lands.
 G branches from F (extends `creatives` + reuses `AdCreativeBrief`). H
 branches from G, and additionally merges in D (`module/paid-controls`)
 because its turnkey wiring extends `stage-ad-action`/`approvals/route.ts`
-directly — once D merges to `main`, H's PR diff will shrink to just its own
-commits. All eight branches were merged together locally and verified as
-one unit (`npm test` 455/455, `tsc --noEmit` clean) before any of this was
-pushed — the merges were conflict-free, which is the real confirmation that
-the streams are as independent as this doc claims.
+directly. I branches from H, and additionally merges in B+C
+(`module/paid-recommendations`, which already includes B) because its new
+forms attach to the `/paid` campaign table those streams build. Once D and
+B/C merge to `main`, H's and I's PR diffs will shrink to just their own
+commits. All nine branches (plus docs) were merged together locally and
+verified as one unit (`npm test` 455/455, `tsc --noEmit` clean) before any
+of this was pushed — the merges were conflict-free, which is the real
+confirmation that the streams are as independent as this doc claims.
 
 ---
 
