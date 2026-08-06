@@ -23,15 +23,21 @@ import { connect, publish, revert as revertChange, type ShopifyChangeType } from
 import * as wp from "@/lib/wordpressAdapter";
 import { listSocialAccounts, createDraft } from "@/lib/postflow";
 import { draftPost } from "@/lib/caption";
+import * as metaAds from "@/lib/metaAdsAdapter";
+import * as googleAds from "@/lib/googleAdsAdapter";
+import * as microsoftAds from "@/lib/microsoftAdsAdapter";
+import type { GoogleAdsAuth } from "@/lib/googleAds";
+import type { MicrosoftAdsAuth } from "@/lib/microsoftAds";
+import { checkSpendGuard } from "@/lib/adSpendGuard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 type Payload = {
-  adapter: "shopify" | "wordpress" | "postflow";
-  /** Shopify change type, or a WordPress one — the adapter field disambiguates. */
+  adapter: "shopify" | "wordpress" | "postflow" | "meta_ads" | "google_ads" | "microsoft_ads";
+  /** Shopify change type, a WordPress one, or an ad changeType below — the adapter field disambiguates. */
   changeType: string;
-  /** Shopify GID, or a JSON {postType,id} for WordPress. */
+  /** Shopify GID, a JSON {postType,id} for WordPress, or the platform's own campaign id for ad actions. */
   targetGid: string;
   targetLabel?: string;
   before: string;
@@ -45,6 +51,13 @@ type Payload = {
   outline?: string[];
   /** The post that earned the series, for voice and subject continuity. */
   sourceContent?: string | null;
+
+  // ── paid ads (adapter: "meta_ads" | "google_ads" | "microsoft_ads") ──────
+  // WO-006 stream D. changeType is "pause" | "resume" | "update_budget" |
+  // "create_campaign". For update_budget, before/after above hold the
+  // current/proposed daily budget as strings. create_campaign has no
+  // existing campaign yet, so the spec travels here instead of in targetGid.
+  campaignSpec?: { name: string; objective: string; dailyBudget: number };
 };
 
 /** WordPress targets are stored as JSON because they need two fields, not one. */
@@ -70,6 +83,113 @@ async function credentials(db: ReturnType<typeof dbClient>, clientId: string, pl
   if (!secret) throw new Error(`${platform} credentials missing from vault`);
 
   return { domain: store.domain, user: store.api_client_id, secret };
+}
+
+const AD_PLATFORM_OF: Record<"meta_ads" | "google_ads" | "microsoft_ads", string> = {
+  meta_ads: "meta",
+  google_ads: "google_ads",
+  microsoft_ads: "microsoft",
+};
+
+/**
+ * Resolve ad-platform write credentials from `ad_platform_accounts` (not
+ * `client_stores` — a different registry than the Shopify/WordPress path).
+ *
+ * v1 scope: only the simple per-account vaulted-bundle path is supported
+ * here, matching the first resolution branch each collector tries. The
+ * portfolio-level OAuth-refresh fallback lib/googleAdsCollector.ts also
+ * supports for read collection at scale isn't replicated for writes yet —
+ * flagged as a follow-up, not silently dropped, since a manually-triggered
+ * approval can require the account to carry its own credentials by then.
+ */
+async function adCredentials(
+  db: ReturnType<typeof dbClient>,
+  clientId: string,
+  adapter: "meta_ads" | "google_ads" | "microsoft_ads"
+): Promise<{ externalId: string; secret: string }> {
+  const platform = AD_PLATFORM_OF[adapter];
+  const { data: account } = await db
+    .from("ad_platform_accounts")
+    .select("external_id, auth_ref")
+    .eq("client_id", clientId)
+    .eq("platform", platform)
+    .maybeSingle();
+
+  if (!account?.external_id || !account.auth_ref) {
+    throw new Error(`${platform} ad account not configured for this client`);
+  }
+  const secret = await readSecret(db, account.auth_ref);
+  if (!secret) throw new Error(`${platform} credentials missing from vault`);
+
+  return { externalId: account.external_id, secret };
+}
+
+type AdActionResult = { before: string; after: string; campaignId?: string | null };
+
+/**
+ * Dispatch one ad-platform write to the right adapter. Split out of
+ * publishOne() so every branch is forced to either return a result or
+ * throw — no `let result` that TypeScript (or a reviewer) has to prove is
+ * assigned on every path.
+ */
+async function dispatchAdAction(
+  adapter: "meta_ads" | "google_ads" | "microsoft_ads",
+  cred: { externalId: string; secret: string },
+  changeType: string,
+  targetGid: string,
+  currentStatus: metaAds.CampaignStatus,
+  currentDailyBudget: number,
+  proposedDailyBudget: number,
+  campaignSpec?: { name: string; objective: string; dailyBudget: number }
+): Promise<AdActionResult> {
+  if (adapter === "meta_ads") {
+    if (changeType === "pause") return metaAds.pause(cred.secret, targetGid, currentStatus, { dryRun: false });
+    if (changeType === "resume") return metaAds.resume(cred.secret, targetGid, currentStatus, { dryRun: false });
+    if (changeType === "update_budget") {
+      return metaAds.updateBudget(cred.secret, targetGid, currentDailyBudget, proposedDailyBudget, { dryRun: false });
+    }
+    if (changeType === "create_campaign" && campaignSpec) {
+      return metaAds.createCampaign(cred.secret, cred.externalId, campaignSpec, { dryRun: false });
+    }
+  } else if (adapter === "google_ads") {
+    const auth = JSON.parse(cred.secret) as GoogleAdsAuth;
+    if (changeType === "pause") return googleAds.pause(auth, cred.externalId, targetGid, currentStatus, { dryRun: false });
+    if (changeType === "resume") return googleAds.resume(auth, cred.externalId, targetGid, currentStatus, { dryRun: false });
+    if (changeType === "update_budget") {
+      return googleAds.updateBudget(auth, cred.externalId, targetGid, currentDailyBudget, proposedDailyBudget, { dryRun: false });
+    }
+    if (changeType === "create_campaign" && campaignSpec) {
+      return googleAds.createCampaign(
+        auth, cred.externalId,
+        { name: campaignSpec.name, advertisingChannelType: campaignSpec.objective, dailyBudget: campaignSpec.dailyBudget },
+        { dryRun: false }
+      );
+    }
+  } else {
+    const auth = JSON.parse(cred.secret) as MicrosoftAdsAuth;
+    if (changeType === "pause") return microsoftAds.pause(auth, cred.externalId, targetGid, currentStatus, { dryRun: false });
+    if (changeType === "resume") return microsoftAds.resume(auth, cred.externalId, targetGid, currentStatus, { dryRun: false });
+    if (changeType === "update_budget") {
+      return microsoftAds.updateBudget(auth, cred.externalId, targetGid, currentDailyBudget, proposedDailyBudget, { dryRun: false });
+    }
+    if (changeType === "create_campaign" && campaignSpec) {
+      return microsoftAds.createCampaign(
+        auth, cred.externalId,
+        { name: campaignSpec.name, campaignType: campaignSpec.objective, dailyBudget: campaignSpec.dailyBudget },
+        { dryRun: false }
+      );
+    }
+  }
+  throw new Error(`unsupported ad changeType: ${changeType}`);
+}
+
+/** Audit action matching what actually happened, not a generic "publish" —
+ * lib/audit.ts's AuditAction already reserves pause/resume/budget_change. */
+function auditActionFor(changeType: string): "pause" | "resume" | "budget_change" | "publish" {
+  if (changeType === "pause") return "pause";
+  if (changeType === "resume") return "resume";
+  if (changeType === "update_budget") return "budget_change";
+  return "publish"; // create_campaign
 }
 
 function back(req: Request, msg?: string) {
@@ -361,6 +481,128 @@ async function publishOne(
       await writeAudit(
         { action: "publish", targetType: "approval", targetId: id, clientId: row.client_id,
           after: { value: summary }, detail: summary, ip },
+        profile
+      );
+      return true;
+    }
+
+    // ── paid ads: pause/resume/update_budget/create_campaign ────────────────
+    // WO-006 stream D. A different credential registry (ad_platform_accounts,
+    // not client_stores) and a different write target (a `campaigns` row,
+    // not a content field), so this branches out fully rather than sharing
+    // the shopify/wordpress path below. Undo/revert for these actions isn't
+    // wired yet — pause/resume/budget changes are self-reversing via a second
+    // approval card in v1 (flagged, not silently dropped; see CLAUDE.md
+    // autonomy #1 — no agent performs a paid write autonomously either way).
+    if (payload.adapter === "meta_ads" || payload.adapter === "google_ads" || payload.adapter === "microsoft_ads") {
+      const platform = AD_PLATFORM_OF[payload.adapter];
+      const isCreate = payload.changeType === "create_campaign";
+
+      const { data: campaignRow } = isCreate
+        ? { data: null as { id: string; daily_budget: number | null; status: string } | null }
+        : await db
+            .from("campaigns")
+            .select("id, daily_budget, status")
+            .eq("client_id", row.client_id)
+            .eq("platform", platform)
+            .eq("campaign_id", payload.targetGid)
+            .maybeSingle();
+
+      if (!isCreate && !campaignRow) {
+        await fail(db, id, `campaign ${payload.targetGid} not found in the campaigns registry`);
+        await writeAudit(
+          { action: "publish", targetType: "ad_entity", targetId: id, clientId: row.client_id,
+            detail: `FAILED: campaign ${payload.targetGid} not found`, ip },
+          profile
+        );
+        return false;
+      }
+
+      // ── spend guard (spec §7 hard guardrail) — escalate, never approve-through ──
+      const currentDailyBudget = campaignRow?.daily_budget ?? 0;
+      const proposedDailyBudget = Number(payload.after) || 0;
+      const projectedDailyBudget =
+        payload.changeType === "pause" ? 0
+        : payload.changeType === "resume" ? currentDailyBudget
+        : payload.changeType === "update_budget" ? proposedDailyBudget
+        : payload.campaignSpec?.dailyBudget ?? 0;
+
+      const { data: otherCampaigns } = await db
+        .from("campaigns")
+        .select("daily_budget")
+        .eq("client_id", row.client_id)
+        .eq("platform", platform)
+        .eq("status", "active")
+        .neq("id", campaignRow?.id ?? "");
+      const otherCampaignsMonthlyBudget = ((otherCampaigns ?? []) as { daily_budget: number | null }[])
+        .reduce((sum, c) => sum + (c.daily_budget ?? 0) * 30, 0);
+
+      const { data: guard } = await db
+        .from("ad_spend_guards")
+        .select("daily_ceiling, monthly_ceiling")
+        .eq("client_id", row.client_id)
+        .eq("platform", platform)
+        .maybeSingle();
+
+      const guardResult = checkSpendGuard(guard ?? null, { projectedDailyBudget, otherCampaignsMonthlyBudget });
+      if (guardResult.blocked) {
+        await fail(db, id, `blocked by spend guard: ${guardResult.reason}`);
+        await writeAudit(
+          { action: "publish", targetType: "ad_entity", targetId: id, clientId: row.client_id,
+            detail: `BLOCKED by spend guard: ${guardResult.reason}`, ip },
+          profile
+        );
+        return false;
+      }
+
+      const cred = await adCredentials(db, row.client_id, payload.adapter);
+      const currentStatus = (campaignRow?.status ?? "paused") as metaAds.CampaignStatus;
+
+      const adResult = await dispatchAdAction(
+        payload.adapter, cred, payload.changeType, payload.targetGid,
+        currentStatus, currentDailyBudget, proposedDailyBudget, payload.campaignSpec
+      );
+
+      // Reflect the change locally right away — don't wait for tomorrow's collector run.
+      if (isCreate) {
+        if (adResult.campaignId) {
+          await db.from("campaigns").insert({
+            client_id: row.client_id, platform, campaign_id: adResult.campaignId,
+            campaign_name: payload.campaignSpec?.name ?? null, status: "paused",
+            objective: payload.campaignSpec?.objective ?? null, daily_budget: payload.campaignSpec?.dailyBudget ?? null,
+            last_synced_at: new Date().toISOString(),
+          });
+        }
+      } else if (campaignRow) {
+        await db.from("campaigns").update({
+          status: payload.changeType === "pause" ? "paused" : payload.changeType === "resume" ? "active" : campaignRow.status,
+          daily_budget: payload.changeType === "update_budget" ? proposedDailyBudget : campaignRow.daily_budget,
+          updated_at: new Date().toISOString(),
+        }).eq("id", campaignRow.id);
+      }
+
+      const nowAd = new Date().toISOString();
+      await db.from("approvals").update({
+        status: "published", decided_by: profile?.id ?? null, decided_at: nowAd,
+        published_at: nowAd, error_detail: null, updated_at: nowAd,
+      }).eq("id", id);
+
+      await db.from("changes").insert({
+        client_id: row.client_id,
+        title: row.title,
+        description: `${payload.changeType} on ${payload.targetLabel ?? payload.targetGid}`,
+        changed_at: nowAd.slice(0, 10),
+        source: "growth-os",
+        approval_id: id,
+        decided_by: profile?.id ?? null,
+        decided_by_email: profile?.email ?? null,
+        automatic: false,
+      });
+
+      await writeAudit(
+        { action: auditActionFor(payload.changeType), targetType: "ad_entity", targetId: id, clientId: row.client_id,
+          before: { value: adResult.before }, after: { value: adResult.after },
+          detail: `${payload.changeType} → ${payload.targetLabel ?? payload.targetGid}`, ip },
         profile
       );
       return true;

@@ -79,6 +79,13 @@ function Diff({ ops }: { ops: DiffOp[] }) {
   );
 }
 
+/** First numeric token in a string like "65.00" or "paused, $65.00/day". */
+function parseMoney(s: string | undefined): number | null {
+  if (!s) return null;
+  const m = s.match(/([\d]+\.?\d*)/);
+  return m ? Number(m[1]) : null;
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginTop: 14 }}>
@@ -116,6 +123,14 @@ export function ApprovalCard({
     : null;
 
   const warn = row.serp_kind && row.after ? serpWarning(row.serp_kind, row.after) : null;
+
+  // Higher-risk paid-ads tier (spec §7: new campaign, budget beyond the ±25%
+  // band, or targeting/creative) — pod_lead requires_role is how
+  // api/ops/stage-ad-action marks that tier when staging. Shown as a
+  // confirmation block rather than a JS modal, since this card is a plain
+  // server-rendered form with no client-side state.
+  const higherRiskAd = row.variant === "ad" && row.requires_role === "pod_lead";
+  const exposureDaily = higherRiskAd ? parseMoney(row.after) : null;
 
   const railColor = failed ? C.danger : stale ? C.warn : "transparent";
 
@@ -220,6 +235,24 @@ export function ApprovalCard({
               ? "Undo reverses this cleanly — it has not been live long enough to measure."
               : "This has been live long enough to count. Reverting keeps both entries in the record."}
           </span>
+        </div>
+      )}
+
+      {/* spend-exposure confirmation — higher-risk paid-ads tier (spec §7) */}
+      {higherRiskAd && exposureDaily != null && !decided && (
+        <div style={{
+          marginTop: 14, padding: "12px 14px", borderRadius: 8,
+          background: C.warnBg, border: `1px solid ${C.warnEdge}`,
+        }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: C.warn, marginBottom: 4 }}>
+            Spend exposure — confirm before approving
+          </div>
+          <div style={{ fontSize: 13.5, color: C.ink }}>
+            Daily: <strong>${exposureDaily.toFixed(2)}</strong> · Est. monthly: <strong>${(exposureDaily * 30).toFixed(2)}</strong>
+          </div>
+          <div style={{ fontSize: 12, color: C.faint, marginTop: 4 }}>
+            New campaign, budget beyond the ±25% band, or a targeting/creative change — pod lead approval required.
+          </div>
         </div>
       )}
 
