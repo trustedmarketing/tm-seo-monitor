@@ -18,6 +18,7 @@ import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
 import { generateCreative, pollCreative, fanOutSizes, PRIMARY_ASPECT_RATIO } from "@/lib/adCreative";
 import { startImage } from "@/lib/bloom";
+import { resolvePersonaFields } from "@/lib/personaContext";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -46,12 +47,10 @@ export async function GET(req: Request) {
       const key = await readSecret(db, "bloom");
       if (!key) return NextResponse.json({ error: "no Bloom API key in vault" }, { status: 400 });
 
-      const brief = {
-        campaignName,
-        personaName: p.get("persona_name"),
-        messagingAngle: p.get("angle"),
-        offer: p.get("offer"),
-      };
+      const { personaName, angle } = await resolvePersonaFields(db, p.get("persona_id"), {
+        personaName: p.get("persona_name"), angle: p.get("angle"),
+      });
+      const brief = { campaignName, personaName, messagingAngle: angle, offer: p.get("offer") };
 
       const { bloomImageId, prompt } = await generateCreative(key, client.bloom_brand_id, brief, PRIMARY_ASPECT_RATIO);
 
