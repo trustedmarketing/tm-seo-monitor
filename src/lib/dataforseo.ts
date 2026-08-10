@@ -2,6 +2,7 @@
 // Auth: Basic auth from env. Every function returns already-unwrapped data.
 
 import { mockApis, mockDataForSeo } from "@/lib/apiMock";
+import { AEO_PROVIDERS, endpointFor, modelFor, type ProviderSpec } from "@/lib/aeoProviders";
 
 const BASE = "https://api.dataforseo.com/v3";
 
@@ -79,23 +80,105 @@ export async function backlinksSummary(domain: string) {
 }
 
 // ── SERP position for one keyword ────────────────────────────────
-// Returns the best organic position for the domain, or null if not top 100.
+export type SerpResult = {
+  position: number | null;
+  url: string | null;
+  /** Whether Google showed an AI Overview for this keyword at all. */
+  aiOverview: boolean;
+  /** Whether the client's domain appears among the AI Overview's cited sources. */
+  aiOverviewCited: boolean;
+};
+
+/** Item shapes we read out of the SERP response. */
+type SerpItem = {
+  type: string;
+  rank_absolute?: number;
+  domain?: string;
+  url?: string;
+  /** ai_overview only — the sources Google built the answer from. */
+  references?: { domain?: string; url?: string }[];
+  items?: SerpItem[];
+};
+
+/** Hostname out of either a bare domain or a full URL, lowercased, no `www.`. */
+function hostOf(candidate: string | undefined | null): string {
+  const raw = String(candidate ?? "").trim().toLowerCase();
+  if (!raw) return "";
+  const withScheme = /^[a-z]+:\/\//.test(raw) ? raw : `https://${raw}`;
+  try {
+    return new URL(withScheme).hostname.replace(/^www\./, "");
+  } catch {
+    return raw.replace(/^www\./, "").split("/")[0];
+  }
+}
+
+/**
+ * Is this reference our client's site?
+ *
+ * Matches on a label boundary — exactly the domain, or a subdomain of it. A
+ * plain endsWith() counts `notgetsaltydog.com` as `getsaltydog.com`, which
+ * would credit a competitor's citation to the client. Bare `includes()` is
+ * looser still: it matches our own domain appearing anywhere in the URL,
+ * including in a query string pointing somewhere else entirely.
+ */
+export function matchesDomain(candidate: string | undefined | null, domain: string): boolean {
+  const host = hostOf(candidate);
+  const bare = hostOf(domain);
+  if (!host || !bare) return false;
+  return host === bare || host.endsWith(`.${bare}`);
+}
+
+/**
+ * Google AI Overview presence and citation for one SERP.
+ *
+ * Google's AI Overview is the AI answer with by far the widest reach, and it
+ * costs nothing extra to measure: it arrives as an `ai_overview` item in the
+ * SERP response we already buy for every tracked keyword. We were discarding it.
+ *
+ * Nested because references can hang off the ai_overview item itself or off its
+ * child elements depending on the layout Google served — reading only the top
+ * level would report "not cited" for a brand that was.
+ */
+export function extractAiOverview(items: SerpItem[], domain: string): { present: boolean; cited: boolean } {
+  let present = false;
+  let cited = false;
+
+  const walk = (list: SerpItem[] | undefined, depth = 0): void => {
+    if (!list || depth > 4) return;
+    for (const it of list) {
+      if (typeof it?.type === "string" && it.type.startsWith("ai_overview")) present = true;
+      for (const ref of it?.references ?? []) {
+        if (matchesDomain(ref.domain, domain) || matchesDomain(ref.url, domain)) cited = true;
+      }
+      walk(it?.items, depth + 1);
+    }
+  };
+
+  walk(items);
+  // A citation only counts if an overview was actually shown — references can
+  // belong to other SERP features, and crediting those would inflate the metric.
+  return { present, cited: present && cited };
+}
+
 export async function serpPosition(
   keyword: string,
   domain: string,
   locationCode: number,
   languageCode: string
-): Promise<{ position: number | null; url: string | null }> {
-  type Item = { type: string; rank_absolute?: number; domain?: string; url?: string };
-  const result = await post<{ items?: Item[] }>("/serp/google/organic/live/advanced", [
+): Promise<SerpResult> {
+  const result = await post<{ items?: SerpItem[] }>("/serp/google/organic/live/advanced", [
     { keyword, location_code: locationCode, language_code: languageCode, depth: 100 },
   ]);
   const items = result?.[0]?.items ?? [];
-  const bare = domain.replace(/^www\./, "");
-  const hit = items.find(
-    (i) => i.type === "organic" && (i.domain ?? "").replace(/^www\./, "").endsWith(bare)
-  );
-  return { position: hit?.rank_absolute ?? null, url: hit?.url ?? null };
+  const hit = items.find((i) => i.type === "organic" && matchesDomain(i.domain, domain));
+  const ai = extractAiOverview(items, domain);
+
+  return {
+    position: hit?.rank_absolute ?? null,
+    url: hit?.url ?? null,
+    aiOverview: ai.present,
+    aiOverviewCited: ai.cited,
+  };
 }
 
 // ── Account: balance and spend ────────────────────────────────────
@@ -313,12 +396,24 @@ export type AiCheck = {
   sources: { title: string | null; url: string }[];
 };
 
+/**
+ * Ask one AI assistant a prompt and judge whether the brand shows up.
+ *
+ * `provider` defaults to ChatGPT so every existing caller keeps its behaviour —
+ * this was ChatGPT-only, and the section called itself "AEO" while measuring
+ * one assistant. Every provider uses the same request shape; only the path and
+ * model name differ (lib/aeoProviders.ts).
+ */
 export async function aiPromptCheck(
-  prompt: string, domain: string, brand: string, countryIso = "US"
+  prompt: string,
+  domain: string,
+  brand: string,
+  countryIso = "US",
+  provider: ProviderSpec = AEO_PROVIDERS[0]
 ): Promise<AiCheck> {
-  const result = await post<unknown>("/ai_optimization/chat_gpt/llm_responses/live", [{
+  const result = await post<unknown>(endpointFor(provider), [{
     user_prompt: prompt.slice(0, 500),
-    model_name: AEO_MODEL,
+    model_name: modelFor(provider),
     max_output_tokens: 2048,
     // The whole point. Without this the model cannot see the web, and "is this
     // brand visible in AI answers" becomes "was this brand in the training set".
@@ -338,8 +433,13 @@ export async function aiPromptCheck(
     .map((a) => ({ title: a.title ?? null, url: a.url as string }));
 
   // Cited means a source LINK to the domain — the thing that earns the click.
+  //
+  // matchesDomain(), not includes(): a substring test counts competitor.com/?ref=
+  // getsaltydog.com as a citation of getsaltydog.com, and counts
+  // notgetsaltydog.com as it too. Both credit someone else's citation to the
+  // client, which is the one direction an AEO number must never be wrong in.
   const cited =
-    sources.some((sr) => sr.url.toLowerCase().includes(bare)) || answerLc.includes(bare);
+    sources.some((sr) => matchesDomain(sr.url, domain)) || answerLc.includes(bare);
 
   // Mentioned means named in the answer, cited or not.
   const mentioned = cited || (brandLc.length > 2 && answerLc.includes(brandLc));

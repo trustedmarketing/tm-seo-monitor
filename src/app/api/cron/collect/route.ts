@@ -13,13 +13,13 @@ import {
   onPageSummary,
   visibilityScore,
   aiPromptCheck,
-  AEO_MODEL,
 } from "@/lib/dataforseo";
 import { syncRecommendations, measureChanges } from "@/lib/recSync";
 import { recordRun } from "@/lib/collectorRuns";
 import { alertOnFailures, slackAlert, type CollectorFailure } from "@/lib/slack";
 import { alertOnRevenueMismatch, alertOnStaleData, type RevenueMismatch } from "@/lib/accuracyAlerts";
 import { findStaleData } from "@/lib/dataFreshness";
+import { enabledProviders, modelFor } from "@/lib/aeoProviders";
 import { pingHeartbeat } from "@/lib/heartbeat";
 import { classifyChecks, criticalIssues, isCrawlStale, STALE_CRAWL_HOURS } from "@/lib/qc";
 import { collectConversions } from "@/lib/conversionsCollector";
@@ -152,11 +152,16 @@ export async function GET(req: Request) {
           // (e.g. DataForSEO 40101) skips that keyword instead of failing the run.
           const rows = await mapLimit(kws, 8, async (kw) => {
             try {
-              const { position, url } = await serpPosition(kw.keyword, c.domain, c.location_code, c.language_code);
-              return { keyword_id: kw.id, position, url };
+              const s = await serpPosition(kw.keyword, c.domain, c.location_code, c.language_code);
+              // AI Overview rides along on a SERP call we already pay for — it
+              // arrives in the same response and was previously discarded.
+              return {
+                keyword_id: kw.id, position: s.position, url: s.url,
+                ai_overview: s.aiOverview, ai_overview_cited: s.aiOverviewCited,
+              };
             } catch { return null; }
           });
-          const ok = rows.filter((r): r is { keyword_id: string; position: number | null; url: string | null } => r !== null);
+          const ok = rows.filter((r): r is NonNullable<typeof r> => r !== null);
           if (ok.length > 0) {
             await db.from("keyword_rankings").insert(ok.map((r) => ({ client_id: c.id, ...r })));
           }
@@ -183,11 +188,19 @@ export async function GET(req: Request) {
           .from("tracked_prompts").select("id, prompt")
           .eq("client_id", c.id).eq("active", true);
 
+        // Which assistants this client is checked against. Opt-in per client
+        // (clients.aeo_providers) because each extra provider is a separate
+        // billed call per prompt per run — see lib/aeoProviders.ts.
+        const providers = enabledProviders((c as { aeo_providers?: unknown }).aeo_providers);
+
         if (prompts && prompts.length > 0) {
-          // Parallel (cap 6); one prompt failing shouldn't sink the batch.
-          const rows = await mapLimit(prompts, 6, async (p) => {
+          // One unit of work per (prompt × provider). Parallel (cap 6); one
+          // failing must not sink the batch — and one provider being down must
+          // not lose the answers the others returned.
+          const jobs = prompts.flatMap((p) => providers.map((provider) => ({ p, provider })));
+          const rows = await mapLimit(jobs, 6, async ({ p, provider }) => {
             try {
-              const r = await aiPromptCheck(p.prompt, c.domain, c.name);
+              const r = await aiPromptCheck(p.prompt, c.domain, c.name, "US", provider);
               return {
                 prompt_id: p.id, mentioned: r.mentioned, cited: r.cited,
                 // The answer and its sources are stored so a 0% can be READ
@@ -195,22 +208,34 @@ export async function GET(req: Request) {
                 // claim with no evidence behind it — which is how 121 checks
                 // went unquestioned for a week.
                 answer: r.answer, sources: r.sources,
-                model: AEO_MODEL, web_search: true,
+                provider: provider.key, model: modelFor(provider), web_search: true,
               };
             } catch { return null; }
           });
           const ok = rows.filter((r): r is NonNullable<typeof r> => r !== null);
-          const mentionedCount = ok.filter((r) => r.mentioned).length;
           const wrote = ok.length;
           if (ok.length > 0) {
             await db.from("prompt_results").insert(ok.map((r) => ({ client_id: c.id, ...r })));
           }
+
+          // ai_visibility stays a single headline number, measured on the
+          // DEFAULT provider only. Averaging across providers would silently
+          // change what the metric means and make today's figure incomparable
+          // with every one already collected — a client would see a jump that
+          // was a definition change, not a result. Per-provider detail lives on
+          // the AEO page instead.
+          const baseline = providers[0].key;
+          const baseRows = ok.filter((r) => r.provider === baseline);
+          const mentionedCount = baseRows.filter((r) => r.mentioned).length;
           snapshot.ai_visibility = Math.round((mentionedCount / prompts.length) * 10000) / 100;
           snapshot.ai_mentions = mentionedCount;
           hasData = true;
-          done.push(`ai (${prompts.length} prompts, ${mentionedCount} mentioned)`);
+          done.push(`ai (${prompts.length} prompts × ${providers.length} provider(s), ${mentionedCount} mentioned on ${baseline})`);
           await recordRun(db, "ai", c.id, {
-            status: "success", detail: `ai_visibility=${snapshot.ai_visibility} mentions=${mentionedCount}`,
+            status: "success",
+            detail:
+              `ai_visibility=${snapshot.ai_visibility} mentions=${mentionedCount} ` +
+              `providers=${providers.map((p) => p.key).join("+")}`,
             rows_written: wrote, duration_ms: Date.now() - tAi,
           });
         }
