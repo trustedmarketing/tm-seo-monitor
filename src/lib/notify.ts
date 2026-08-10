@@ -14,8 +14,10 @@ export type Notification = {
   body: string;
 };
 
-export async function notify(n: Notification): Promise<{ slack: boolean; email: boolean }> {
-  const out = { slack: false, email: false };
+export async function notify(
+  n: Notification
+): Promise<{ slack: boolean; email: boolean; emailError?: string }> {
+  const out: { slack: boolean; email: boolean; emailError?: string } = { slack: false, email: false };
 
   // Both are attempted independently: a broken email provider must not swallow
   // a Slack alert that would otherwise have reached someone.
@@ -31,22 +33,39 @@ export async function notify(n: Notification): Promise<{ slack: boolean; email: 
   const to = process.env.ALERT_EMAIL_TO;
   const from = process.env.ALERT_EMAIL_FROM ?? "Growth OS <onboarding@resend.dev>";
 
-  if (key && to) {
-    try {
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from,
-          to: to.split(",").map((t) => t.trim()).filter(Boolean),
-          subject: n.subject,
-          text: n.body,
-        }),
-      });
-      out.email = res.ok;
-    } catch {
-      out.email = false;
+  if (!key || !to) {
+    // Both are required. Saying WHICH one is missing matters: a Resend key with
+    // no recipient looks configured and sends nothing.
+    out.emailError = !key && !to
+      ? "RESEND_API_KEY and ALERT_EMAIL_TO both unset"
+      : !key
+        ? "RESEND_API_KEY unset"
+        : "ALERT_EMAIL_TO unset";
+    return out;
+  }
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from,
+        to: to.split(",").map((t) => t.trim()).filter(Boolean),
+        subject: n.subject,
+        text: n.body,
+      }),
+    });
+    out.email = res.ok;
+    if (!res.ok) {
+      // Resend's rejection reason is the whole diagnosis — "domain not verified",
+      // "you can only send to your own address in test mode", "invalid API key".
+      // Swallowing it into a bare false left no way to tell those apart.
+      const body = await res.text().catch(() => "");
+      out.emailError = `Resend HTTP ${res.status}: ${body.slice(0, 300)}`;
     }
+  } catch (e) {
+    out.email = false;
+    out.emailError = `fetch failed: ${(e as Error).message}`;
   }
 
   return out;

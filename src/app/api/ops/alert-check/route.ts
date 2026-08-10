@@ -76,9 +76,15 @@ export async function GET(req: Request) {
     // slackAlert() no-ops rather than throwing. Report what was actually
     // CONFIGURED alongside it so this endpoint can't hand back a false positive.
     delivered: { slack: result.slack && slackConfigured, email: result.email },
+    // Resend's own rejection reason when the email leg failed — usually an
+    // unverified sender domain, or test-mode's "you can only send to the
+    // address you signed up with".
+    email_error: result.emailError ?? null,
     ...config,
-    hint: emailConfigured
-      ? "Check the inbox for ALERT_EMAIL_TO. If nothing arrives, check Resend's dashboard for a bounce or an unverified sender domain."
-      : "Slack only — no email channel configured.",
+    hint: result.email
+      ? "Email accepted by Resend. If it still hasn't arrived, check spam and Resend's dashboard for a bounce."
+      : emailConfigured
+        ? "Email was NOT accepted — see email_error."
+        : "No email channel configured — see resend_key_present / alert_email_to_present.",
   });
 }
