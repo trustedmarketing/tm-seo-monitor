@@ -1,18 +1,18 @@
 # Growth OS — STATUS
 
-_Last updated: 2026-08-06_
+_Last updated: 2026-08-10_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
 
-### Paid ads control surface — WO-006 (2026-08-06)
+### Paid ads control surface — WO-006 (2026-08-10) — ✅ MERGED TO MAIN
 
-Built across eight module branches (`module/paid-campaign-registry` →
-`-dashboard` → `-recommendations` → `-controls` → `-personas` → `-creative` →
-`-ad-copy` → `-ad-previews`), **not yet merged** — awaiting Tom's daily merge
-review. `npm test` (455/455) and `tsc --noEmit` are now verified clean on all
-eight branches merged together locally (Node installed via Homebrew this
-session; the earlier "no Node/npm, hand-verified only" caveat no longer
-applies). Full writeup: `docs/wo-006-paid-ads-control-surface.md`; session
-summaries in `WORKLOG.md`.
+All nine module streams (`module/paid-campaign-registry` through
+`-ui-actions`, plus the docs branch) are merged into `main` — PRs #15–#24, in
+dependency order. Migrations 039–043 have been run against **both**
+`tm-growth-staging` and production Supabase, confirmed via a direct
+`information_schema` check (all 5 tables present, `creatives.approval_id`
+column present). `npm test` (455/455) and `tsc --noEmit` verified clean on
+the actual merged `main`, not just a local scratch branch. Full writeup:
+`docs/wo-006-paid-ads-control-surface.md`; session summaries in `WORKLOG.md`.
 
 Ships: campaign-level day-prior/7-day/30-day ROAS on `/paid`, a `"Paid"`
 recommendations category, dry-run-first pause/resume/budget/create-campaign
@@ -21,13 +21,21 @@ guardrail, a customer-persona data model (copy/creative context only, no
 platform targeting sync), Bloom ad creative that generates 4:5 first and only
 fans out to 1:1/9:16 after a human approves the concept, generated ad copy
 per platform (Google RSA/PMax, Microsoft RSA, Meta feed) with verified
-real character/count limits, and locally-rendered previews of how each
-format's copy will look. Staging a new campaign now bundles creative + copy
-generation together — the turnkey path.
+real character/count limits, locally-rendered previews of how each format's
+copy will look, and real in-app forms (`/paid`, `/paid/creative`) for all of
+the above instead of typed API URLs. Staging a new campaign bundles creative
++ copy generation together — the turnkey path.
 
-**Open before this is client-visible:** write-scope OAuth tokens for live
-Meta/Google/Microsoft Ads writes (escalation — Tom-only, see CLAUDE.md); one
-pilot client walked through end to end on a real preview deploy.
+**Open before live ad-account writes are safe:** write-scope OAuth tokens for
+Meta/Google/Microsoft Ads (escalation — Tom-only, see CLAUDE.md) — until
+these exist, pause/resume/budget/create-campaign stay dry-run-only against
+real accounts. Testing plan: Salty Dog only for now (already onboarded, real
+ad accounts connected) — the next daily cron (10:00 UTC) or a manual
+`/api/cron/collect` hit will populate the new `campaigns` table for it.
+
+**Not yet built:** spend-guard ceiling settings UI (still a direct DB
+insert), rich creative/copy preview inside `ApprovalCard.tsx` itself (lives
+only on `/paid/creative` today), a real Bloom brand allowlist.
 
 ### Social content planner — WO-004 (2026-07-28)
 

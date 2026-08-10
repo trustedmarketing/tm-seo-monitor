@@ -5,6 +5,48 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-10 · Session 4 · WO-006 merged to main — all ten PRs, migrations run on both environments
+
+Tom: "we need to get this launched and clients in the system so we can start
+testing everything." This session was entirely that.
+
+### Migrations, staging then production
+Walked Tom through migrations 039–043 one file at a time (a combined paste
+hit a syntax error in Supabase's SQL editor — five separate small runs
+sidestepped it and made any failure trivial to isolate). Ran clean on
+`tm-growth-staging`, then again on production, confirmed with a direct
+`information_schema.tables`/`information_schema.columns` check rather than
+trusting "I already did all of them" at face value — all 5 tables present,
+`creatives.approval_id` column present, on the actual production database.
+
+### Merged all ten PRs (#15–#24) into `main`, in dependency order
+A, B, D, E (independent) → C, F (needed B, E) → G (needed F) → H (needed G
+and D) → I (needed C and H) → docs. Two PRs (#23, #24) showed CONFLICTING
+after their base was retargeted to `main`, despite a local `git merge`
+against the exact same commits going through clean — GitHub's mergeability
+cache was stale. Fix: checked out each branch, merged `origin/main` into it
+locally (clean both times), pushed that merge commit back, then GitHub's
+check flipped to MERGEABLE and the PR merge went through. Worth remembering
+if this happens again — don't trust the "CONFLICTING" label without a local
+test merge to confirm it's real.
+
+Verified on the ACTUAL merged `main` (not a scratch branch this time):
+`npm test` 455/455, `tsc --noEmit` clean. All nine now-merged module
+branches deleted locally; remote branches left in place.
+
+### Confirmed the other concurrent session came through fine
+`module/daily-brief` (a different feature, unrelated to WO-006) now has its
+own PR (#25, open) — confirms the stash-and-restore handling of its
+uncommitted work from session 3 landed correctly and nothing was lost.
+
+### What's still open
+Write-scope OAuth tokens for live Meta/Google/Microsoft Ads writes — Tom-only,
+same escalation as always. Testing plan is Salty Dog only for now; next
+daily cron (10:00 UTC) or a manual hit to `/api/cron/collect` populates its
+`campaigns` table for the first time.
+
+---
+
 ## 2026-08-06 · Session 3 · The forms — stream I, WO-006's ninth branch
 
 Everything through stream H worked, but only by typing an API URL into a
