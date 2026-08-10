@@ -14,6 +14,10 @@
 import { NextResponse } from "next/server";
 import { getProfile } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
+import { readSecret } from "@/lib/vault";
+import { generateCreative } from "@/lib/adCreative";
+import { generateAdCopy } from "@/lib/adCopy";
+import type { AdFormat, AdPlatform } from "@/lib/adCopyLimits";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -23,6 +27,14 @@ const ADAPTER_OF: Record<string, "meta_ads" | "google_ads" | "microsoft_ads"> = 
   google_ads: "google_ads",
   microsoft: "microsoft_ads",
 };
+
+/** Google's PMax and Search RSA need different copy shapes; Microsoft and
+ * Meta each have exactly one format in v1 scope. */
+function formatFor(platform: string, objective: string): AdFormat {
+  if (platform === "meta") return "meta_feed";
+  if (platform === "google_ads" && /performance.?max|pmax/i.test(objective)) return "pmax";
+  return "rsa";
+}
 
 export async function GET(req: Request) {
   const profile = await getProfile();
@@ -81,7 +93,58 @@ export async function GET(req: Request) {
       if (error) {
         return NextResponse.json({ ok: false, error: error.message, hint: "a card for this exact campaign may already exist" }, { status: 409 });
       }
-      return NextResponse.json({ ok: true, approval_id: row?.id, next: "/dashboard/approvals" });
+
+      // ── turnkey bundle: creative + copy, tagged with this approval ──────────
+      // Best-effort. The campaign card itself is already staged above — a
+      // missing Bloom brand id or persona shouldn't block staging a budget
+      // decision on an unrelated asset-generation failure.
+      const approvalId = row?.id ?? null;
+      const bundle: { creative?: string; copy?: string; warning?: string } = {};
+
+      if (approvalId) {
+        const brief = {
+          campaignName: name,
+          personaName: p.get("persona_name"),
+          messagingAngle: p.get("angle"),
+          offer: p.get("offer"),
+        };
+
+        try {
+          const { data: client } = await db.from("clients").select("bloom_brand_id").eq("id", clientId).single();
+          const bloomKey = client?.bloom_brand_id ? await readSecret(db, "bloom") : null;
+          if (client?.bloom_brand_id && bloomKey) {
+            const { bloomImageId, prompt } = await generateCreative(bloomKey, client.bloom_brand_id, brief, "4:5");
+            const { data: creativeRow } = await db.from("creatives").insert({
+              client_id: clientId, approval_id: approvalId, concept_group_id: "00000000-0000-0000-0000-000000000000",
+              aspect_ratio: "4:5", bloom_image_id: bloomImageId, status: bloomImageId ? "generating" : "failed", prompt,
+            }).select("id").single();
+            if (creativeRow) {
+              await db.from("creatives").update({ concept_group_id: creativeRow.id }).eq("id", creativeRow.id);
+              bundle.creative = creativeRow.id;
+            }
+          } else {
+            bundle.warning = "no Bloom brand id / API key — creative skipped, campaign card still staged";
+          }
+        } catch (e) {
+          bundle.warning = `creative generation failed: ${(e as Error).message.slice(0, 200)}`;
+        }
+
+        try {
+          const format = formatFor(platform, objective);
+          const copy = await generateAdCopy(db, clientId, brief, platform as AdPlatform, format);
+          const { data: copyRow } = await db.from("ad_copy_sets").insert({
+            client_id: clientId, approval_id: approvalId, platform, format,
+            headlines: copy.headlines, long_headlines: copy.longHeadlines ?? null,
+            descriptions: copy.descriptions, primary_texts: copy.primaryTexts ?? null,
+            business_name: copy.businessName?.text ?? null,
+          }).select("id").single();
+          if (copyRow) bundle.copy = copyRow.id;
+        } catch (e) {
+          bundle.warning = [bundle.warning, `copy generation failed: ${(e as Error).message.slice(0, 200)}`].filter(Boolean).join("; ");
+        }
+      }
+
+      return NextResponse.json({ ok: true, approval_id: approvalId, bundle, next: "/dashboard/approvals" });
     }
 
     const campaignId = p.get("campaign");

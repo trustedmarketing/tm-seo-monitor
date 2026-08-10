@@ -8,12 +8,16 @@
 import Link from "next/link";
 import { userClient } from "@/lib/supabaseServer";
 import { ClientHeader } from "@/components/ClientHeader";
+import { SearchAdPreview } from "@/components/SearchAdPreview";
+import { PerformanceMaxPreview } from "@/components/PerformanceMaxPreview";
+import { MetaFeedPreview } from "@/components/MetaFeedPreview";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
 
 type Creative = {
   id: string;
+  campaign_id: string | null;
   concept_group_id: string;
   aspect_ratio: string;
   image_url: string | null;
@@ -21,6 +25,24 @@ type Creative = {
   prompt: string | null;
   created_at: string;
 };
+
+type FlaggedText = { text: string; chars: number; overLimit: boolean };
+type AdCopySet = {
+  id: string;
+  campaign_id: string | null;
+  platform: "meta" | "google_ads" | "microsoft";
+  format: "rsa" | "pmax" | "meta_feed";
+  headlines: FlaggedText[] | null;
+  long_headlines: FlaggedText[] | null;
+  descriptions: FlaggedText[] | null;
+  primary_texts: FlaggedText[] | null;
+  business_name: string | null;
+  status: "generated" | "approved";
+  created_at: string;
+};
+
+const PLATFORM_LABEL: Record<string, string> = { meta: "Meta", google_ads: "Google Ads", microsoft: "Microsoft Ads" };
+const FORMAT_LABEL: Record<string, string> = { rsa: "Search (RSA)", pmax: "Performance Max", meta_feed: "Feed" };
 
 const card: React.CSSProperties = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)" };
 const eyebrow: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--fg3)" };
@@ -35,9 +57,11 @@ const linkBtn: React.CSSProperties = {
 
 export default async function Creative({ params }: { params: { id: string } }) {
   const db = userClient();
-  const [{ data: client }, { data: creatives }] = await Promise.all([
+  const [{ data: client }, { data: creatives }, { data: copySets }] = await Promise.all([
     db.from("clients").select("id, name, domain, tier, client_type").eq("id", params.id).single(),
-    db.from("creatives").select("id, concept_group_id, aspect_ratio, image_url, status, prompt, created_at")
+    db.from("creatives").select("id, campaign_id, concept_group_id, aspect_ratio, image_url, status, prompt, created_at")
+      .eq("client_id", params.id).order("created_at", { ascending: false }),
+    db.from("ad_copy_sets").select("id, campaign_id, platform, format, headlines, long_headlines, descriptions, primary_texts, business_name, status, created_at")
       .eq("client_id", params.id).order("created_at", { ascending: false }),
   ]);
   if (!client) return <main style={{ padding: 48 }}>Client not found. <Link href="/dashboard">Back</Link></main>;
@@ -49,6 +73,19 @@ export default async function Creative({ params }: { params: { id: string } }) {
     g.push(r);
     groups.set(r.concept_group_id, g);
   }
+
+  // Best-effort image for a copy set's preview: the same campaign's approved
+  // 4:5 if one exists, else this client's most recent completed 4:5 of any
+  // campaign, else no image (previews render an explicit "no creative yet"
+  // placeholder rather than a broken image).
+  function imageFor(campaignId: string | null): string | null {
+    const fourFive = rows.filter((r) => r.aspect_ratio === "4:5" && r.image_url);
+    const sameCampaign = campaignId ? fourFive.find((r) => r.campaign_id === campaignId && r.status === "approved") : null;
+    return sameCampaign?.image_url ?? fourFive.find((r) => r.status === "approved")?.image_url ?? fourFive[0]?.image_url ?? null;
+  }
+
+  const copyRows = (copySets ?? []) as AdCopySet[];
+  const texts = (list: FlaggedText[] | null) => (list ?? []).map((t) => t.text);
 
   return (
     <main style={{ padding: "40px 32px 64px" }}>
@@ -105,6 +142,84 @@ export default async function Creative({ params }: { params: { id: string } }) {
             })}
           </div>
         )}
+
+        <section style={{ marginTop: 28 }}>
+          <div style={{ ...eyebrow, marginBottom: 12 }}>Ad copy</div>
+          {copyRows.length === 0 ? (
+            <div style={{ fontSize: 13, color: "var(--fg3)" }}>
+              No ad copy generated yet. Generate a new campaign via <code>/api/ops/stage-ad-action?action=create_campaign</code> to get creative and copy together, or a copy-only pass is a follow-up action.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {copyRows.map((c) => {
+                const imageUrl = imageFor(c.campaign_id);
+                return (
+                  <div key={c.id} style={{ ...card, padding: "18px 20px" }}>
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>
+                        {PLATFORM_LABEL[c.platform] ?? c.platform} · {FORMAT_LABEL[c.format] ?? c.format}
+                      </div>
+                      <span style={{ fontSize: 11.5, color: c.status === "approved" ? "var(--tm-green-deep)" : "var(--fg3)", fontWeight: 600 }}>
+                        {c.status}
+                      </span>
+                    </div>
+
+                    {(c.format === "rsa") && (
+                      <SearchAdPreview
+                        brand={c.platform === "microsoft" ? "microsoft" : "google"}
+                        domain={client.domain}
+                        headlines={texts(c.headlines)}
+                        descriptions={texts(c.descriptions)}
+                      />
+                    )}
+                    {c.format === "pmax" && (
+                      <PerformanceMaxPreview
+                        domain={client.domain}
+                        headline={texts(c.headlines)[0] ?? null}
+                        longHeadline={texts(c.long_headlines)[0] ?? null}
+                        businessName={c.business_name}
+                        descriptions={texts(c.descriptions)}
+                        imageUrl={imageUrl}
+                      />
+                    )}
+                    {c.format === "meta_feed" && (
+                      <MetaFeedPreview
+                        businessName={client.name}
+                        primaryText={texts(c.primary_texts)[0] ?? null}
+                        headline={texts(c.headlines)[0] ?? null}
+                        description={texts(c.descriptions)[0] ?? null}
+                        imageUrl={imageUrl}
+                      />
+                    )}
+
+                    <details style={{ marginTop: 12 }}>
+                      <summary style={{ fontSize: 12.5, color: "var(--fg3)", cursor: "pointer" }}>
+                        All generated variants ({(c.headlines?.length ?? 0) + (c.long_headlines?.length ?? 0) + (c.descriptions?.length ?? 0) + (c.primary_texts?.length ?? 0)})
+                      </summary>
+                      <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 10, fontSize: 12.5 }}>
+                        {(["primary_texts", "headlines", "long_headlines", "descriptions"] as const).map((field) =>
+                          (c[field]?.length ?? 0) > 0 ? (
+                            <div key={field}>
+                              <div style={{ color: "var(--fg3)", fontWeight: 700, textTransform: "uppercase", fontSize: 10.5, letterSpacing: "0.08em", marginBottom: 4 }}>
+                                {field.replace("_", " ")}
+                              </div>
+                              {(c[field] ?? []).map((t, i) => (
+                                <div key={i} style={{ color: t.overLimit ? "#B8433D" : "var(--fg2)", display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                  <span>{t.text}</span>
+                                  <span style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{t.chars}{t.overLimit ? " ⚠" : ""}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null
+                        )}
+                      </div>
+                    </details>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );

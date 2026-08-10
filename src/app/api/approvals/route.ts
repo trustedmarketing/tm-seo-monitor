@@ -566,12 +566,23 @@ async function publishOne(
       // Reflect the change locally right away — don't wait for tomorrow's collector run.
       if (isCreate) {
         if (adResult.campaignId) {
-          await db.from("campaigns").insert({
+          const { data: newCampaign } = await db.from("campaigns").insert({
             client_id: row.client_id, platform, campaign_id: adResult.campaignId,
             campaign_name: payload.campaignSpec?.name ?? null, status: "paused",
             objective: payload.campaignSpec?.objective ?? null, daily_budget: payload.campaignSpec?.dailyBudget ?? null,
             last_synced_at: new Date().toISOString(),
-          });
+          }).select("id").single();
+
+          // Turnkey link (WO-006 streams G/H): the creative and copy set
+          // generated at staging time (stage-ad-action) had no real
+          // campaign to attach to yet, so they were tagged with this
+          // approval's id instead. Now that the campaign exists, backfill
+          // campaign_id on both — approval_id already scoped this to
+          // exactly the assets this campaign's own staging generated.
+          if (newCampaign) {
+            await db.from("creatives").update({ campaign_id: newCampaign.id }).eq("approval_id", id);
+            await db.from("ad_copy_sets").update({ campaign_id: newCampaign.id }).eq("approval_id", id);
+          }
         }
       } else if (campaignRow) {
         await db.from("campaigns").update({
