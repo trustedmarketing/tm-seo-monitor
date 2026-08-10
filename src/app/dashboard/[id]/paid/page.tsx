@@ -51,17 +51,22 @@ const PLATFORMS = [
 
 export default async function Paid({ params }: { params: { id: string } }) {
   const db = userClient();
+  const windowStart = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const [{ data: client }, { data: ads }, { data: convs }, { data: campaignRows }, { data: campaignMetrics }, { data: paidRecRows }, { data: personaOptions }] = await Promise.all([
     db.from("clients").select("id, name, domain, tier, client_type").eq("id", params.id).single(),
-    db.from("ad_metrics_daily").select("spend, revenue, platform, conversions").eq("client_id", params.id),
-    db.from("conversions_daily").select("source, revenue").eq("client_id", params.id),
+    // Windowed to 30 days to match the campaign rollups below and the Overview
+    // page — these two drove the headline spend/revenue/MER strip and had no
+    // date filter, so the headline was an all-time total sitting directly above
+    // a 30-day campaign table. Same bug class as #28 and the portfolio page.
+    db.from("ad_metrics_daily").select("spend, revenue, platform, conversions").eq("client_id", params.id).gte("date", windowStart),
+    db.from("conversions_daily").select("source, revenue").eq("client_id", params.id).gte("date", windowStart),
     db.from("campaigns").select("id, platform, campaign_id, campaign_name, status, daily_budget").eq("client_id", params.id),
     // 30 days is the widest rollup window (see paidRollup.ts); no point pulling more.
     db
       .from("ad_metrics_daily")
       .select("campaign_id, platform, date, spend, revenue")
       .eq("client_id", params.id)
-      .gte("date", new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)),
+      .gte("date", windowStart),
     // Paid-category recommendations (WO-006 stream C) — same recommendations
     // table/lifecycle as SEO, filtered to this channel and to what's still
     // actionable (not dismissed/resolved/already shipped).
