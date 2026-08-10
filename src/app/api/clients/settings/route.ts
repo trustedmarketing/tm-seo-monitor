@@ -15,6 +15,7 @@ import { NextResponse } from "next/server";
 import { getProfile, isAgency } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
+import { AEO_PROVIDERS, DEFAULT_PROVIDERS } from "@/lib/aeoProviders";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,40 @@ export async function POST(req: Request) {
   const db = dbClient();
   const { data: before } = await db.from("clients").select("*").eq("id", id).maybeSingle();
   if (!before) return back(req, id, "not-found");
+
+  // ── which AI assistants this client's prompts are checked against ─────────
+  //
+  // OWNER-only, unlike the rest of this route. Each provider is a separately
+  // billed DataForSEO call per prompt per run, on a balance shared with every
+  // other collector — turning two more on triples AEO spend, and that is a
+  // money decision, not a preference. Same reasoning as the spend guardrail.
+  if (section === "aeo") {
+    if (profile?.role !== "owner") {
+      return NextResponse.json({ error: "Owner access required" }, { status: 403 });
+    }
+
+    // ChatGPT is always kept: it is the baseline the headline number and every
+    // figure already collected are measured on. Dropping it would not save a
+    // meaningful amount and would break comparability with all of that history.
+    const chosen = AEO_PROVIDERS
+      .filter((p) => p.key === DEFAULT_PROVIDERS[0] || form.get(`provider_${p.key}`) === "on")
+      .map((p) => p.key);
+
+    const { error } = await db.from("clients").update({ aeo_providers: chosen }).eq("id", id);
+    if (error) return back(req, id, "save-failed");
+
+    await writeAudit(
+      {
+        action: "budget_change",
+        targetType: "client",
+        targetId: id,
+        clientId: id,
+        detail: `AEO providers set to ${chosen.join("+")} (was ${(before.aeo_providers ?? []).join("+") || "none"})`,
+      },
+      profile
+    );
+    return back(req, id, "saved");
+  }
 
   // ── client profile + integration ids ───────────────────────────────────────
   if (section === "profile") {
