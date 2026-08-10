@@ -63,6 +63,25 @@ alongside `failures`.
 
 Verified: 493 tests passing (was 477), `tsc --noEmit` clean.
 
+**`api/ops/alert-check` — verifying the alerting itself.** These alerts only
+fire when something is wrong, so the first time anyone would discover the
+channel was misconfigured is the moment they needed it and it stayed silent.
+Owner-only endpoint: bare GET reports which channels are configured (presence
+booleans only, never values); `?send=1` actually delivers a test alert so
+"configured" becomes "I watched it arrive". Reports `resend_key_present` and
+`alert_email_to_present` separately because `notify()` gates email on BOTH —
+a Resend key with no recipient sends nothing, silently, which is the likeliest
+way this ends up half-configured. Also corrects for `notify()` returning
+`slack: true` even when unconfigured (slackAlert no-ops rather than throwing),
+so the endpoint can't hand back a false positive.
+
+**Slack routing note:** `SLACK_WEBHOOK_URL` is a single global env var and
+every existing Slack alert (collector failures, critical QC issues, token
+expiry, SLA breaches) is internal ops. It must point at an INTERNAL channel,
+never one of the per-client channels — a client-channel webhook would receive
+every other client's revenue and spend figures, plus alerts stating our own
+numbers are wrong. Flagged to Tom; he confirmed and configured an internal one.
+
 **Open gap, needs Tom (escalation list — external account):** both alerts fire
 from INSIDE the cron. If the cron itself stops running — bad deploy, Vercel
 cron disabled, function timeout — nothing fires and the silence looks like
