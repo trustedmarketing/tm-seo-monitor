@@ -68,6 +68,11 @@ export async function POST(req: Request) {
       clickup_list_id: opt(form, "clickup_list_id"),
       postflow_group_id: opt(form, "postflow_group_id"),
       bloom_brand_id: opt(form, "bloom_brand_id"),
+      // module/daily-brief: an Incoming Webhook URL for this client's own Slack
+      // channel. Plain text, not vaulted — same trust level as the other
+      // integration IDs on this form (revocable in Slack in seconds if pasted
+      // somewhere it shouldn't be, unlike a platform credential).
+      slack_webhook_url: opt(form, "slack_webhook_url"),
       // The monthly commitment the plan is built against. Null means "no stated
       // cadence", and the planner falls back to the playbook minimum and says so.
       social_posts_per_month: opt(form, "social_posts_per_month")
