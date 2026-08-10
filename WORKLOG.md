@@ -5,6 +5,140 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-06 · Session 3 · The forms — stream I, WO-006's ninth branch
+
+Everything through stream H worked, but only by typing an API URL into a
+browser. Tom said keep going; the flagged gap was the obvious next pick.
+
+### Shipped (PR #24)
+**`module/paid-ui-actions`** — a "New test campaign" form and per-campaign
+Pause/Resume + budget-change controls on `/paid`; "Generate creative" and
+"Generate copy" forms on `/paid/creative`, replacing the placeholder
+instructional text left in streams F and H. New `api/ops/ad-copy` route
+for on-demand copy generation against a campaign that already exists (the
+`create_campaign` bundle only covers brand-new ones). `lib/personaContext.ts`
+lets a persona `<select>` resolve into the brief fields the generation
+functions expect, so a form needs one picker, not separately-typed name/
+angle/pain-point text — wired into all three generate paths (`ad-creative`,
+the new `ad-copy`, and `stage-ad-action`).
+
+Branches off H, merges in B+C (`module/paid-recommendations`) since the new
+forms attach to the campaign table that stream builds.
+
+### Verified
+All nine module branches + docs merged together locally (never pushed
+merged): `npm test` 455/455, `tsc --noEmit` clean. Scratch merge branch
+deleted after.
+
+---
+
+## 2026-08-06 · Session 2 · Ad copy generation + previews, and tests actually ran this time
+
+Tom's follow-up on WO-006: campaigns need the actual TEXT assets each
+platform requires (Google RSA headlines/descriptions, PMax's larger set,
+Meta primary text/headline/description, Microsoft's RSA equivalent) and a
+way to preview how they'll render — "a total turnkey solution," not just
+budget + an image.
+
+### Verified limits before writing any code
+Web search, not memory, since these change and getting them wrong ships a
+broken tool: **Google RSA** 3-15 headlines (30 chars) / 2-4 descriptions
+(90 chars). **Google PMax** adds 1-5 long headlines (90 chars) + business
+name (25 chars). **Microsoft RSA** mirrors Google's. **Meta feed** is 1-5
+primary texts (125 chars) / 1-5 headlines (40 chars) / 1-5 descriptions
+(30 chars).
+
+### Shipped, two more module branches (PRs #22, #23)
+- **`module/paid-ad-copy`** (migration 043, `ad_copy_sets`) — `lib/adCopy.ts`
+  reuses `lib/ai.ts`'s `generate()` (the same Claude wrapper social captions
+  already use). Two gotchas discovered and designed around: the
+  structured-output schema can't carry length/count constraints (the API
+  rejects them outright — they live in the prompt and in post-processing
+  instead, same as `lib/caption.ts` already does), and `generate()`'s own
+  mock branch returns a caption-shaped fixture regardless of `feature` (new
+  code checks `mockApis()` itself first). Over-limit copy is flagged, never
+  truncated.
+- **`module/paid-ad-previews`** — three preview components (Google/Microsoft
+  search, PMax, Meta feed), wired into `/paid/creative`. The actual turnkey
+  piece: staging a new campaign now generates a 4:5 creative AND a matching
+  copy set together, tagged with the approval id until the real campaign
+  exists, then backfilled on approval.
+
+### The other thing that actually changed this session: tests ran for real
+Earlier in this WO, every test was hand-traced because this machine had no
+Node/npm. This session: installed Node via Homebrew (it was already
+`brew`-installed but not linked to PATH — used the direct
+`/opt/homebrew/opt/node/bin` path rather than fighting `brew link`), ran
+`npm install`, and actually executed the suite. **All eight WO-006 branches
+merged together locally and verified as one unit: `npm test` 455/455,
+`tsc --noEmit` clean.** The merges were conflict-free, which is real
+confirmation the streams are as independent as the WO doc claims — not
+just an assertion. Scratch merge branch deleted after verification; nothing
+merged was ever pushed.
+
+### Also produced this session, for Tom to actually see the UI
+Chrome's browser-automation tools refused to navigate to `localhost` (looks
+like a deliberate security restriction, not a bug) — worked around it by
+taking the real server-rendered HTML/CSS from `/paid`, `/paid/personas`,
+and `/paid/creative` under a `DEMO_MODE=1` flag (temporarily stubbed
+`userClient()`/`middleware.ts`, never committed, fully reverted) seeded
+with realistic fake data, and packaging it as a local preview artifact.
+Confirms the pages actually render, not just that they typecheck.
+
+---
+
+## 2026-08-05 · Session 1 · Paid ads control surface built end to end — WO-006, six branches
+
+Tom asked for: campaign-level ROAS on `/paid` (day-prior/7-day/30-day),
+recommendations + a pause/amend/create-campaign execution path, Bloom
+creative for ads (4:5 first, fan out to 1:1/9:16 only after approval), and a
+customer-persona layer. `docs/wo-006-paid-ads-control-surface.md` has the
+full writeup; summary here.
+
+**This isn't from scratch.** `docs/spec-growth-os-two-sided.md` §7/§9 and
+`docs/tm-growth-os-plan.md` Module C/D already scoped almost exactly this —
+approval tiers, a spend-guard hard guardrail, paused-by-default staging, and
+the Bloom→ads creative loop. WO-006 **supersedes** `wo-003`'s Wave 3 Stream G
+(`module/paid-controls`), which was reserved but never built. Named WO-006
+because WO-005 is already taken (organic content, shipped).
+
+### Shipped, six module branches, not yet merged
+- **`module/paid-campaign-registry`** (migration 039) — `campaigns` entity
+  registry with real status/budget, synced by each collector.
+- **`module/paid-dashboard`** — campaign ROAS table on `/paid`
+  (`lib/paidRollup.ts`), anchored on the latest date actually in the data.
+- **`module/paid-recommendations`** — `lib/paidRecommendations.ts`, a new
+  `"Paid"` category in the existing recs lifecycle, surfaced on `/paid`.
+- **`module/paid-controls`** (migration 040) — pause/resume/updateBudget/
+  createCampaign adapters for all three platforms, wired into
+  `api/approvals/route.ts`'s publish path with a spend-guard check that
+  fails the card rather than approving through a ceiling breach.
+- **`module/paid-personas`** (migration 041) — `client_personas` + a new
+  `/paid/personas` page. Copy/creative context only, no platform targeting
+  API touched, per Tom's confirmed scope.
+- **`module/paid-creative`** (migration 042) — `creatives` library +
+  `lib/adCreative.ts`. The fan-out gate (`fanOutSizes()`) is the one piece
+  worth reading closely: 1:1/9:16 are only ever generated for an approved
+  4:5, never as a default.
+
+### Escalation for Tom, not a blocker
+Live pause/amend against real Meta/Google/Microsoft ad accounts needs
+write-scope tokens — today's `auth_ref` credentials are read-only. Per
+CLAUDE.md's escalation list, provisioning those is a Tom-only step. Every
+adapter is built and tested against `MOCK_APIS=1` and stays dry-run-only
+against real accounts until that lands.
+
+### Honest gap
+**Could not run `npm test`** — this environment has no Node/npm installed.
+Every test file was hand-traced against the implementation instead of
+executed. Run the real suite before merging any of these six branches.
+
+### Next phase, explicitly not started
+Landing pages. Tom's direction: CTO starts researching landing-page
+technology now, in parallel — nothing in WO-006 blocks on it or depends on it.
+
+---
+
 ## 2026-08-03 · Session 1 · Onboarding a client was broken — `module/client-onboarding`
 
 Started as "add Emporium Threads", found that **no client could be added at all**.
