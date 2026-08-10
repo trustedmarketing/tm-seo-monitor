@@ -30,6 +30,31 @@ export type SpendGuardResult =
 // budget change before it executes is.
 const DAYS_PER_MONTH = 30;
 
+export type CeilingParse =
+  | { ok: true; value: number | null }
+  | { ok: false; reason: string };
+
+/**
+ * A ceiling typed into the settings form → the number stored, or an error.
+ *
+ * Blank means "no ceiling" (null), which is a real and deliberate choice, not a
+ * validation failure — the guard treats a missing row as unenforced. Everything
+ * else has to be a non-negative finite number, because a ceiling that silently
+ * parsed to NaN would disable the guardrail while looking configured, which is
+ * the worst of both.
+ *
+ * Zero is allowed and means a hard stop: no spend permitted at all.
+ */
+export function parseCeiling(raw: string | null | undefined): CeilingParse {
+  const s = String(raw ?? "").trim().replace(/^\$/, "").replace(/,/g, "");
+  if (s === "") return { ok: true, value: null };
+
+  const n = Number(s);
+  if (!Number.isFinite(n)) return { ok: false, reason: `"${raw}" is not a number` };
+  if (n < 0) return { ok: false, reason: "a ceiling cannot be negative" };
+  return { ok: true, value: n };
+}
+
 export function checkSpendGuard(guard: SpendGuardRow | null, check: SpendGuardCheck): SpendGuardResult {
   if (!guard) return { blocked: false }; // no ceiling configured — nothing to enforce
 
