@@ -4,7 +4,7 @@
 export type Rec = {
   key: string;
   severity: "high" | "medium" | "low";
-  category: "SEO" | "AEO" | "Technical" | "Authority";
+  category: "SEO" | "AEO" | "Technical" | "Authority" | "Paid";
   title: string;
   detail: string;
 };
