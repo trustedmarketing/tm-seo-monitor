@@ -41,6 +41,9 @@ type AdCopySet = {
   created_at: string;
 };
 
+type CampaignOption = { id: string; platform: string; campaign_id: string; campaign_name: string | null };
+type PersonaOption = { id: string; name: string };
+
 const PLATFORM_LABEL: Record<string, string> = { meta: "Meta", google_ads: "Google Ads", microsoft: "Microsoft Ads" };
 const FORMAT_LABEL: Record<string, string> = { rsa: "Search (RSA)", pmax: "Performance Max", meta_feed: "Feed" };
 
@@ -54,17 +57,31 @@ const linkBtn: React.CSSProperties = {
   padding: "7px 12px", borderRadius: 8, border: "1px solid var(--border-strong)",
   color: "var(--fg2)", textDecoration: "none", display: "inline-block",
 };
+const L: React.CSSProperties = { display: "block", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--fg3)", marginBottom: 4 };
+const I: React.CSSProperties = {
+  fontFamily: "var(--font-body)", fontSize: 13, padding: "8px 10px", width: "100%", boxSizing: "border-box",
+  border: "1px solid var(--border-strong)", borderRadius: 7, background: "#fff", color: "var(--fg1)",
+};
+const BTN: React.CSSProperties = {
+  fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13, padding: "9px 16px",
+  borderRadius: 8, border: "none", cursor: "pointer", background: "var(--tm-performance-green)", color: "#080808",
+};
 
 export default async function Creative({ params }: { params: { id: string } }) {
   const db = userClient();
-  const [{ data: client }, { data: creatives }, { data: copySets }] = await Promise.all([
+  const [{ data: client }, { data: creatives }, { data: copySets }, { data: campaignOptions }, { data: personaOptions }] = await Promise.all([
     db.from("clients").select("id, name, domain, tier, client_type").eq("id", params.id).single(),
     db.from("creatives").select("id, campaign_id, concept_group_id, aspect_ratio, image_url, status, prompt, created_at")
       .eq("client_id", params.id).order("created_at", { ascending: false }),
     db.from("ad_copy_sets").select("id, campaign_id, platform, format, headlines, long_headlines, descriptions, primary_texts, business_name, status, created_at")
       .eq("client_id", params.id).order("created_at", { ascending: false }),
+    db.from("campaigns").select("id, platform, campaign_id, campaign_name").eq("client_id", params.id).eq("status", "active"),
+    db.from("client_personas").select("id, name").eq("client_id", params.id),
   ]);
   if (!client) return <main style={{ padding: 48 }}>Client not found. <Link href="/dashboard">Back</Link></main>;
+
+  const campaignChoices = (campaignOptions ?? []) as CampaignOption[];
+  const personaChoices = (personaOptions ?? []) as PersonaOption[];
 
   const rows = (creatives ?? []) as Creative[];
   const groups = new Map<string, Creative[]>();
@@ -93,9 +110,80 @@ export default async function Creative({ params }: { params: { id: string } }) {
         <ClientHeader id={params.id} name={client.name} domain={client.domain} tier={client.tier} clientType={(client as any).client_type ?? null} active="paid"
           sub="Ad creative — generated 4:5 first; approve to fan out to 1:1 and 9:16" />
 
-        <section style={{ ...card, padding: "16px 20px", marginBottom: 16, fontSize: 13, color: "var(--fg2)" }}>
-          Generate a new concept via <code>/api/ops/ad-creative?action=generate&amp;client={params.id}&amp;campaign_name=...</code> (owner-only). A future "Generate creative" button on this page is a follow-up.
-        </section>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+          <section style={{ ...card, padding: "18px 20px", flex: "1 1 320px" }}>
+            <div style={{ ...eyebrow, marginBottom: 10 }}>Generate creative (4:5)</div>
+            <form action="/api/ops/ad-creative" method="get">
+              <input type="hidden" name="action" value="generate" />
+              <input type="hidden" name="client" value={params.id} />
+              <div style={{ marginBottom: 10 }}>
+                <label style={L}>Campaign name</label>
+                <input style={I} name="campaign_name" required placeholder="e.g. Prospecting - Broad" />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                <div>
+                  <label style={L}>Link to campaign (optional)</label>
+                  <select style={I} name="campaign_id" defaultValue="">
+                    <option value="">(none)</option>
+                    {campaignChoices.map((c) => (
+                      <option key={c.id} value={c.id}>{c.campaign_name ?? c.campaign_id} ({PLATFORM_LABEL[c.platform] ?? c.platform})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={L}>Persona (optional)</label>
+                  <select style={I} name="persona_id" defaultValue="">
+                    <option value="">(none)</option>
+                    {personaChoices.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={L}>Offer (optional)</label>
+                <input style={I} name="offer" placeholder="e.g. 20% off this week" />
+              </div>
+              <button type="submit" style={BTN}>Generate 4:5 concept</button>
+            </form>
+          </section>
+
+          <section style={{ ...card, padding: "18px 20px", flex: "1 1 320px" }}>
+            <div style={{ ...eyebrow, marginBottom: 10 }}>Generate ad copy</div>
+            {campaignChoices.length === 0 ? (
+              <div style={{ fontSize: 13, color: "var(--fg3)" }}>No active campaigns yet — copy generation needs an existing campaign to attach to.</div>
+            ) : (
+              <form action="/api/ops/ad-copy" method="get">
+                <input type="hidden" name="action" value="generate" />
+                <input type="hidden" name="client" value={params.id} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <label style={L}>Campaign</label>
+                    <select style={I} name="campaign_ref" required defaultValue="">
+                      <option value="" disabled>Choose…</option>
+                      {campaignChoices.map((c) => (
+                        <option key={c.id} value={c.id}>{c.campaign_name ?? c.campaign_id} ({PLATFORM_LABEL[c.platform] ?? c.platform})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={L}>Persona (optional)</label>
+                    <select style={I} name="persona_id" defaultValue="">
+                      <option value="">(none)</option>
+                      {personaChoices.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={L}>Offer (optional)</label>
+                  <input style={I} name="offer" placeholder="e.g. 20% off this week" />
+                </div>
+                <button type="submit" style={BTN}>Generate copy</button>
+                <div style={{ fontSize: 11, color: "var(--fg3)", marginTop: 8 }}>
+                  Format (RSA / PMax / Feed) is chosen automatically from the campaign&apos;s platform and objective.
+                </div>
+              </form>
+            )}
+          </section>
+        </div>
 
         {groups.size === 0 ? (
           <div style={{ fontSize: 13, color: "var(--fg3)" }}>No creative generated yet.</div>

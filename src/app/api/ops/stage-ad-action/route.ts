@@ -18,6 +18,7 @@ import { readSecret } from "@/lib/vault";
 import { generateCreative } from "@/lib/adCreative";
 import { generateAdCopy } from "@/lib/adCopy";
 import type { AdFormat, AdPlatform } from "@/lib/adCopyLimits";
+import { resolvePersonaFields } from "@/lib/personaContext";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -52,7 +53,7 @@ export async function GET(req: Request) {
       error: "need ?client=<id>&platform=meta|google_ads|microsoft&action=pause|resume|update_budget|create_campaign",
       optional_for_update_budget: "&campaign=<platform campaign id>&budget=<new daily budget>",
       optional_for_pause_resume: "&campaign=<platform campaign id>",
-      optional_for_create_campaign: "&name=<name>&objective=<objective>&budget=<daily budget>",
+      optional_for_create_campaign: "&name=<name>&objective=<objective>&budget=<daily budget>&persona_id=<client_personas.id>&angle=&offer=",
     }, { status: 400 });
   }
 
@@ -102,12 +103,10 @@ export async function GET(req: Request) {
       const bundle: { creative?: string; copy?: string; warning?: string } = {};
 
       if (approvalId) {
-        const brief = {
-          campaignName: name,
-          personaName: p.get("persona_name"),
-          messagingAngle: p.get("angle"),
-          offer: p.get("offer"),
-        };
+        const { personaName, angle } = await resolvePersonaFields(db, p.get("persona_id"), {
+          personaName: p.get("persona_name"), angle: p.get("angle"),
+        });
+        const brief = { campaignName: name, personaName, messagingAngle: angle, offer: p.get("offer") };
 
         try {
           const { data: client } = await db.from("clients").select("bloom_brand_id").eq("id", clientId).single();
