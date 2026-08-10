@@ -119,6 +119,90 @@ function iso(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Raw shape of one GAQL result row for the campaign-list query below.
+export interface GoogleCampaignRawRow {
+  campaign?: { id?: string | number; name?: string; status?: string; advertising_channel_type?: string };
+  campaign_budget?: { amount_micros?: string | number };
+}
+
+// Mapped, DB-ready shape — one row per campaign, for the `campaigns` registry
+// (WO-006 stream A), not ad_metrics_daily.
+export interface CampaignRow {
+  campaign_id: string;
+  campaign_name: string | null;
+  status: "active" | "paused" | "removed";
+  objective: string | null;
+  daily_budget: number | null;
+}
+
+// Google Ads campaign.status: UNSPECIFIED | UNKNOWN | ENABLED | PAUSED | REMOVED.
+function mapCampaignStatus(raw: string | undefined): "active" | "paused" | "removed" {
+  if (raw === "ENABLED") return "active";
+  if (raw === "PAUSED") return "paused";
+  return "removed";
+}
+
+function mapCampaignRow(raw: GoogleCampaignRawRow): CampaignRow {
+  const campaign = raw.campaign ?? {};
+  return {
+    campaign_id: campaign.id != null ? String(campaign.id) : "",
+    campaign_name: campaign.name ?? null,
+    status: mapCampaignStatus(campaign.status),
+    objective: campaign.advertising_channel_type ?? null,
+    daily_budget:
+      raw.campaign_budget?.amount_micros != null
+        ? toNumber(raw.campaign_budget.amount_micros) / MICROS_PER_UNIT
+        : null,
+  };
+}
+
+function buildCampaignQuery(): string {
+  return `
+    SELECT
+      campaign.id,
+      campaign.name,
+      campaign.status,
+      campaign.advertising_channel_type,
+      campaign_budget.amount_micros
+    FROM campaign
+  `.trim();
+}
+
+// POST /v18/customers/{customerId}/googleAds:searchStream, campaign-level
+// status/budget/objective for the `campaigns` registry (not insights).
+// Under MOCK_APIS=1, reads from a fixture.
+export async function fetchCampaigns(auth: GoogleAdsAuth, customerId: string): Promise<CampaignRow[]> {
+  if (mockApis()) {
+    const raw = readFixture<GoogleCampaignRawRow[]>("google/campaigns.json");
+    return raw.map(mapCampaignRow);
+  }
+
+  const url = `${API_BASE}/${API_VERSION}/customers/${customerId}/googleAds:searchStream`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${auth.accessToken}`,
+      "developer-token": auth.developerToken,
+      "login-customer-id": auth.loginCustomerId,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ query: buildCampaignQuery() }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Google Ads campaign searchStream request failed: ${res.status} ${res.statusText}`);
+  }
+
+  const batches = (await res.json()) as SearchStreamBatch[];
+  const rows: CampaignRow[] = [];
+  for (const batch of batches ?? []) {
+    for (const raw of (batch.results as unknown as GoogleCampaignRawRow[] | undefined) ?? []) {
+      rows.push(mapCampaignRow(raw));
+    }
+  }
+  return rows;
+}
+
 function buildQuery(startDate: string, endDate: string): string {
   return `
     SELECT

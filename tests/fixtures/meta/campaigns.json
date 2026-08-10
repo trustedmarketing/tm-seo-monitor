@@ -1,0 +1,16 @@
+[
+  {
+    "id": "120210000000001",
+    "name": "Prospecting - Broad",
+    "status": "ACTIVE",
+    "objective": "OUTCOME_SALES",
+    "daily_budget": "5000"
+  },
+  {
+    "id": "120210000000002",
+    "name": "Lead Gen - Lookalike",
+    "status": "PAUSED",
+    "objective": "OUTCOME_LEADS",
+    "daily_budget": "2500"
+  }
+]
