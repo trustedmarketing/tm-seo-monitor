@@ -3,29 +3,51 @@
 _Last updated: 2026-08-10_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
 
-### Accuracy alerting (2026-08-10) — ✅ MERGED TO MAIN, Slack + email VERIFIED
+### Accuracy alerting (2026-08-10) — ✅ ALL CHANNELS ARMED AND VERIFIED
 
 The platform now tells you when its own numbers stop being trustworthy, rather
 than waiting for someone to spot it by eye against Shopify's dashboard (which
-is how the Overview page's revenue bug went unnoticed for a week). PRs #29–#32.
+is how the Overview page's revenue bug went unnoticed for a week). PRs #29–#35.
 
 | Failure mode | Check | Status |
 |---|---|---|
-| Numbers are **wrong** | `lib/revenueReconciliation.ts` — stored vs. a fresh Shopify pull, >2% AND >$25 | ✅ live |
-| Numbers **stopped** | `lib/dataFreshness.ts` — no new revenue/spend row in 3+ days | ✅ live |
-| Cron **never ran** | `lib/heartbeat.ts` — external dead-man's switch | ⚠️ live but **inert until `HEARTBEAT_URL` is set** |
-| Alerting itself broken | `api/ops/alert-check` — reports config, `?send=1` proves delivery | ✅ live |
+| Numbers are **wrong** | `lib/revenueReconciliation.ts` — stored vs. a fresh Shopify pull, >2% AND >$25 | ✅ armed |
+| Numbers **stopped** | `lib/dataFreshness.ts` — no new revenue/spend row in 3+ days | ✅ armed |
+| Cron **never ran** | `lib/heartbeat.ts` — external dead-man's switch | ✅ armed, ping confirmed |
+| Alerting itself broken | `api/ops/alert-check` | ✅ Slack + email both confirmed arriving |
 
 Delivery via `lib/notify.ts` → Slack **and** email, independently, so one
-misconfigured channel can't swallow an alert. Both confirmed actually arriving,
-not merely configured.
+misconfigured channel can't swallow an alert. All verified by an actual
+delivered message, not by the env vars looking right — it took three separate
+misconfigurations to get email working (default `ALERT_EMAIL_FROM` sender,
+missing `ALERT_EMAIL_TO`, unverified Resend domain) and every one of them
+looked fine from the Vercel dashboard.
 
-**Pending Tom:** sign up at healthchecks.io (free), create a daily check, and
-set `HEARTBEAT_URL` in Vercel. Until then a cron that stops running is still
-silent — the one failure mode nothing else here can see.
+**Known blind spot, by construction.** Reconciliation compares stored rows
+against a fresh `fetchDailySales()` call — but the stored rows were *written*
+by `fetchDailySales()`. A bug in that query moves both sides together and
+reconciles perfectly clean. It proves the pipeline is internally consistent; it
+cannot prove the query is right. That has to be checked against Shopify's own
+reporting UI. PR #35 fixed exactly such a bug (see below), which reconciliation
+had been reporting as healthy the whole time.
 
-Env vars and the `ALERT_EMAIL_FROM` / `ALERT_EMAIL_TO` gotchas are documented in
-the README's "Alerting channels" section.
+Env vars, the `ALERT_EMAIL_FROM` / `ALERT_EMAIL_TO` gotchas, and the heartbeat
+setup are documented in the README's "Alerting channels" section.
+
+### Shopify revenue definition fixed (2026-08-10) — ✅ MERGED, ⏳ NEEDS ACCURACY CHECK
+
+PR #35. The collector summed `totalPriceSet` — Shopify's docs: "the total price
+of the order, **before returns**" — so refunded money counted as revenue
+permanently, and test-gateway orders counted too. Now uses
+`currentTotalPriceSet` ("**after returns**") with a `test:false` filter.
+
+**Expect reported revenue to DROP toward Shopify's own figure on the next
+collection. That drop is the fix working, not a regression.**
+
+**Pending (accuracy gate, `CLAUDE.md` autonomy #3):** parallel-check Salty Dog's
+next two collection cycles against the Shopify admin dashboard before trusting
+the number. Still unsettled: whether cancelled-but-unrefunded orders need a
+separate `status:` filter — deliberately not guessed at, needs real store data.
 
 ### Paid ads control surface — WO-006 (2026-08-10) — ✅ MERGED TO MAIN
 
