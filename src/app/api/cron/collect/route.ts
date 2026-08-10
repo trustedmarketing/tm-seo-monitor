@@ -17,7 +17,8 @@ import {
 } from "@/lib/dataforseo";
 import { syncRecommendations, measureChanges } from "@/lib/recSync";
 import { recordRun } from "@/lib/collectorRuns";
-import { alertOnFailures, alertOnRevenueMismatch, alertOnStaleness, slackAlert, type CollectorFailure, type RevenueMismatch } from "@/lib/slack";
+import { alertOnFailures, slackAlert, type CollectorFailure } from "@/lib/slack";
+import { alertOnRevenueMismatch, alertOnStaleData, type RevenueMismatch } from "@/lib/accuracyAlerts";
 import { findStaleData } from "@/lib/dataFreshness";
 import { classifyChecks, criticalIssues, isCrawlStale, STALE_CRAWL_HOURS } from "@/lib/qc";
 import { collectConversions } from "@/lib/conversionsCollector";
@@ -439,7 +440,7 @@ export async function GET(req: Request) {
   try {
     const stale = await findStaleData(db, (clients ?? []) as { id: string; domain: string }[]);
     staleSources = stale.length;
-    await alertOnStaleness(stale);
+    await alertOnStaleData(ranAt, stale);
   } catch (e) {
     console.error("[freshness] check failed:", (e as Error).message);
   }

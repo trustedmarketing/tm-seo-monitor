@@ -42,21 +42,36 @@ unconfigured, and alerting on that daily is how a failure list gets ignored.
 This finally wires up `alertOnStaleness()`, which had been dead code in
 `lib/slack.ts` since it was written.
 
-Both alert through the existing Slack path, one batched message each (matching
-`alertOnFailures`), and both are non-fatal — a monitoring check that can sink
-the collection it rides on is worse than no check. Cron response now reports
-`revenue_mismatches` and `stale_sources` alongside `failures`.
+**Delivery — `lib/accuracyAlerts.ts`.** Both alerts go through `notify()`
+(Slack AND email via Resend, attempted independently) rather than `slackAlert()`
+directly, unlike the collector-failure alerts. Those are ops noise for whoever
+watches the channel; these are the ones Tom personally needs to see, and betting
+them on a single webhook being configured is how an alert system quietly isn't
+one. Setting `RESEND_API_KEY` + `ALERT_EMAIL_TO` turns email on with no code
+change. There's a test asserting the email goes out with Slack deliberately
+unconfigured. Lives in its own module because `notify.ts` imports `slack.ts` —
+calling notify() from inside slack.ts would be circular.
 
-Verified: 489 tests passing (was 477), `tsc --noEmit` clean.
+Removed the Slack-only `alertOnStaleness()` from `lib/slack.ts` while doing
+this: nothing ever called it, and leaving a second staleness alerter that
+skips email is a trap for whoever wires it up next.
+
+One batched message per check (matching `alertOnFailures`), both non-fatal — a
+monitoring check that can sink the collection it rides on is worse than no
+check. Cron response now reports `revenue_mismatches` and `stale_sources`
+alongside `failures`.
+
+Verified: 493 tests passing (was 477), `tsc --noEmit` clean.
 
 **Open gap, needs Tom (escalation list — external account):** both alerts fire
 from INSIDE the cron. If the cron itself stops running — bad deploy, Vercel
 cron disabled, function timeout — nothing fires and the silence looks like
 success. Closing that needs an external dead-man's-switch (healthchecks.io,
 Cronitor, Better Stack): the cron pings a heartbeat URL on success, and the
-external service alerts when the ping doesn't arrive. Also unconfirmed:
-whether `SLACK_WEBHOOK_URL` is actually set in Vercel production — if it
-isn't, every alert above is a no-op console log.
+external service alerts when the ping doesn't arrive. **Also needed: at least
+one of `SLACK_WEBHOOK_URL` or (`RESEND_API_KEY` + `ALERT_EMAIL_TO`) must be set
+in Vercel production, or every alert here is a no-op console log.** Neither is
+confirmed set today.
 
 ---
 
