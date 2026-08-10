@@ -8,6 +8,7 @@
 import Link from "next/link";
 import { userClient } from "@/lib/supabaseServer";
 import { ClientHeader } from "@/components/ClientHeader";
+import { PaidNav } from "@/components/PaidNav";
 import { SearchAdPreview } from "@/components/SearchAdPreview";
 import { PerformanceMaxPreview } from "@/components/PerformanceMaxPreview";
 import { MetaFeedPreview } from "@/components/MetaFeedPreview";
@@ -119,6 +120,7 @@ export default async function Creative({ params }: { params: { id: string } }) {
       <div style={{ maxWidth: 1000 }}>
         <ClientHeader id={params.id} name={client.name} domain={client.domain} tier={client.tier} clientType={(client as any).client_type ?? null} active="paid"
           sub="Ad creative — generated 4:5 first; approve to fan out to 1:1 and 9:16" />
+        <PaidNav clientId={params.id} active="creative" />
 
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
           <section style={{ ...card, padding: "18px 20px", flex: "1 1 320px" }}>

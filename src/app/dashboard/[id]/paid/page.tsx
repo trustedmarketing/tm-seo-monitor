@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { userClient } from "@/lib/supabaseServer";
 import { ClientHeader } from "@/components/ClientHeader";
+import { PaidNav } from "@/components/PaidNav";
 import { buildCampaignRollups, ROAS_BENCHMARKS, type CampaignRollupInput, type MetricRow } from "@/lib/paidRollup";
 import "@/styles/tm-tokens.css";
 
@@ -111,15 +112,16 @@ export default async function Paid({ params }: { params: { id: string } }) {
       <div style={{ maxWidth: 1180 }}>
         <ClientHeader id={params.id} name={client.name} domain={client.domain} tier={client.tier} clientType={(client as any).client_type ?? null} active="paid"
           sub="Paid media — spend, platform ROAS, and how it reconciles to actual revenue" />
+        <PaidNav clientId={params.id} active="campaigns" />
 
         <section style={{ ...card, padding: "24px 28px", marginBottom: 16 }}>
           <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
             <div style={{ flex: "1 1 180px" }}>
-              <div style={eyebrow}>Total ad spend</div>
+              <div style={eyebrow}>Ad spend · 30d</div>
               <div style={{ fontFamily: "var(--font-display)", fontSize: 52, lineHeight: 1, letterSpacing: "-0.02em", margin: "6px 0 2px" }}>{spend > 0 ? money(spend) : "–"}</div>
             </div>
             <div style={{ flex: "1 1 180px", borderLeft: "1px solid var(--border)", paddingLeft: 24 }}>
-              <div style={eyebrow}>Blended ROAS · actual</div>
+              <div style={eyebrow}>Blended ROAS · actual · 30d</div>
               <div style={{ fontFamily: "var(--font-display)", fontSize: 52, lineHeight: 1, letterSpacing: "-0.02em", margin: "6px 0 2px", color: blendedRoas != null ? "var(--tm-green-deep)" : "var(--fg3)" }}>{blendedRoas != null ? blendedRoas.toFixed(2) + "×" : "–"}</div>
               <div style={{ fontSize: 13, color: "var(--fg3)" }}>actual revenue ÷ spend</div>
             </div>

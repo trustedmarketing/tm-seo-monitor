@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { userClient } from "@/lib/supabaseServer";
 import { ClientHeader } from "@/components/ClientHeader";
+import { PaidNav } from "@/components/PaidNav";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
@@ -104,6 +105,7 @@ export default async function Personas({
       <div style={{ maxWidth: 900 }}>
         <ClientHeader id={params.id} name={client.name} domain={client.domain} tier={client.tier} clientType={(client as any).client_type ?? null} active="paid"
           sub="Customer personas — targeting and messaging context for ad copy and creative, not a platform audience sync" />
+        <PaidNav clientId={params.id} active="personas" />
 
         {searchParams.msg && MSG[searchParams.msg] && (
           <div style={{ ...card, padding: "12px 16px", marginBottom: 16, fontSize: 13.5, color: "var(--fg2)" }}>{MSG[searchParams.msg]}</div>
