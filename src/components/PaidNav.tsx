@@ -11,12 +11,13 @@
 // imply Personas sits alongside Organic and Social, which it does not.
 import Link from "next/link";
 
-export type PaidSection = "campaigns" | "personas" | "creative";
+export type PaidSection = "campaigns" | "personas" | "creative" | "guardrails";
 
 const SECTIONS: { key: PaidSection; label: string; href: string; note: string }[] = [
   { key: "campaigns", label: "Campaigns", href: "", note: "Spend, ROAS and campaign actions" },
   { key: "personas", label: "Personas", href: "/personas", note: "Audience context used when writing copy and creative" },
   { key: "creative", label: "Creative & copy", href: "/creative", note: "Generated ad creative, copy sets and live ad performance" },
+  { key: "guardrails", label: "Guardrails", href: "/guardrails", note: "Hard spend ceilings that block a budget change before it executes" },
 ];
 
 export function PaidNav({ clientId, active }: { clientId: string; active: PaidSection }) {
