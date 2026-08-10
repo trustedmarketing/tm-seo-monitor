@@ -3,6 +3,30 @@
 _Last updated: 2026-08-10_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
 
+### Accuracy alerting (2026-08-10) — ✅ MERGED TO MAIN, Slack + email VERIFIED
+
+The platform now tells you when its own numbers stop being trustworthy, rather
+than waiting for someone to spot it by eye against Shopify's dashboard (which
+is how the Overview page's revenue bug went unnoticed for a week). PRs #29–#32.
+
+| Failure mode | Check | Status |
+|---|---|---|
+| Numbers are **wrong** | `lib/revenueReconciliation.ts` — stored vs. a fresh Shopify pull, >2% AND >$25 | ✅ live |
+| Numbers **stopped** | `lib/dataFreshness.ts` — no new revenue/spend row in 3+ days | ✅ live |
+| Cron **never ran** | `lib/heartbeat.ts` — external dead-man's switch | ⚠️ live but **inert until `HEARTBEAT_URL` is set** |
+| Alerting itself broken | `api/ops/alert-check` — reports config, `?send=1` proves delivery | ✅ live |
+
+Delivery via `lib/notify.ts` → Slack **and** email, independently, so one
+misconfigured channel can't swallow an alert. Both confirmed actually arriving,
+not merely configured.
+
+**Pending Tom:** sign up at healthchecks.io (free), create a daily check, and
+set `HEARTBEAT_URL` in Vercel. Until then a cron that stops running is still
+silent — the one failure mode nothing else here can see.
+
+Env vars and the `ALERT_EMAIL_FROM` / `ALERT_EMAIL_TO` gotchas are documented in
+the README's "Alerting channels" section.
+
 ### Paid ads control surface — WO-006 (2026-08-10) — ✅ MERGED TO MAIN
 
 All nine module streams (`module/paid-campaign-registry` through

@@ -99,15 +99,41 @@ that works just often enough to look correct. Now documented in the README
 with the full env var table, and `alert-check` returns an
 `email_from_warning` when it's unset.
 
-**Open gap, needs Tom (escalation list — external account):** both alerts fire
-from INSIDE the cron. If the cron itself stops running — bad deploy, Vercel
-cron disabled, function timeout — nothing fires and the silence looks like
-success. Closing that needs an external dead-man's-switch (healthchecks.io,
-Cronitor, Better Stack): the cron pings a heartbeat URL on success, and the
-external service alerts when the ping doesn't arrive. **Also needed: at least
-one of `SLACK_WEBHOOK_URL` or (`RESEND_API_KEY` + `ALERT_EMAIL_TO`) must be set
-in Vercel production, or every alert here is a no-op console log.** Neither is
-confirmed set today.
+**Dead-man's switch — `lib/heartbeat.ts` (PR #32).** The gap the two checks
+above could never close: they fire from INSIDE the cron, so a cron that never
+runs produces silence, and silence is indistinguishable from health. We cannot
+detect our own absence; an external service watching for a scheduled ping can.
+`pingHeartbeat()` GETs `HEARTBEAT_URL` as the LAST thing the run does — so the
+ping means "got all the way to the end", and a run that dies partway never
+reports health. Provider-agnostic, no-op when unset, never throws, 10s timeout
+(the cron is already near Vercel's 300s ceiling by then). Reports "not
+configured" rather than ok when unset, so the response can't claim the switch
+is armed when it isn't.
+
+### Verified end-to-end, 2026-08-10
+
+Slack ✅ · Email ✅ · both confirmed by `api/ops/alert-check?send=1` landing in
+the real channel and the real inbox — not merely "configured".
+
+Getting email working took three separate misconfigurations, each invisible
+until the diagnostic named it, which is the whole argument for having built
+`alert-check` rather than trusting the env vars:
+
+1. `ALERT_EMAIL_FROM` unset → Resend's default shared sender only delivers to
+   the account owner's own address.
+2. `ALERT_EMAIL_TO` unset → `notify()` gates email on BOTH vars, so a Resend
+   key alone looks configured and sends nothing, silently.
+3. `send.trustedmarketing.com` not verified in Resend → HTTP 403.
+
+None of these would have surfaced on their own. All three would have been
+discovered the first time a real revenue mismatch needed reporting and didn't
+arrive.
+
+**Still open, needs Tom (escalation list — external account):** `HEARTBEAT_URL`
+is not set, so the dead-man's switch is inert. healthchecks.io (free) → new
+check on a daily schedule with a few hours' grace → copy ping URL → add
+`HEARTBEAT_URL` in Vercel → redeploy. Until then the cron response reports
+`"heartbeat": "not configured"`.
 
 ---
 
