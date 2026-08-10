@@ -14,6 +14,31 @@ export type Notification = {
   body: string;
 };
 
+// Shared Resend send path, factored out so module/daily-brief can send to its
+// own recipient list without duplicating the fetch call notify() already has.
+// No-ops (returns false) when RESEND_API_KEY is unset — same philosophy as
+// slackAlert: adding the key turns email on with no code change.
+export async function sendResendEmail(opts: { subject: string; text: string; to: string; from?: string }): Promise<boolean> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return false;
+  const from = opts.from ?? process.env.ALERT_EMAIL_FROM ?? "Growth OS <onboarding@resend.dev>";
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from,
+        to: opts.to.split(",").map((t) => t.trim()).filter(Boolean),
+        subject: opts.subject,
+        text: opts.text,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function notify(n: Notification): Promise<{ slack: boolean; email: boolean }> {
   const out = { slack: false, email: false };
 
