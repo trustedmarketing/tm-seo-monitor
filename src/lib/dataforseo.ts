@@ -28,6 +28,30 @@ async function post<T>(path: string, payload: unknown[]): Promise<T[]> {
   return (task?.result ?? []) as T[];
 }
 
+// GET counterpart for the task-retrieval endpoints. DataForSEO's docs are
+// explicit that /on_page/summary/$id is a GET, and POSTing it does NOT error —
+// it answers 200 with an empty `result`, which read exactly like "the crawl is
+// still running". Every crawl therefore stalled at in_progress forever: polled,
+// found unfinished, abandoned at 48h, requeued, repeat. A month of dead
+// site-health data across every client, and not one exception to show for it.
+//
+// The lesson worth keeping: our own error path was fine. It was the SUCCESS
+// path that lied. A silent wrong answer beats a loud failure at hiding.
+async function get<T>(path: string): Promise<T[]> {
+  if (mockApis()) return mockDataForSeo<T>(path);
+  const res = await fetch(`${BASE}${path}`, {
+    method: "GET",
+    headers: { Authorization: authHeader(), "Content-Type": "application/json" },
+  });
+  if (!res.ok) throw new Error(`DataForSEO ${path} → HTTP ${res.status}`);
+  const json = await res.json();
+  const task = json?.tasks?.[0];
+  if (task?.status_code >= 40000) {
+    throw new Error(`DataForSEO ${path} → ${task.status_code} ${task.status_message}`);
+  }
+  return (task?.result ?? []) as T[];
+}
+
 // ── Organic traffic + keyword count (1 call, both numbers) ───────
 export async function domainRankOverview(domain: string, locationCode: number, languageCode: string) {
   type Row = { metrics?: { organic?: { etv?: number; count?: number } } };
@@ -142,9 +166,50 @@ export async function onPageTaskPost(domain: string, maxPages = 300): Promise<st
   return id as string;
 }
 
+/**
+ * Raw crawl state for one task — a diagnostic, not part of collection.
+ *
+ * Exists because the POST-vs-GET bug was invisible from our side: the summary
+ * call returned an empty result, our code read that as "still crawling", and no
+ * error was ever recorded. Being able to ask DataForSEO directly what it thinks
+ * a task's state is turns that class of question from a day-long guess into one
+ * request. Returns everything needed to tell "still running" from "finished"
+ * from "we are asking wrong".
+ */
+export type OnPageCrawlStatus = {
+  crawlProgress: string | null;
+  pagesCrawled: number | null;
+  pagesInQueue: number | null;
+  maxCrawlPages: number | null;
+  crawlStopReason: string | null;
+  onpageScore: number | null;
+  /** Rows DataForSEO returned. Zero here is the signature of the old POST bug. */
+  resultRows: number;
+};
+
+export async function onPageCrawlStatus(taskId: string): Promise<OnPageCrawlStatus> {
+  type Row = {
+    crawl_progress?: string;
+    crawl_stop_reason?: string;
+    crawl_status?: { pages_crawled?: number; pages_in_queue?: number; max_crawl_pages?: number };
+    items?: { onpage_score?: number }[];
+  };
+  const result = await get<Row>("/on_page/summary/" + taskId);
+  const row = result?.[0];
+  return {
+    crawlProgress: row?.crawl_progress ?? null,
+    pagesCrawled: row?.crawl_status?.pages_crawled ?? null,
+    pagesInQueue: row?.crawl_status?.pages_in_queue ?? null,
+    maxCrawlPages: row?.crawl_status?.max_crawl_pages ?? null,
+    crawlStopReason: row?.crawl_stop_reason ?? null,
+    onpageScore: row?.items?.[0]?.onpage_score ?? null,
+    resultRows: result?.length ?? 0,
+  };
+}
+
 export async function onPageScore(taskId: string): Promise<number | null> {
   type Row = { crawl_progress?: string; items?: { onpage_score?: number }[] };
-  const result = await post<Row>("/on_page/summary/" + taskId, []);
+  const result = await get<Row>("/on_page/summary/" + taskId);
   const row = result?.[0];
   if (row?.crawl_progress !== "finished") return null; // still crawling — try next run
   return row?.items?.[0]?.onpage_score ?? null;
@@ -178,7 +243,7 @@ export async function onPageSummary(taskId: string): Promise<OnPageSummary | nul
     items?: { onpage_score?: number; page_metrics?: { checks?: Record<string, number> } }[];
   };
 
-  const result = await post<Row>("/on_page/summary/" + taskId, []);
+  const result = await get<Row>("/on_page/summary/" + taskId);
   const row = result?.[0];
   if (row?.crawl_progress !== "finished") return null;
 
