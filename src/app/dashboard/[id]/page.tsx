@@ -51,12 +51,21 @@ export default async function Overview({ params }: { params: { id: string } }) {
     .eq("client_id", params.id)
     .in("status", ["staged", "failed"]);
 
+  // 30 days, matching the /paid tab's own window (lib/paidRollup.ts) — this
+  // page had NO date filter before, silently summing every row ever
+  // collected since the client went live instead of a recent window. Caught
+  // by Tom cross-checking against Shopify's own 30-day dashboard: order
+  // count alone (599 here vs Shopify's 370) proved it wasn't a per-order
+  // valuation difference, since a bounded query would match Shopify's
+  // count exactly modulo timezone edges.
+  const windowStart = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+
   const [{ data: client }, { data: snaps }, { data: convs }, { data: ads }] = await Promise.all([
     db.from("clients").select("*").eq("id", params.id).single(),
     db.from("metric_snapshots").select("captured_at, visibility, ai_visibility, site_health, organic_traffic")
       .eq("client_id", params.id).order("captured_at", { ascending: false }).limit(1),
-    db.from("conversions_daily").select("source, revenue, conversions").eq("client_id", params.id),
-    db.from("ad_metrics_daily").select("spend, revenue, platform").eq("client_id", params.id),
+    db.from("conversions_daily").select("source, revenue, conversions").eq("client_id", params.id).gte("date", windowStart),
+    db.from("ad_metrics_daily").select("spend, revenue, platform").eq("client_id", params.id).gte("date", windowStart),
   ]);
 
   if (!client) {
@@ -129,19 +138,19 @@ export default async function Overview({ params }: { params: { id: string } }) {
         <section style={{ ...card, padding: "28px 28px 24px", marginBottom: 16 }}>
           <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
             <div style={{ flex: "1 1 200px", minWidth: 180 }}>
-              <div style={eyebrow}>MER · blended</div>
+              <div style={eyebrow}>MER · blended (30d)</div>
               <div style={{ ...heroNum, color: mer != null ? "var(--tm-green-deep)" : "var(--fg3)" }}>
                 {mer != null ? mer.toFixed(2) + "×" : "–"}
               </div>
               <div style={{ fontSize: 13, color: "var(--fg3)" }}>revenue ÷ ad spend</div>
             </div>
             <div style={{ flex: "1 1 200px", minWidth: 180, borderLeft: "1px solid var(--border)", paddingLeft: 24 }}>
-              <div style={eyebrow}>Revenue{revSrc ? ` · ${revSrc}` : ""}</div>
+              <div style={eyebrow}>Revenue (30d){revSrc ? ` · ${revSrc}` : ""}</div>
               <div style={{ ...heroNum, color: actualRev > 0 ? "var(--fg1)" : "var(--fg3)" }}>{actualRev > 0 ? money(actualRev) : "–"}</div>
               <div style={{ fontSize: 13, color: "var(--fg3)" }}>{revSrc ? `${orders} orders · actual` : client.ga4_property_id ? "collecting" : "not connected"}</div>
             </div>
             <div style={{ flex: "1 1 200px", minWidth: 180, borderLeft: "1px solid var(--border)", paddingLeft: 24 }}>
-              <div style={eyebrow}>Ad spend · total</div>
+              <div style={eyebrow}>Ad spend (30d) · total</div>
               <div style={{ ...heroNum, color: spend > 0 ? "var(--fg1)" : "var(--fg3)" }}>{spend > 0 ? money(spend) : "–"}</div>
               <div style={{ fontSize: 13, color: "var(--fg3)" }}>{platforms.length ? platforms.map(([p]) => PLATFORM_LABEL[p] ?? p).join(" · ") : "no paid connected"}</div>
             </div>
@@ -150,7 +159,7 @@ export default async function Overview({ params }: { params: { id: string } }) {
           {/* reconciliation — the trust line, always visible when we have both sides */}
           {actualRev > 0 && claimed > 0 && (
             <div style={{ marginTop: 22, paddingTop: 18, borderTop: "1px solid var(--border)", fontSize: 13.5, lineHeight: 1.6, color: "var(--fg2)" }}>
-              <span style={{ fontWeight: 600 }}>Attribution check:</span>{" "}
+              <span style={{ fontWeight: 600 }}>Attribution check (last 30 days):</span>{" "}
               {revSrc ?? "Actual"} recorded <strong>{moneyFull(actualRev)}</strong> (ground truth);
               ad platforms together claim <strong>{moneyFull(claimed)}</strong>
               {" "}({Math.round((claimedPct as number) * 100)}% of actual).
