@@ -91,8 +91,8 @@ describe("shopify.fetchDailySales live path (fetch mocked)", () => {
         orders: {
           pageInfo: { hasNextPage: true, endCursor: "cursor1" },
           edges: [
-            { node: { createdAt: "2026-07-01T10:00:00Z", totalPriceSet: { shopMoney: { amount: "100.00" } } } },
-            { node: { createdAt: "2026-07-01T18:30:00Z", totalPriceSet: { shopMoney: { amount: "50.50" } } } },
+            { node: { createdAt: "2026-07-01T10:00:00Z", currentTotalPriceSet: { shopMoney: { amount: "100.00" } } } },
+            { node: { createdAt: "2026-07-01T18:30:00Z", currentTotalPriceSet: { shopMoney: { amount: "50.50" } } } },
           ],
         },
       },
@@ -102,7 +102,7 @@ describe("shopify.fetchDailySales live path (fetch mocked)", () => {
         orders: {
           pageInfo: { hasNextPage: false, endCursor: null },
           edges: [
-            { node: { createdAt: "2026-07-02T09:15:00Z", totalPriceSet: { shopMoney: { amount: "75.25" } } } },
+            { node: { createdAt: "2026-07-02T09:15:00Z", currentTotalPriceSet: { shopMoney: { amount: "75.25" } } } },
           ],
         },
       },
@@ -127,6 +127,65 @@ describe("shopify.fetchDailySales live path (fetch mocked)", () => {
     expect(url).toBe("https://test-shop.myshopify.com/admin/api/2025-01/graphql.json");
     const headers = (init as RequestInit).headers as Record<string, string>;
     expect(headers["X-Shopify-Access-Token"]).toBe("shpat_real_token");
+  });
+
+  it("excludes test orders — a round of checkout testing must not land in reported revenue", async () => {
+    vi.stubEnv("MOCK_APIS", "0");
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: { orders: { pageInfo: { hasNextPage: false, endCursor: null }, edges: [] } } }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchDailySales("test-shop.myshopify.com", "shpat_real_token", 28);
+
+    const sent = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(sent.variables.query).toContain("test:false");
+  });
+
+  it("uses currentTotalPriceSet (after returns), not totalPriceSet (before returns)", async () => {
+    vi.stubEnv("MOCK_APIS", "0");
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: { orders: { pageInfo: { hasNextPage: false, endCursor: null }, edges: [] } } }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchDailySales("test-shop.myshopify.com", "shpat_real_token", 28);
+
+    // Shopify's docs: totalPriceSet is "before returns", currentTotalPriceSet is
+    // "after returns". Requesting the former counts refunded money as revenue
+    // permanently, and revenueReconciliation.ts cannot catch it — it compares
+    // this function against rows written by this function, so a query-level
+    // error moves both sides together and reconciles clean.
+    const sent = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(sent.query).toContain("currentTotalPriceSet");
+    expect(sent.query).not.toContain("totalPriceSet {");
+  });
+
+  it("counts a fully refunded order as zero revenue rather than its original total", async () => {
+    vi.stubEnv("MOCK_APIS", "0");
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          orders: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            edges: [
+              { node: { createdAt: "2026-07-01T10:00:00Z", currentTotalPriceSet: { shopMoney: { amount: "200.00" } } } },
+              // Fully refunded: currentTotalPriceSet is 0 even though the order
+              // was originally 500.00. Counting the 500 is the overcount.
+              { node: { createdAt: "2026-07-01T12:00:00Z", currentTotalPriceSet: { shopMoney: { amount: "0.00" } } } },
+            ],
+          },
+        },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const rows = await fetchDailySales("test-shop.myshopify.com", "shpat_real_token", 28);
+
+    expect(rows).toEqual([{ date: "2026-07-01", orders: 2, revenue: 200 }]);
   });
 
   it("throws (does not swallow) when the orders request responds with a non-OK status", async () => {
