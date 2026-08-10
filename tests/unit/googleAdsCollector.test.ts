@@ -206,4 +206,35 @@ describe("collectGoogleAds", () => {
     const run = db._rows("collector_runs")[0];
     expect(["success", "skipped", "error"]).toContain(run.status);
   });
+
+  it("syncs campaign status/budget/objective into the campaigns registry (WO-006 stream A)", async () => {
+    vi.stubEnv("MOCK_APIS", "1");
+    const db = seedDb();
+
+    await collectGoogleAds(db, { id: CLIENT_ID, domain: "example.com" });
+
+    const campaigns = db._rows("campaigns");
+    expect(campaigns).toHaveLength(3); // matches tests/fixtures/google/campaigns.json
+    expect(campaigns).toContainEqual(
+      expect.objectContaining({
+        client_id: CLIENT_ID,
+        platform: "google_ads",
+        campaign_id: "17300000003",
+        campaign_name: "Performance Max - Catalog",
+        status: "paused",
+        objective: "PERFORMANCE_MAX",
+        daily_budget: 45, // fixture's "45000000" micros / 1_000_000
+      })
+    );
+  });
+
+  it("updates campaign rows instead of duplicating on a second run", async () => {
+    vi.stubEnv("MOCK_APIS", "1");
+    const db = seedDb();
+
+    await collectGoogleAds(db, { id: CLIENT_ID, domain: "example.com" });
+    await collectGoogleAds(db, { id: CLIENT_ID, domain: "example.com" });
+
+    expect(db._rows("campaigns")).toHaveLength(3); // still 3 — second run updated, not appended
+  });
 });

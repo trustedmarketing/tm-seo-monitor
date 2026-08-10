@@ -12,10 +12,11 @@
 // access token is only ever passed to fetchAdInsights(); it's never logged or
 // included in a `detail`/`error` string recorded to collector_runs.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAdInsights } from "@/lib/meta";
+import { fetchAdInsights, fetchCampaigns } from "@/lib/meta";
 import { readSecret } from "@/lib/vault";
 import { recordRun } from "@/lib/collectorRuns";
 import { mockApis } from "@/lib/apiMock";
+import { upsertCampaigns } from "@/lib/campaignSync";
 
 const MODULE = "meta_ads";
 
@@ -80,6 +81,13 @@ export async function collectMetaAds(
     }
 
     const insights = await fetchAdInsights(token ?? "", row.external_id, days);
+
+    // Campaign entity sync (WO-006 stream A) — status/budget/objective, into
+    // the `campaigns` registry. Separate endpoint from insights above; a
+    // failure here is folded into the same catch block as the rest of the run.
+    const campaigns = await fetchCampaigns(token ?? "", row.external_id);
+    const campaignsSynced = await upsertCampaigns(db, client.id, "meta", campaigns);
+
     let written = 0;
 
     for (const r of insights) {
@@ -121,7 +129,7 @@ export async function collectMetaAds(
 
     await recordRun(db, MODULE, client.id, {
       status: "success",
-      detail: `wrote ${written} row(s) for ${client.domain}`,
+      detail: `wrote ${written} row(s), synced ${campaignsSynced} campaign(s) for ${client.domain}`,
       rows_written: written,
       duration_ms: Date.now() - started,
     });
