@@ -29,7 +29,12 @@ export interface ProviderSpec {
 export const AEO_PROVIDERS: ProviderSpec[] = [
   { key: "chat_gpt", label: "ChatGPT", slug: "chat_gpt", defaultModel: "gpt-4o", envVar: "AEO_MODEL" },
   { key: "gemini", label: "Gemini", slug: "gemini", defaultModel: "gemini-2.0-flash", envVar: "AEO_MODEL_GEMINI" },
-  { key: "claude", label: "Claude", slug: "claude", defaultModel: "claude-opus-4-0", envVar: "AEO_MODEL_CLAUDE" },
+  // Sonnet, not Opus. DataForSEO's own docs example uses claude-opus-4-0, which
+  // is how the most expensive model in the range ends up chosen by accident —
+  // the LLM cost is passed straight through, and Opus runs roughly 5x Sonnet
+  // and ~100x Gemini Flash per check. For "was this brand named in the answer"
+  // the frontier model buys nothing the cheaper one does not already do.
+  { key: "claude", label: "Claude", slug: "claude", defaultModel: "claude-sonnet-4-0", envVar: "AEO_MODEL_CLAUDE" },
 ];
 
 /**
