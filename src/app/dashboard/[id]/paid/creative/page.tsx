@@ -11,6 +11,7 @@ import { ClientHeader } from "@/components/ClientHeader";
 import { SearchAdPreview } from "@/components/SearchAdPreview";
 import { PerformanceMaxPreview } from "@/components/PerformanceMaxPreview";
 import { MetaFeedPreview } from "@/components/MetaFeedPreview";
+import { buildCreativeRollups, type CreativeMetricRow } from "@/lib/creativeRollup";
 import "@/styles/tm-tokens.css";
 
 export const dynamic = "force-dynamic";
@@ -69,7 +70,7 @@ const BTN: React.CSSProperties = {
 
 export default async function Creative({ params }: { params: { id: string } }) {
   const db = userClient();
-  const [{ data: client }, { data: creatives }, { data: copySets }, { data: campaignOptions }, { data: personaOptions }] = await Promise.all([
+  const [{ data: client }, { data: creatives }, { data: copySets }, { data: campaignOptions }, { data: personaOptions }, { data: creativeMetrics }] = await Promise.all([
     db.from("clients").select("id, name, domain, tier, client_type").eq("id", params.id).single(),
     db.from("creatives").select("id, campaign_id, concept_group_id, aspect_ratio, image_url, status, prompt, created_at")
       .eq("client_id", params.id).order("created_at", { ascending: false }),
@@ -77,11 +78,20 @@ export default async function Creative({ params }: { params: { id: string } }) {
       .eq("client_id", params.id).order("created_at", { ascending: false }),
     db.from("campaigns").select("id, platform, campaign_id, campaign_name").eq("client_id", params.id).eq("status", "active"),
     db.from("client_personas").select("id, name").eq("client_id", params.id),
+    // 30 days is the widest window lib/creativeRollup.ts computes; no point pulling more.
+    db
+      .from("ad_metrics_daily")
+      .select("creative_id, campaign_id, campaign_name, platform, date, spend, revenue, impressions, clicks")
+      .eq("client_id", params.id)
+      .gte("date", new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)),
   ]);
   if (!client) return <main style={{ padding: 48 }}>Client not found. <Link href="/dashboard">Back</Link></main>;
 
   const campaignChoices = (campaignOptions ?? []) as CampaignOption[];
   const personaChoices = (personaOptions ?? []) as PersonaOption[];
+
+  const creativeRollups = buildCreativeRollups((creativeMetrics ?? []) as CreativeMetricRow[])
+    .sort((a, b) => b.thirtyDaySpend - a.thirtyDaySpend);
 
   const rows = (creatives ?? []) as Creative[];
   const groups = new Map<string, Creative[]>();
@@ -305,6 +315,43 @@ export default async function Creative({ params }: { params: { id: string } }) {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </section>
+
+        <section style={{ marginTop: 28 }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={eyebrow}>Live creative performance</div>
+            <div style={{ fontSize: 11.5, color: "var(--fg3)" }}>Meta only for now — Google Ads/Microsoft collectors don&apos;t expose creative_id yet</div>
+          </div>
+          {creativeRollups.length === 0 ? (
+            <div style={{ fontSize: 13, color: "var(--fg3)" }}>
+              No creative-level performance data yet. Populates automatically once the daily collector has run against a Meta account with active ads.
+            </div>
+          ) : (
+            <div style={{ ...card, padding: "16px 20px", overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ textAlign: "left", borderBottom: "1px solid var(--border)" }}>
+                    {["Creative ID", "Campaign(s)", "Day-prior ROAS", "7-day ROAS", "30-day ROAS", "30-day CTR", "30-day spend"].map((h) => (
+                      <th key={h} style={{ ...eyebrow, fontWeight: 700, padding: "6px 10px 8px", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {creativeRollups.map((r) => (
+                    <tr key={r.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                      <td style={{ padding: "8px 10px", fontWeight: 600, fontFamily: "ui-monospace, monospace", fontSize: 12 }}>{r.creativeId}</td>
+                      <td style={{ padding: "8px 10px", color: "var(--fg2)" }}>{r.campaignNames.join(", ") || "—"}</td>
+                      <td style={{ padding: "8px 10px" }}>{r.dayPriorRoas != null ? r.dayPriorRoas.toFixed(2) + "×" : "–"}</td>
+                      <td style={{ padding: "8px 10px" }}>{r.sevenDayRoas != null ? r.sevenDayRoas.toFixed(2) + "×" : "–"}</td>
+                      <td style={{ padding: "8px 10px" }}>{r.thirtyDayRoas != null ? r.thirtyDayRoas.toFixed(2) + "×" : "–"}</td>
+                      <td style={{ padding: "8px 10px" }}>{r.thirtyDayCtr != null ? r.thirtyDayCtr.toFixed(2) + "%" : "–"}</td>
+                      <td style={{ padding: "8px 10px", color: "var(--fg2)" }}>${r.thirtyDaySpend.toFixed(0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </section>
