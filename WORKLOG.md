@@ -5,6 +5,94 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-10 · Session 5b · A month of dead crawls, three unbounded pages, Stream J
+
+Follow-on from the alerting work below. Tom asked why the portfolio still showed
+Salty Dog at $51.3K / 599 orders, and pointed at 7 × "Collection failed". Both
+turned out to be real bugs, neither of which the new alerting could have caught.
+
+### The date-window bug, twice more (PR #37)
+
+`/dashboard/[id]` was fixed in #28. The **portfolio page and `/paid` were not** —
+their `conversions_daily`/`ad_metrics_daily` queries had no date filter at all,
+so Revenue / MER / Ad spend were lifetime cumulative totals under a caption
+reading "period total", for a period that did not exist. That is why 599 orders
+persisted: the exact pre-#28 all-time figure, against Shopify's real 370. The
+portfolio and the client Overview had been disagreeing with each other for any
+client live longer than 30 days.
+
+Swept every reader of both tables afterwards; only those three were unbounded.
+Column headers now state their window, because an unlabelled number is how this
+hid on three pages at once.
+
+**Lesson:** fixing a bug on one page without grepping for the same query shape
+elsewhere is how one bug becomes three.
+
+### A month of dead crawls — on_page/summary is GET, not POST (PR #40)
+
+`crawls_last_30d: 0` against a healthy DataForSEO account ($12.93 balance,
+credentials fine). The only error in `collector_runs` was our own stale-abandon
+message. No vendor error, ever.
+
+DataForSEO's `/v3/on_page/summary/$id` is a **GET**. We sent POST. It does not
+error — it answers 200 with an empty `result`, which our code read as
+"crawl_progress is not finished, still crawling". Every crawl stalled: post,
+poll, unfinished, abandon at 48h, requeue, repeat. Salty Dog's last successful
+crawl was 23 July; the other three clients have never had one. Site-health data
+was dead portfolio-wide for a month.
+
+**Lesson worth keeping: the error path was fine — the SUCCESS path lied.** A
+wrong answer that is indistinguishable from a legitimate "not ready yet" hides
+far better than a failure. Nothing threw, nothing alerted, and the dashboard
+showed a red nobody could action. The tests now assert on the HTTP *method*, not
+just parsed output, because the parsed output was the problem.
+
+`dataforseo.ts` already knew this class of endpoint existed —
+`accountStatus()` carries the comment "GET, not POST — this endpoint does not
+take a payload". `on_page/summary` was simply missed.
+
+Added `onPageCrawlStatus()` and `?task=<id>` on `api/ops/dataforseo-check` so a
+crawl's live state can be read straight from DataForSEO rather than inferred;
+`resultRows: 0` there is the signature of querying it wrong. The check also
+lists `pending_tasks`, so finding a task id no longer means opening SQL.
+
+### The failure rail was lying too (PR #38)
+
+Two bugs. `collector_runs.error` was never selected, so the rail could only
+render the fixed string "Collection failed" — the column has always been
+populated, which is why 7 failures sat unread. And it flagged any error in the
+48h window while ignoring a later success, so a recovered module stayed red.
+That is likely why all four crawl rows showed: the stale-abandon path records an
+error and then requeues successfully in the same run. A red that never clears
+trains everyone to ignore reds.
+
+Extracted to `lib/collectorHealth.ts` with tests; `latestRunPerModule()` no
+longer depends on the caller's `.order()` holding.
+
+### Also shipped
+
+- **PaidNav (PR #39)** — `/paid/personas` had no link from anywhere in the app
+  and `/paid/creative`'s only route was a link buried in body copy. Tom went
+  looking for the creative page and couldn't find it. Sub-views of one channel,
+  so a second-level strip rather than new ChannelNav tabs.
+- **Stream J (PR #41)** — the spend guardrail has been enforced since stream D
+  but ceilings could only be set via hand-written SQL, so no client had one and
+  every budget change passed unchallenged. Owner-only writes: if the person who
+  wants a big budget through can lift the limit that stops it, the limit is
+  decoration. Shows committed daily budget beside the ceiling (a ceiling typed
+  without knowing current spend is a guess) and flags a ceiling set *below*
+  current commitments, which would block every future change.
+
+Verified: 535 tests passing (was 507 at session start), `tsc --noEmit` clean,
+`next build` clean, all merged to `main` and deployed.
+
+**Pending Tom:** confirm the crawl fix against a live task via
+`api/ops/dataforseo-check?task=<id>` — `crawlProgress: "finished"` means fixed,
+`resultRows: 0` means still wrong. The in-flight tasks are days old, so the next
+cron should score them immediately rather than waiting for fresh crawls.
+
+---
+
 ## 2026-08-10 · Session 5 · Automated accuracy alerts — revenue reconciliation + data staleness
 
 Tom, after the Overview-page revenue bug: "this just needs to work seamlessly.

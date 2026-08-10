@@ -3,6 +3,44 @@
 _Last updated: 2026-08-10_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
 
+### Crawls fixed after a month dead (2026-08-10) — ✅ MERGED, ⏳ NEEDS LIVE CONFIRMATION
+
+PR #40. DataForSEO's `/v3/on_page/summary/$id` is a **GET**; we sent POST. It
+answers 200 with an empty result rather than erroring, which our code read as
+"still crawling" — so every crawl stalled, was abandoned at 48h, requeued, and
+repeated. Zero completed crawls in 30 days across all four clients, with no
+exception ever raised: the error path was fine, the **success path lied**.
+
+Site-health / QC data was dead portfolio-wide for a month.
+
+**Pending:** confirm against a live task —
+`api/ops/dataforseo-check?task=<id>` (ids listed under `pending_tasks`).
+`crawlProgress: "finished"` = fixed; `resultRows: 0` = still wrong. Existing
+in-flight tasks are days old, so the next cron should score them immediately.
+
+### Paid workspace completed (2026-08-10) — ✅ MERGED
+
+- **PR #39** — `PaidNav` sub-nav. `/paid/personas` previously had no link from
+  anywhere in the app; `/paid/creative`'s only route was buried in body copy.
+- **PR #41** — Stream J, spend-guard settings UI at `/paid/guardrails`. The
+  guardrail has been enforced since stream D but ceilings could only be set via
+  hand-written SQL, so no client had one and every budget change passed
+  unchallenged. Owner-only writes.
+
+WO-006 is now complete: streams A–J all shipped.
+
+### Portfolio + /paid date windows (2026-08-10) — ✅ MERGED
+
+PR #37. The #28 fix was applied to `/dashboard/[id]` only; the portfolio page and
+`/paid` still had **no date filter**, so their Revenue / MER / Ad spend figures
+were lifetime totals labelled "period total". The portfolio and client Overview
+disagreed with each other for any client live over 30 days. Swept both tables'
+readers — only those three were unbounded. All windows are now labelled.
+
+PR #38 also fixed the attention rail, which never selected `collector_runs.error`
+(so it could only ever say "Collection failed") and kept showing red for modules
+that had since recovered.
+
 ### Accuracy alerting (2026-08-10) — ✅ ALL CHANNELS ARMED AND VERIFIED
 
 The platform now tells you when its own numbers stop being trustworthy, rather
