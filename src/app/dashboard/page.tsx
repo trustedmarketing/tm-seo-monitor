@@ -100,14 +100,22 @@ export default async function Portfolio() {
   const profile = await getProfile();
   const db = userClient();
   const since48 = new Date(Date.now() - 48 * 3600000).toISOString();
+  // 30 days, matching /dashboard/[id] (which was fixed in #28) and the /paid
+  // tab's own window. These two queries had NO date filter, so every figure in
+  // the Revenue / MER / Ad spend columns was a lifetime cumulative total wearing
+  // a "period total" label — and the portfolio disagreed with the client
+  // Overview for any client live longer than 30 days. Same bug class Tom caught
+  // by cross-checking Shopify's 30-day dashboard; it was fixed on the
+  // single-client page and missed here.
+  const windowStart = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
 
   const [cRes, sRes, convRes, runRes, chRes, adRes] = await Promise.all([
     db.from("clients").select("id, name, domain, tier, ga4_property_id").eq("active", true).order("name"),
     db.from("metric_snapshots").select("client_id, captured_at, visibility, ai_visibility, site_health, organic_traffic").order("captured_at", { ascending: false }).limit(500),
-    db.from("conversions_daily").select("client_id, source, revenue, conversions"),
+    db.from("conversions_daily").select("client_id, source, revenue, conversions").gte("date", windowStart),
     db.from("collector_runs").select("client_id, module, status, detail, started_at").gte("started_at", since48).order("started_at", { ascending: false }),
     db.from("changes").select("client_id, title, verdict, measured_at").not("verdict", "is", null),
-    db.from("ad_metrics_daily").select("client_id, spend, revenue"),
+    db.from("ad_metrics_daily").select("client_id, spend, revenue").gte("date", windowStart),
   ]);
   const error = cRes.error ?? sRes.error ?? convRes.error;
   const clients = (cRes.data ?? []) as Client[];
@@ -230,9 +238,9 @@ export default async function Portfolio() {
             <thead>
               <tr>
                 <Th>Client</Th>
-                <Th>Revenue</Th>
-                <Th>MER</Th>
-                <Th>Ad spend</Th>
+                <Th>Revenue (30d)</Th>
+                <Th>MER (30d)</Th>
+                <Th>Ad spend (30d)</Th>
                 <Th>Organic</Th>
                 <Th>AI answers</Th>
               </tr>
@@ -293,7 +301,7 @@ export default async function Portfolio() {
                     />
                     <Cell
                       value={spend > 0 ? money(spend) : "–"}
-                      sub={<span className="caption" style={{ color: "var(--fg3)" }}>{spend > 0 ? "period total" : "no paid"}</span>}
+                      sub={<span className="caption" style={{ color: "var(--fg3)" }}>{spend > 0 ? "30-day total" : "no paid"}</span>}
                     />
                     <Cell
                       value={pct(cur?.visibility ?? null)}
