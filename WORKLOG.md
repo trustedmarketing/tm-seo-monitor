@@ -5,6 +5,61 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-10 · Session 5 · Automated accuracy alerts — revenue reconciliation + data staleness
+
+Tom, after the Overview-page revenue bug: "this just needs to work seamlessly.
+If this isn't working or numbers are not updating or what is Shopify is
+different than what is on the system you need to send me an alert of some
+kind." Nobody should have to spot a wrong number by eye against Shopify's own
+dashboard — that's what caught the last bug, and it took a week.
+
+Two distinct failure modes, so two checks (autonomy #3, accuracy gate):
+
+**1. `lib/revenueReconciliation.ts` — the number is WRONG.** After the Shopify
+collector runs, independently re-fetches from Shopify via the same
+`fetchDailySales()` client and compares that sum against what is currently
+STORED in `conversions_daily`. Deliberately fresh-vs-stored, not
+fresh-vs-just-written: comparing a fetch against rows written from that same
+fetch only ever catches a write failure. This shape exercises collector write
+AND downstream read together, which is the only way it would have caught the
+Overview page's unbounded-date-window bug — a read-side bug no write-time
+check could see. Tolerance is two-gated (>2% AND >$25) so small accounts don't
+page on rounding and large ones don't hide a real gap under a small
+percentage. Wrapped in `tracked()`, module `shopify_reconciliation`.
+
+Subtlety worth keeping: it compares exactly the dates Shopify itself returned
+rather than a separately-computed wall-clock window. A first draft used its
+own 30-day window and a test immediately caught it disagreeing with the
+client's window — which would have paged Tom about a discrepancy that wasn't
+real. The check must not commit the bug class it exists to catch.
+
+**2. `lib/dataFreshness.ts` — the number STOPPED.** A frozen dashboard looks
+identical to a calm one: no error, no red, just a figure that stopped moving.
+`findStaleData()` flags any client whose freshest `conversions_daily(shopify)`
+or `ad_metrics_daily` row is more than 3 days old. Only flags a source that
+has reported before — a client with no Shopify store isn't stale, it's
+unconfigured, and alerting on that daily is how a failure list gets ignored.
+This finally wires up `alertOnStaleness()`, which had been dead code in
+`lib/slack.ts` since it was written.
+
+Both alert through the existing Slack path, one batched message each (matching
+`alertOnFailures`), and both are non-fatal — a monitoring check that can sink
+the collection it rides on is worse than no check. Cron response now reports
+`revenue_mismatches` and `stale_sources` alongside `failures`.
+
+Verified: 489 tests passing (was 477), `tsc --noEmit` clean.
+
+**Open gap, needs Tom (escalation list — external account):** both alerts fire
+from INSIDE the cron. If the cron itself stops running — bad deploy, Vercel
+cron disabled, function timeout — nothing fires and the silence looks like
+success. Closing that needs an external dead-man's-switch (healthchecks.io,
+Cronitor, Better Stack): the cron pings a heartbeat URL on success, and the
+external service alerts when the ping doesn't arrive. Also unconfirmed:
+whether `SLACK_WEBHOOK_URL` is actually set in Vercel production — if it
+isn't, every alert above is a no-op console log.
+
+---
+
 ## 2026-08-10 · Session 4 · WO-006 merged to main — all ten PRs, migrations run on both environments
 
 Tom: "we need to get this launched and clients in the system so we can start
