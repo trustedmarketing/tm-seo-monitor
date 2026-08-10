@@ -249,9 +249,20 @@ surfaced until `api/ops/alert-check` was added.
 
 **Verify it rather than assuming:** `GET /api/ops/alert-check` (owner-only)
 reports which channels are configured; `?send=1` delivers a real test alert and
-returns Resend's actual error in `email_error` if it fails. These alerts only
-fire when something is wrong, so without this the first discovery of a
-misconfigured channel is the moment it stays silent.
+returns Resend's actual error in `email_error` if it fails; `?ping_heartbeat=1`
+proves `HEARTBEAT_URL` resolves without waiting for the next nightly cron.
+These alerts only fire when something is wrong, so without this the first
+discovery of a misconfigured channel is the moment it stays silent.
+
+### Cron dead-man's switch (`src/lib/heartbeat.ts`)
+
+Everything above alerts from *inside* the daily cron, so none of it can see the
+cron failing to run at all — and silence is indistinguishable from health. Set
+`HEARTBEAT_URL` to a ping URL from healthchecks.io / Cronitor / Better Stack
+(provider-agnostic — it is just a URL to GET). The cron pings it as the last
+thing it does, so the ping means "the run reached the end"; the external service
+alerts when a ping doesn't arrive. No-op when unset, and the cron response
+reports `"heartbeat": "not configured"` rather than claiming the switch is armed.
 
 Env var changes require a **redeploy** on Vercel — they do not apply to
 already-built deployments.
