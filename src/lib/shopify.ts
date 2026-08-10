@@ -61,7 +61,7 @@ export async function mintToken(
 
 interface OrderNode {
   createdAt: string;
-  totalPriceSet?: { shopMoney?: { amount?: string } };
+  currentTotalPriceSet?: { shopMoney?: { amount?: string } };
 }
 interface OrdersEdge {
   node: OrderNode;
@@ -84,6 +84,14 @@ function toNumber(v: string | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+// currentTotalPriceSet, NOT totalPriceSet. Shopify's own docs:
+// totalPriceSet is "the total price of the order, BEFORE returns";
+// currentTotalPriceSet is "the total price of the order, AFTER returns".
+// Using the former counts refunded money as revenue forever — a permanent
+// overcount against the store's own dashboard for any client who takes
+// returns, which for an ecommerce client is all of them. It also covers most
+// of the cancelled-order case without a separate filter: a cancelled order is
+// normally refunded, which drops its current total to zero.
 const ORDERS_QUERY = `
   query OrdersPage($cursor: String, $query: String!) {
     orders(first: 250, after: $cursor, query: $query) {
@@ -91,7 +99,7 @@ const ORDERS_QUERY = `
       edges {
         node {
           createdAt
-          totalPriceSet { shopMoney { amount } }
+          currentTotalPriceSet { shopMoney { amount } }
         }
       }
     }
@@ -99,10 +107,19 @@ const ORDERS_QUERY = `
 `;
 
 // Paginates orders(first:250, after:$cursor, query:"created_at:>=SINCE
-// created_at:<=UNTIL") until pageInfo.hasNextPage is false, aggregating by
-// calendar date (from createdAt): revenue = sum(totalPriceSet.shopMoney.amount),
-// orders = order count. Under MOCK_APIS=1, reads the already-aggregated fixture
-// directly instead of hitting the network. Never logs `token`.
+// created_at:<=UNTIL test:false") until pageInfo.hasNextPage is false,
+// aggregating by calendar date (from createdAt):
+// revenue = sum(currentTotalPriceSet.shopMoney.amount), orders = order count.
+// Under MOCK_APIS=1, reads the already-aggregated fixture directly instead of
+// hitting the network. Never logs `token`.
+//
+// Both the `test:false` filter and `currentTotalPriceSet` (rather than
+// `totalPriceSet`) exist to make this match the number the client sees in
+// their own Shopify dashboard. Note that lib/revenueReconciliation.ts CANNOT
+// catch a bug in this function: it compares a fresh call to this against
+// stored rows written by this, so a query-level error moves both sides
+// together and reconciles clean. This function's correctness has to be
+// verified against Shopify's own reporting UI, not against our own pipeline.
 export async function fetchDailySales(
   shopDomain: string,
   token: string,
@@ -113,7 +130,11 @@ export async function fetchDailySales(
   const end = new Date();
   const start = new Date(end);
   start.setDate(start.getDate() - days);
-  const dateQuery = `created_at:>=${iso(start)} created_at:<=${iso(end)}`;
+  // `test:false` excludes orders placed through the Bogus Gateway or a payment
+  // provider in test mode. They are indistinguishable from real orders in the
+  // response, so without this a round of checkout testing lands in the client's
+  // reported revenue and nothing about the number looks wrong.
+  const dateQuery = `created_at:>=${iso(start)} created_at:<=${iso(end)} test:false`;
 
   const byDate = new Map<string, { orders: number; revenue: number }>();
   let cursor: string | null = null;
@@ -143,7 +164,7 @@ export async function fetchDailySales(
 
     for (const edge of connection.edges) {
       const date = edge.node.createdAt.slice(0, 10);
-      const amount = toNumber(edge.node.totalPriceSet?.shopMoney?.amount);
+      const amount = toNumber(edge.node.currentTotalPriceSet?.shopMoney?.amount);
       const entry = byDate.get(date) ?? { orders: 0, revenue: 0 };
       entry.orders += 1;
       entry.revenue += amount;
