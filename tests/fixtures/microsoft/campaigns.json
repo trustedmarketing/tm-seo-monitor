@@ -1,0 +1,16 @@
+[
+  {
+    "Id": "300210000001",
+    "Name": "Search - Brand",
+    "Status": "Active",
+    "CampaignType": "Search",
+    "DailyBudget": "40.00"
+  },
+  {
+    "Id": "300210000002",
+    "Name": "PMax - Retail",
+    "Status": "Paused",
+    "CampaignType": "PerformanceMax",
+    "DailyBudget": "25.00"
+  }
+]

@@ -181,4 +181,35 @@ describe("collectMicrosoftAds", () => {
     const run = db._rows("collector_runs")[0];
     expect(run).toMatchObject({ module: "microsoft_ads", client_id: CLIENT_ID, status: "error" });
   });
+
+  it("syncs campaign status/budget/objective into the campaigns registry (WO-006 stream A)", async () => {
+    vi.stubEnv("MOCK_APIS", "1");
+    const db = withVaultSecret(seedDb({ auth_ref: "microsoft:" + CLIENT_ID }), CREDS_JSON);
+
+    await collectMicrosoftAds(db, { id: CLIENT_ID, domain: "example.com" });
+
+    const campaigns = db._rows("campaigns");
+    expect(campaigns).toHaveLength(2); // matches tests/fixtures/microsoft/campaigns.json
+    expect(campaigns).toContainEqual(
+      expect.objectContaining({
+        client_id: CLIENT_ID,
+        platform: "microsoft",
+        campaign_id: "300210000002",
+        campaign_name: "PMax - Retail",
+        status: "paused",
+        objective: "PerformanceMax",
+        daily_budget: 25,
+      })
+    );
+  });
+
+  it("updates campaign rows instead of duplicating on a second run", async () => {
+    vi.stubEnv("MOCK_APIS", "1");
+    const db = withVaultSecret(seedDb({ auth_ref: "microsoft:" + CLIENT_ID }), CREDS_JSON);
+
+    await collectMicrosoftAds(db, { id: CLIENT_ID, domain: "example.com" });
+    await collectMicrosoftAds(db, { id: CLIENT_ID, domain: "example.com" });
+
+    expect(db._rows("campaigns")).toHaveLength(2); // still 2 — second run updated, not appended
+  });
 });
