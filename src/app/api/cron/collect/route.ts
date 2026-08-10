@@ -18,12 +18,15 @@ import {
 import { syncRecommendations, measureChanges } from "@/lib/recSync";
 import { recordRun } from "@/lib/collectorRuns";
 import { alertOnFailures, slackAlert, type CollectorFailure } from "@/lib/slack";
+import { alertOnRevenueMismatch, alertOnStaleData, type RevenueMismatch } from "@/lib/accuracyAlerts";
+import { findStaleData } from "@/lib/dataFreshness";
 import { classifyChecks, criticalIssues, isCrawlStale, STALE_CRAWL_HOURS } from "@/lib/qc";
 import { collectConversions } from "@/lib/conversionsCollector";
 import { collectMetaAds } from "@/lib/metaAdsCollector";
 import { collectGoogleAds } from "@/lib/googleAdsCollector";
 import { collectMicrosoftAds } from "@/lib/microsoftAdsCollector";
 import { collectShopify } from "@/lib/shopifyCollector";
+import { checkShopifyReconciliation } from "@/lib/revenueReconciliation";
 import { collectSocial } from "@/lib/socialCollector";
 import { syncApprovedRecs } from "@/lib/clickupSync";
 import { checkTokenExpiry } from "@/lib/tokenExpiry";
@@ -72,6 +75,7 @@ export async function GET(req: Request) {
 
   const report: Record<string, string[]> = {};
   const failures: CollectorFailure[] = [];
+  const revenueMismatches: RevenueMismatch[] = [];
 
   for (const c of clients ?? []) {
     const done: string[] = [];
@@ -350,6 +354,25 @@ export async function GET(req: Request) {
     const shopN = await collectShopify(db, c);
     done.push(`shopify (${shopN})`);
 
+    // ── Accuracy gate: does the stored 30-day Shopify revenue we just wrote
+    // still agree with a fresh pull from Shopify itself? Catches both a bad
+    // number (e.g. an unbounded query summing more than the intended window)
+    // and a frozen collector (stored figures stop moving while Shopify's own
+    // keep climbing) — the two ways "the numbers don't match Shopify" happens.
+    const reconciliation = await checkShopifyReconciliation(db, c);
+    if (reconciliation?.mismatched) {
+      revenueMismatches.push({
+        client: c.domain,
+        storedRevenue: reconciliation.storedRevenue,
+        freshRevenue: reconciliation.freshRevenue,
+        diffAbs: reconciliation.diffAbs,
+        diffPct: reconciliation.diffPct,
+      });
+      done.push("shopify reconciliation MISMATCH");
+    } else if (reconciliation) {
+      done.push("shopify reconciliation ok");
+    }
+
     // ── Organic social via PostFlow → social_posts + social_metrics_daily ──
     // Wrapped rather than left to throw: a social failure must not take down the
     // collection that revenue reporting depends on.
@@ -408,6 +431,19 @@ export async function GET(req: Request) {
   const ranAt = new Date().toISOString();
   // surface any module failures to the ops Slack channel (no-op if none)
   await alertOnFailures(ranAt, failures);
+  // surface any Shopify revenue disagreements (no-op if none)
+  await alertOnRevenueMismatch(ranAt, revenueMismatches);
+
+  // The quieter failure: collection ran, reported no errors, and still nothing
+  // new landed. Never fatal — a freshness check must not sink the run it rides on.
+  let staleSources = 0;
+  try {
+    const stale = await findStaleData(db, (clients ?? []) as { id: string; domain: string }[]);
+    staleSources = stale.length;
+    await alertOnStaleData(ranAt, stale);
+  } catch (e) {
+    console.error("[freshness] check failed:", (e as Error).message);
+  }
 
   // Punch list #9: the SLA gets a consequence rather than a colour. Never fatal —
   // a queue-health check must not be able to fail the collection it rides on.
@@ -425,6 +461,8 @@ export async function GET(req: Request) {
     measured_changes: measured,
     failures: failures.length,
     sla_breaches: slaBreaches,
+    revenue_mismatches: revenueMismatches.length,
+    stale_sources: staleSources,
     report,
   });
 }
