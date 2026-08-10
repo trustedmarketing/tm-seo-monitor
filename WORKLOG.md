@@ -82,6 +82,23 @@ never one of the per-client channels — a client-channel webhook would receive
 every other client's revenue and spend figures, plus alerts stating our own
 numbers are wrong. Flagged to Tom; he confirmed and configured an internal one.
 
+**Alerting verified end-to-end (PRs #29, #30).** Tom ran
+`api/ops/alert-check?send=1`: Slack arrived, email didn't. `notify()` gave no
+way to diagnose it — every email failure collapsed to `email: false` with
+Resend's response body discarded, so an unverified domain, test-mode's
+recipient restriction, and a bad key were indistinguishable. Added
+`emailError` (missing env var name, or Resend's real HTTP status + message)
+and a `notify.test.ts`, which did not exist despite notify() being the
+delivery path for every alert in the system.
+
+Root cause was `ALERT_EMAIL_FROM`. It has a default
+(`Growth OS <onboarding@resend.dev>`) so it reads as optional — but Resend
+only permits that shared sender to deliver to the account owner's own address,
+so it works in a first test and fails for every other recipient. A default
+that works just often enough to look correct. Now documented in the README
+with the full env var table, and `alert-check` returns an
+`email_from_warning` when it's unset.
+
 **Open gap, needs Tom (escalation list — external account):** both alerts fire
 from INSIDE the cron. If the cron itself stops running — bad deploy, Vercel
 cron disabled, function timeout — nothing fires and the silence looks like

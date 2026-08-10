@@ -32,12 +32,19 @@ export async function GET(req: Request) {
   const emailToPresent = !!process.env.ALERT_EMAIL_TO;
   const emailConfigured = resendKeyPresent && emailToPresent;
 
+  const customFrom = !!process.env.ALERT_EMAIL_FROM;
   const config = {
     slack_configured: slackConfigured,
     resend_key_present: resendKeyPresent,
     alert_email_to_present: emailToPresent,
     email_configured: emailConfigured,
     email_from: process.env.ALERT_EMAIL_FROM ?? "Growth OS <onboarding@resend.dev> (default)",
+    // The default sender is technically valid, which is exactly why it bites:
+    // Resend only lets onboarding@resend.dev deliver to the account owner's own
+    // address, so it works in a first test and fails for every other recipient.
+    email_from_warning: customFrom
+      ? null
+      : "ALERT_EMAIL_FROM is unset. Resend only allows the default onboarding@resend.dev sender to deliver to the Resend account owner's own address — set ALERT_EMAIL_FROM to an address on a domain verified in Resend.",
   };
 
   if (!slackConfigured && !emailConfigured) {
