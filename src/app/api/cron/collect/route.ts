@@ -20,6 +20,7 @@ import { recordRun } from "@/lib/collectorRuns";
 import { alertOnFailures, slackAlert, type CollectorFailure } from "@/lib/slack";
 import { alertOnRevenueMismatch, alertOnStaleData, type RevenueMismatch } from "@/lib/accuracyAlerts";
 import { findStaleData } from "@/lib/dataFreshness";
+import { pingHeartbeat } from "@/lib/heartbeat";
 import { classifyChecks, criticalIssues, isCrawlStale, STALE_CRAWL_HOURS } from "@/lib/qc";
 import { collectConversions } from "@/lib/conversionsCollector";
 import { collectMetaAds } from "@/lib/metaAdsCollector";
@@ -456,6 +457,13 @@ export async function GET(req: Request) {
     console.error("[sla] check failed:", (e as Error).message);
   }
 
+  // Dead-man's switch. Deliberately the LAST thing the run does: it means "the
+  // cron got all the way here", so a run that dies partway never reports health.
+  // Everything above alerts from inside the cron and is therefore blind to the
+  // cron not running at all — an external service watching for this ping is the
+  // only thing that can see that.
+  const heartbeat = await pingHeartbeat();
+
   return Response.json({
     ran_at: ranAt,
     measured_changes: measured,
@@ -463,6 +471,7 @@ export async function GET(req: Request) {
     sla_breaches: slaBreaches,
     revenue_mismatches: revenueMismatches.length,
     stale_sources: staleSources,
+    heartbeat: heartbeat.configured ? (heartbeat.ok ? "ok" : `failed: ${heartbeat.error}`) : "not configured",
     report,
   });
 }
