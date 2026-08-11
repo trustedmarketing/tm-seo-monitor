@@ -118,6 +118,13 @@ export function normaliseStorePlatform(input: string | null | undefined): Normal
 /**
  * Service areas for local rank tracking: `[{ city, county?, location_code }, …]`.
  *
+ * ⚠️ STORED BUT NOT YET USED. Nothing in the collection path reads
+ * `clients.service_areas` — `serpPosition()` takes a single `location_code` and
+ * that is the only field affecting what gets tracked. The column and this parser
+ * exist ahead of multi-area rank tracking; until that ships, filling it in
+ * changes nothing, and anyone relying on it would be tracking one area while
+ * believing they were tracking five.
+ *
  * Entered as one area per line — `Dallas, TX | 1026339` — rather than raw JSON,
  * because the person onboarding a client is copying codes out of DataForSEO's
  * list, not authoring a document. County is optional and rarely known up front.

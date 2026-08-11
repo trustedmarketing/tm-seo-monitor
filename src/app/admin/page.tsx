@@ -251,7 +251,16 @@ export default function Admin() {
                     <div style={{ fontSize: 12, color: "var(--fg3)", marginTop: 5 }}>2840 = United States.</div>
                   </div>
                   <div>
-                    <label style={S.label}>Service areas — one per line, &ldquo;City, ST | location_code&rdquo;</label>
+                    <label style={S.label}>
+                      Service areas — one per line, &ldquo;City, ST | location_code&rdquo;
+                      {/* Saying so on the field itself, because a form that
+                          accepts input and does nothing with it is worse than no
+                          form: it reads as configured. */}
+                      <span style={{ display: "block", fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#B8860B", marginTop: 4 }}>
+                        Not yet used for tracking — rankings follow the single Location code above.
+                        Saved for when multi-area tracking ships.
+                      </span>
+                    </label>
                     <textarea style={{ ...S.input, minHeight: 72, resize: "vertical", fontFamily: "var(--font-body)" }}
                       placeholder={"Dallas, TX | 1026339\nFort Worth, TX | 1026460"}
                       value={areasInput ?? (sel.service_areas ?? []).map((a) => `${a.city} | ${a.location_code}`).join("\n")}
