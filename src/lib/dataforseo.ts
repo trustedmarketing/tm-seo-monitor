@@ -181,6 +181,62 @@ export async function serpPosition(
   };
 }
 
+// ── Location codes ────────────────────────────────────────────────
+//
+// location_code defaults to 2840 — the whole United States. For a local business
+// competing in one metro that is wrong, and it fails in the worst way: the
+// rankings still look completely plausible. Nobody queries a list they have to
+// leave the product to find, so the list comes here.
+export type LocationMatch = {
+  code: number;
+  name: string;
+  type: string | null;
+};
+
+/**
+ * US locations whose name matches `query`, best-scoped first.
+ *
+ * Ordered so a DMA ("West Palm Beach-Ft. Pierce FL") outranks a bare city, since
+ * a DMA is usually what a service business actually competes in — a Stuart
+ * plumber's customers are across the Treasure Coast, not inside one city
+ * boundary.
+ */
+export async function searchLocations(query: string, limit = 25): Promise<LocationMatch[]> {
+  if (mockApis()) {
+    return [{ code: 1015116, name: "Stuart, Florida, United States", type: "City" }];
+  }
+
+  type Row = {
+    location_code?: number;
+    location_name?: string;
+    location_type?: string;
+    country_iso_code?: string;
+  };
+
+  const rows = await get<Row>("/serp/google/locations/US");
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+
+  const matched = rows
+    .filter((r) => typeof r.location_code === "number" && (r.location_name ?? "").toLowerCase().includes(q))
+    .map((r) => ({
+      code: r.location_code as number,
+      name: r.location_name ?? "",
+      type: r.location_type ?? null,
+    }));
+
+  const rank = (m: LocationMatch): number => {
+    const t = (m.type ?? "").toLowerCase();
+    if (t.includes("dma")) return 0;
+    if (t.includes("city")) return 1;
+    if (t.includes("county")) return 2;
+    return 3;
+  };
+  matched.sort((a, b) => rank(a) - rank(b) || a.name.length - b.name.length);
+
+  return matched.slice(0, limit);
+}
+
 // ── Account: balance and spend ────────────────────────────────────
 //
 // Added because "crawls cost money" was asserted in the UI without anyone
