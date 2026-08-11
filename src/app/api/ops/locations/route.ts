@@ -40,9 +40,11 @@ export async function GET(req: Request) {
       query: q,
       matches,
       note:
-        "DMA entries are listed first: a service business usually competes across a metro, " +
-        "not inside one city boundary. Set the closest single match as the client's " +
-        "location_code in /admin, and use service_areas for additional areas.",
+        "DMA entries are listed first, but pick the tightest area the client actually competes in — " +
+        "a DMA spanning 60 miles measures a local business against rivals it never meets. " +
+        "Set ONE match as the client's location_code in /admin. " +
+        "Note that clients.service_areas is stored but no collector reads it: location_code is " +
+        "the only field that affects what gets tracked.",
     });
   } catch (e) {
     return NextResponse.json({ ok: false, error: (e as Error).message.slice(0, 300) }, { status: 500 });
