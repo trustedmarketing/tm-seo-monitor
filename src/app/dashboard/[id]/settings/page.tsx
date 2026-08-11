@@ -25,6 +25,7 @@ const MSG: Record<string, string> = {
   "vault-failed": "Could not store the credential.",
   "bad-tier": "That is not a valid tier.",
   "bad-type": "That is not a valid client type.",
+  "bad-frequency": "That is not a valid check frequency.",
 };
 
 const L: React.CSSProperties = {
@@ -230,11 +231,27 @@ export default async function Settings({
             })}
           </div>
 
+          <div style={{ marginTop: 20, maxWidth: 320 }}>
+            <label style={L}>How often to check</label>
+            <select name="ai_frequency" defaultValue={(client as any).ai_frequency ?? "weekly"} style={I} disabled={!isOwner}>
+              <option value="weekly">Weekly (recommended)</option>
+              <option value="biweekly">Every two weeks</option>
+              <option value="monthly">Monthly</option>
+              <option value="daily">Daily</option>
+              <option value="paused">Paused</option>
+            </select>
+            <div style={HINT}>
+              Separate from keyword tracking. Daily costs ~7× weekly for granularity AI visibility
+              does not have — a brand does not appear in ChatGPT on Tuesday and vanish on Wednesday.
+              This is the single biggest lever on AEO spend.
+            </div>
+          </div>
+
           {isOwner ? (
-            <button type="submit" style={{ ...BTN, marginTop: 18 }}>Save AI assistants</button>
+            <button type="submit" style={{ ...BTN, marginTop: 18 }}>Save AI checks</button>
           ) : (
             <div style={{ fontSize: 12.5, color: "var(--fg3)", marginTop: 14 }}>
-              Owner-only — enabling an assistant is a spend decision.
+              Owner-only — enabling an assistant or raising the cadence is a spend decision.
             </div>
           )}
         </form>
