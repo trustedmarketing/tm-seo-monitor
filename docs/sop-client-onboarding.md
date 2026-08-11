@@ -8,6 +8,77 @@ the 10:30 UTC daily brief the same morning.
 
 ---
 
+## Bulk onboarding — clients that already exist but are empty
+
+For clients created in bulk (a SQL insert rather than `/admin`), the row exists
+with name, domain, tier, type and location code, and nothing else. They will show
+"collecting" and appear empty in the daily brief until the below is done. That is
+expected, not a fault.
+
+**The order is different from the single-client flow below, and it matters.**
+`Suggest keywords` merges GSC top queries with DataForSEO's ranked keywords — run
+it before Search Console is connected and you get the DataForSEO half only, which
+is a meaningfully worse list. Google access first, keywords after.
+
+### Once, for all clients
+
+**1. Get the service account email.**
+
+```
+/api/ops/ga4-check
+```
+
+Returns `service_account_email` — the exact `…@….iam.gserviceaccount.com` string
+to grant. Copy it once; it is the same for every client.
+
+**2. Grant it access in Google, for every client at once.** This is the real
+bottleneck — it is work in Google's UIs, not in this product, and nothing below
+functions until it is done.
+
+- **GA4**: each property → Admin → Property Access Management → add the service
+  account as **Viewer**.
+- **Search Console**: each property → Settings → Users and permissions → add it
+  as **Full user** (not Restricted — the API needs full).
+
+Do all of them in one sitting. Coming back to this per client is how half a
+portfolio ends up connected and half does not.
+
+### Then, per client
+
+**3. Settings** (`/dashboard/[id]/settings`) — paste the GA4 property ID and the
+Search Console property. Exact string form for GSC: `sc-domain:example.com` for a
+Domain property, `https://example.com/` **with the trailing slash** for
+URL-prefix. Getting this wrong reads as a 403, not as a typo.
+
+**4. Verify before moving on** — `/api/ops/ga4-check?client=<id>`. Check
+`property_id` against GA4 → Admin → Property Settings. **A wrong property ID
+produces the identical error to a permissions problem**, so confirming the digits
+here saves the afternoon that costs otherwise.
+
+**5. `/admin`, client selected** — `GSC backfill` first (up to 16 months of
+history, so the client does not start flat), then `Suggest keywords`, which is now
+GSC-informed. Add the keywords worth tracking.
+
+**6. Prompts** — the customer-voice questions buyers actually ask. Each is a
+billed AI check per provider per run, so write ones worth paying for.
+
+**7. Slack webhook** — last, and only after reading that client's section in a
+real daily brief. Once the webhook is set, the content goes to them unreviewed.
+
+### Sanity check across the whole portfolio
+
+```sql
+select name, client_type, location_code,
+       ga4_property_id is not null as ga4,
+       gsc_property   is not null as gsc,
+       slack_webhook_url is not null as slack
+from clients where active order by name;
+```
+
+Any local-service client still on `2840` is measuring national rankings.
+
+---
+
 ## Before you start
 
 Have these to hand. Stopping halfway to go and find one is how a client ends up
@@ -42,10 +113,16 @@ DataForSEO's `serp_locations` endpoint for any local-service client.
 
 ## 2. Keywords and prompts — `/admin`, with the client selected
 
-- **Suggest keywords** — merges GSC top queries with DataForSEO ranked keywords.
-  Add from the list, and paste any existing list into the textarea.
-- **GSC backfill** — pulls up to 16 months of daily clicks/impressions/position
-  so the client has history from day one instead of starting flat.
+**Connect Search Console (§3) before this.** `Suggest keywords` merges GSC top
+queries with DataForSEO's ranked keywords; without GSC you get the DataForSEO
+half only, and the list is meaningfully worse. The numbering here reflects where
+these controls live, not the order to use them.
+
+- **GSC backfill** — first. Pulls up to 16 months of daily
+  clicks/impressions/position so the client has history from day one instead of
+  starting flat.
+- **Suggest keywords** — then. Add from the list, and paste any existing list
+  into the textarea.
 - **Prompts** — the customer-voice questions buyers actually ask. These drive
   the AEO section. Each prompt is a billed AI check per provider per run, so
   write ones worth paying for: "best X for Y", not "what is X".
