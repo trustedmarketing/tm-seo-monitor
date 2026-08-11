@@ -5,6 +5,402 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-10 · Session 5b · A month of dead crawls, three unbounded pages, Stream J
+
+Follow-on from the alerting work below. Tom asked why the portfolio still showed
+Salty Dog at $51.3K / 599 orders, and pointed at 7 × "Collection failed". Both
+turned out to be real bugs, neither of which the new alerting could have caught.
+
+### The date-window bug, twice more (PR #37)
+
+`/dashboard/[id]` was fixed in #28. The **portfolio page and `/paid` were not** —
+their `conversions_daily`/`ad_metrics_daily` queries had no date filter at all,
+so Revenue / MER / Ad spend were lifetime cumulative totals under a caption
+reading "period total", for a period that did not exist. That is why 599 orders
+persisted: the exact pre-#28 all-time figure, against Shopify's real 370. The
+portfolio and the client Overview had been disagreeing with each other for any
+client live longer than 30 days.
+
+Swept every reader of both tables afterwards; only those three were unbounded.
+Column headers now state their window, because an unlabelled number is how this
+hid on three pages at once.
+
+**Lesson:** fixing a bug on one page without grepping for the same query shape
+elsewhere is how one bug becomes three.
+
+### A month of dead crawls — on_page/summary is GET, not POST (PR #40)
+
+`crawls_last_30d: 0` against a healthy DataForSEO account ($12.93 balance,
+credentials fine). The only error in `collector_runs` was our own stale-abandon
+message. No vendor error, ever.
+
+DataForSEO's `/v3/on_page/summary/$id` is a **GET**. We sent POST. It does not
+error — it answers 200 with an empty `result`, which our code read as
+"crawl_progress is not finished, still crawling". Every crawl stalled: post,
+poll, unfinished, abandon at 48h, requeue, repeat. Salty Dog's last successful
+crawl was 23 July; the other three clients have never had one. Site-health data
+was dead portfolio-wide for a month.
+
+**Lesson worth keeping: the error path was fine — the SUCCESS path lied.** A
+wrong answer that is indistinguishable from a legitimate "not ready yet" hides
+far better than a failure. Nothing threw, nothing alerted, and the dashboard
+showed a red nobody could action. The tests now assert on the HTTP *method*, not
+just parsed output, because the parsed output was the problem.
+
+`dataforseo.ts` already knew this class of endpoint existed —
+`accountStatus()` carries the comment "GET, not POST — this endpoint does not
+take a payload". `on_page/summary` was simply missed.
+
+Added `onPageCrawlStatus()` and `?task=<id>` on `api/ops/dataforseo-check` so a
+crawl's live state can be read straight from DataForSEO rather than inferred;
+`resultRows: 0` there is the signature of querying it wrong. The check also
+lists `pending_tasks`, so finding a task id no longer means opening SQL.
+
+### The failure rail was lying too (PR #38)
+
+Two bugs. `collector_runs.error` was never selected, so the rail could only
+render the fixed string "Collection failed" — the column has always been
+populated, which is why 7 failures sat unread. And it flagged any error in the
+48h window while ignoring a later success, so a recovered module stayed red.
+That is likely why all four crawl rows showed: the stale-abandon path records an
+error and then requeues successfully in the same run. A red that never clears
+trains everyone to ignore reds.
+
+Extracted to `lib/collectorHealth.ts` with tests; `latestRunPerModule()` no
+longer depends on the caller's `.order()` holding.
+
+### Also shipped
+
+- **PaidNav (PR #39)** — `/paid/personas` had no link from anywhere in the app
+  and `/paid/creative`'s only route was a link buried in body copy. Tom went
+  looking for the creative page and couldn't find it. Sub-views of one channel,
+  so a second-level strip rather than new ChannelNav tabs.
+- **Stream J (PR #41)** — the spend guardrail has been enforced since stream D
+  but ceilings could only be set via hand-written SQL, so no client had one and
+  every budget change passed unchallenged. Owner-only writes: if the person who
+  wants a big budget through can lift the limit that stops it, the limit is
+  decoration. Shows committed daily budget beside the ceiling (a ceiling typed
+  without knowing current spend is a guess) and flags a ceiling set *below*
+  current commitments, which would block every future change.
+
+Verified: 535 tests passing (was 507 at session start), `tsc --noEmit` clean,
+`next build` clean, all merged to `main` and deployed.
+
+**Pending Tom:** confirm the crawl fix against a live task via
+`api/ops/dataforseo-check?task=<id>` — `crawlProgress: "finished"` means fixed,
+`resultRows: 0` means still wrong. The in-flight tasks are days old, so the next
+cron should score them immediately rather than waiting for fresh crawls.
+
+---
+
+## 2026-08-10 · Session 5 · Automated accuracy alerts — revenue reconciliation + data staleness
+
+Tom, after the Overview-page revenue bug: "this just needs to work seamlessly.
+If this isn't working or numbers are not updating or what is Shopify is
+different than what is on the system you need to send me an alert of some
+kind." Nobody should have to spot a wrong number by eye against Shopify's own
+dashboard — that's what caught the last bug, and it took a week.
+
+Two distinct failure modes, so two checks (autonomy #3, accuracy gate):
+
+**1. `lib/revenueReconciliation.ts` — the number is WRONG.** After the Shopify
+collector runs, independently re-fetches from Shopify via the same
+`fetchDailySales()` client and compares that sum against what is currently
+STORED in `conversions_daily`. Deliberately fresh-vs-stored, not
+fresh-vs-just-written: comparing a fetch against rows written from that same
+fetch only ever catches a write failure. This shape exercises collector write
+AND downstream read together, which is the only way it would have caught the
+Overview page's unbounded-date-window bug — a read-side bug no write-time
+check could see. Tolerance is two-gated (>2% AND >$25) so small accounts don't
+page on rounding and large ones don't hide a real gap under a small
+percentage. Wrapped in `tracked()`, module `shopify_reconciliation`.
+
+Subtlety worth keeping: it compares exactly the dates Shopify itself returned
+rather than a separately-computed wall-clock window. A first draft used its
+own 30-day window and a test immediately caught it disagreeing with the
+client's window — which would have paged Tom about a discrepancy that wasn't
+real. The check must not commit the bug class it exists to catch.
+
+**2. `lib/dataFreshness.ts` — the number STOPPED.** A frozen dashboard looks
+identical to a calm one: no error, no red, just a figure that stopped moving.
+`findStaleData()` flags any client whose freshest `conversions_daily(shopify)`
+or `ad_metrics_daily` row is more than 3 days old. Only flags a source that
+has reported before — a client with no Shopify store isn't stale, it's
+unconfigured, and alerting on that daily is how a failure list gets ignored.
+This finally wires up `alertOnStaleness()`, which had been dead code in
+`lib/slack.ts` since it was written.
+
+**Delivery — `lib/accuracyAlerts.ts`.** Both alerts go through `notify()`
+(Slack AND email via Resend, attempted independently) rather than `slackAlert()`
+directly, unlike the collector-failure alerts. Those are ops noise for whoever
+watches the channel; these are the ones Tom personally needs to see, and betting
+them on a single webhook being configured is how an alert system quietly isn't
+one. Setting `RESEND_API_KEY` + `ALERT_EMAIL_TO` turns email on with no code
+change. There's a test asserting the email goes out with Slack deliberately
+unconfigured. Lives in its own module because `notify.ts` imports `slack.ts` —
+calling notify() from inside slack.ts would be circular.
+
+Removed the Slack-only `alertOnStaleness()` from `lib/slack.ts` while doing
+this: nothing ever called it, and leaving a second staleness alerter that
+skips email is a trap for whoever wires it up next.
+
+One batched message per check (matching `alertOnFailures`), both non-fatal — a
+monitoring check that can sink the collection it rides on is worse than no
+check. Cron response now reports `revenue_mismatches` and `stale_sources`
+alongside `failures`.
+
+Verified: 493 tests passing (was 477), `tsc --noEmit` clean.
+
+**`api/ops/alert-check` — verifying the alerting itself.** These alerts only
+fire when something is wrong, so the first time anyone would discover the
+channel was misconfigured is the moment they needed it and it stayed silent.
+Owner-only endpoint: bare GET reports which channels are configured (presence
+booleans only, never values); `?send=1` actually delivers a test alert so
+"configured" becomes "I watched it arrive". Reports `resend_key_present` and
+`alert_email_to_present` separately because `notify()` gates email on BOTH —
+a Resend key with no recipient sends nothing, silently, which is the likeliest
+way this ends up half-configured. Also corrects for `notify()` returning
+`slack: true` even when unconfigured (slackAlert no-ops rather than throwing),
+so the endpoint can't hand back a false positive.
+
+**Slack routing note:** `SLACK_WEBHOOK_URL` is a single global env var and
+every existing Slack alert (collector failures, critical QC issues, token
+expiry, SLA breaches) is internal ops. It must point at an INTERNAL channel,
+never one of the per-client channels — a client-channel webhook would receive
+every other client's revenue and spend figures, plus alerts stating our own
+numbers are wrong. Flagged to Tom; he confirmed and configured an internal one.
+
+**Alerting verified end-to-end (PRs #29, #30).** Tom ran
+`api/ops/alert-check?send=1`: Slack arrived, email didn't. `notify()` gave no
+way to diagnose it — every email failure collapsed to `email: false` with
+Resend's response body discarded, so an unverified domain, test-mode's
+recipient restriction, and a bad key were indistinguishable. Added
+`emailError` (missing env var name, or Resend's real HTTP status + message)
+and a `notify.test.ts`, which did not exist despite notify() being the
+delivery path for every alert in the system.
+
+Root cause was `ALERT_EMAIL_FROM`. It has a default
+(`Growth OS <onboarding@resend.dev>`) so it reads as optional — but Resend
+only permits that shared sender to deliver to the account owner's own address,
+so it works in a first test and fails for every other recipient. A default
+that works just often enough to look correct. Now documented in the README
+with the full env var table, and `alert-check` returns an
+`email_from_warning` when it's unset.
+
+**Dead-man's switch — `lib/heartbeat.ts` (PR #32).** The gap the two checks
+above could never close: they fire from INSIDE the cron, so a cron that never
+runs produces silence, and silence is indistinguishable from health. We cannot
+detect our own absence; an external service watching for a scheduled ping can.
+`pingHeartbeat()` GETs `HEARTBEAT_URL` as the LAST thing the run does — so the
+ping means "got all the way to the end", and a run that dies partway never
+reports health. Provider-agnostic, no-op when unset, never throws, 10s timeout
+(the cron is already near Vercel's 300s ceiling by then). Reports "not
+configured" rather than ok when unset, so the response can't claim the switch
+is armed when it isn't.
+
+### Verified end-to-end, 2026-08-10
+
+Slack ✅ · Email ✅ · both confirmed by `api/ops/alert-check?send=1` landing in
+the real channel and the real inbox — not merely "configured".
+
+Getting email working took three separate misconfigurations, each invisible
+until the diagnostic named it, which is the whole argument for having built
+`alert-check` rather than trusting the env vars:
+
+1. `ALERT_EMAIL_FROM` unset → Resend's default shared sender only delivers to
+   the account owner's own address.
+2. `ALERT_EMAIL_TO` unset → `notify()` gates email on BOTH vars, so a Resend
+   key alone looks configured and sends nothing, silently.
+3. `send.trustedmarketing.com` not verified in Resend → HTTP 403.
+
+None of these would have surfaced on their own. All three would have been
+discovered the first time a real revenue mismatch needed reporting and didn't
+arrive.
+
+**Still open, needs Tom (escalation list — external account):** `HEARTBEAT_URL`
+is not set, so the dead-man's switch is inert. healthchecks.io (free) → new
+check on a daily schedule with a few hours' grace → copy ping URL → add
+`HEARTBEAT_URL` in Vercel → redeploy. Until then the cron response reports
+`"heartbeat": "not configured"`.
+
+---
+
+## 2026-08-10 · Session 4 · WO-006 merged to main — all ten PRs, migrations run on both environments
+
+Tom: "we need to get this launched and clients in the system so we can start
+testing everything." This session was entirely that.
+
+### Migrations, staging then production
+Walked Tom through migrations 039–043 one file at a time (a combined paste
+hit a syntax error in Supabase's SQL editor — five separate small runs
+sidestepped it and made any failure trivial to isolate). Ran clean on
+`tm-growth-staging`, then again on production, confirmed with a direct
+`information_schema.tables`/`information_schema.columns` check rather than
+trusting "I already did all of them" at face value — all 5 tables present,
+`creatives.approval_id` column present, on the actual production database.
+
+### Merged all ten PRs (#15–#24) into `main`, in dependency order
+A, B, D, E (independent) → C, F (needed B, E) → G (needed F) → H (needed G
+and D) → I (needed C and H) → docs. Two PRs (#23, #24) showed CONFLICTING
+after their base was retargeted to `main`, despite a local `git merge`
+against the exact same commits going through clean — GitHub's mergeability
+cache was stale. Fix: checked out each branch, merged `origin/main` into it
+locally (clean both times), pushed that merge commit back, then GitHub's
+check flipped to MERGEABLE and the PR merge went through. Worth remembering
+if this happens again — don't trust the "CONFLICTING" label without a local
+test merge to confirm it's real.
+
+Verified on the ACTUAL merged `main` (not a scratch branch this time):
+`npm test` 455/455, `tsc --noEmit` clean. All nine now-merged module
+branches deleted locally; remote branches left in place.
+
+### Confirmed the other concurrent session came through fine
+`module/daily-brief` (a different feature, unrelated to WO-006) now has its
+own PR (#25, open) — confirms the stash-and-restore handling of its
+uncommitted work from session 3 landed correctly and nothing was lost.
+
+### What's still open
+Write-scope OAuth tokens for live Meta/Google/Microsoft Ads writes — Tom-only,
+same escalation as always. Testing plan is Salty Dog only for now; next
+daily cron (10:00 UTC) or a manual hit to `/api/cron/collect` populates its
+`campaigns` table for the first time.
+
+---
+
+## 2026-08-06 · Session 3 · The forms — stream I, WO-006's ninth branch
+
+Everything through stream H worked, but only by typing an API URL into a
+browser. Tom said keep going; the flagged gap was the obvious next pick.
+
+### Shipped (PR #24)
+**`module/paid-ui-actions`** — a "New test campaign" form and per-campaign
+Pause/Resume + budget-change controls on `/paid`; "Generate creative" and
+"Generate copy" forms on `/paid/creative`, replacing the placeholder
+instructional text left in streams F and H. New `api/ops/ad-copy` route
+for on-demand copy generation against a campaign that already exists (the
+`create_campaign` bundle only covers brand-new ones). `lib/personaContext.ts`
+lets a persona `<select>` resolve into the brief fields the generation
+functions expect, so a form needs one picker, not separately-typed name/
+angle/pain-point text — wired into all three generate paths (`ad-creative`,
+the new `ad-copy`, and `stage-ad-action`).
+
+Branches off H, merges in B+C (`module/paid-recommendations`) since the new
+forms attach to the campaign table that stream builds.
+
+### Verified
+All nine module branches + docs merged together locally (never pushed
+merged): `npm test` 455/455, `tsc --noEmit` clean. Scratch merge branch
+deleted after.
+
+---
+
+## 2026-08-06 · Session 2 · Ad copy generation + previews, and tests actually ran this time
+
+Tom's follow-up on WO-006: campaigns need the actual TEXT assets each
+platform requires (Google RSA headlines/descriptions, PMax's larger set,
+Meta primary text/headline/description, Microsoft's RSA equivalent) and a
+way to preview how they'll render — "a total turnkey solution," not just
+budget + an image.
+
+### Verified limits before writing any code
+Web search, not memory, since these change and getting them wrong ships a
+broken tool: **Google RSA** 3-15 headlines (30 chars) / 2-4 descriptions
+(90 chars). **Google PMax** adds 1-5 long headlines (90 chars) + business
+name (25 chars). **Microsoft RSA** mirrors Google's. **Meta feed** is 1-5
+primary texts (125 chars) / 1-5 headlines (40 chars) / 1-5 descriptions
+(30 chars).
+
+### Shipped, two more module branches (PRs #22, #23)
+- **`module/paid-ad-copy`** (migration 043, `ad_copy_sets`) — `lib/adCopy.ts`
+  reuses `lib/ai.ts`'s `generate()` (the same Claude wrapper social captions
+  already use). Two gotchas discovered and designed around: the
+  structured-output schema can't carry length/count constraints (the API
+  rejects them outright — they live in the prompt and in post-processing
+  instead, same as `lib/caption.ts` already does), and `generate()`'s own
+  mock branch returns a caption-shaped fixture regardless of `feature` (new
+  code checks `mockApis()` itself first). Over-limit copy is flagged, never
+  truncated.
+- **`module/paid-ad-previews`** — three preview components (Google/Microsoft
+  search, PMax, Meta feed), wired into `/paid/creative`. The actual turnkey
+  piece: staging a new campaign now generates a 4:5 creative AND a matching
+  copy set together, tagged with the approval id until the real campaign
+  exists, then backfilled on approval.
+
+### The other thing that actually changed this session: tests ran for real
+Earlier in this WO, every test was hand-traced because this machine had no
+Node/npm. This session: installed Node via Homebrew (it was already
+`brew`-installed but not linked to PATH — used the direct
+`/opt/homebrew/opt/node/bin` path rather than fighting `brew link`), ran
+`npm install`, and actually executed the suite. **All eight WO-006 branches
+merged together locally and verified as one unit: `npm test` 455/455,
+`tsc --noEmit` clean.** The merges were conflict-free, which is real
+confirmation the streams are as independent as the WO doc claims — not
+just an assertion. Scratch merge branch deleted after verification; nothing
+merged was ever pushed.
+
+### Also produced this session, for Tom to actually see the UI
+Chrome's browser-automation tools refused to navigate to `localhost` (looks
+like a deliberate security restriction, not a bug) — worked around it by
+taking the real server-rendered HTML/CSS from `/paid`, `/paid/personas`,
+and `/paid/creative` under a `DEMO_MODE=1` flag (temporarily stubbed
+`userClient()`/`middleware.ts`, never committed, fully reverted) seeded
+with realistic fake data, and packaging it as a local preview artifact.
+Confirms the pages actually render, not just that they typecheck.
+
+---
+
+## 2026-08-05 · Session 1 · Paid ads control surface built end to end — WO-006, six branches
+
+Tom asked for: campaign-level ROAS on `/paid` (day-prior/7-day/30-day),
+recommendations + a pause/amend/create-campaign execution path, Bloom
+creative for ads (4:5 first, fan out to 1:1/9:16 only after approval), and a
+customer-persona layer. `docs/wo-006-paid-ads-control-surface.md` has the
+full writeup; summary here.
+
+**This isn't from scratch.** `docs/spec-growth-os-two-sided.md` §7/§9 and
+`docs/tm-growth-os-plan.md` Module C/D already scoped almost exactly this —
+approval tiers, a spend-guard hard guardrail, paused-by-default staging, and
+the Bloom→ads creative loop. WO-006 **supersedes** `wo-003`'s Wave 3 Stream G
+(`module/paid-controls`), which was reserved but never built. Named WO-006
+because WO-005 is already taken (organic content, shipped).
+
+### Shipped, six module branches, not yet merged
+- **`module/paid-campaign-registry`** (migration 039) — `campaigns` entity
+  registry with real status/budget, synced by each collector.
+- **`module/paid-dashboard`** — campaign ROAS table on `/paid`
+  (`lib/paidRollup.ts`), anchored on the latest date actually in the data.
+- **`module/paid-recommendations`** — `lib/paidRecommendations.ts`, a new
+  `"Paid"` category in the existing recs lifecycle, surfaced on `/paid`.
+- **`module/paid-controls`** (migration 040) — pause/resume/updateBudget/
+  createCampaign adapters for all three platforms, wired into
+  `api/approvals/route.ts`'s publish path with a spend-guard check that
+  fails the card rather than approving through a ceiling breach.
+- **`module/paid-personas`** (migration 041) — `client_personas` + a new
+  `/paid/personas` page. Copy/creative context only, no platform targeting
+  API touched, per Tom's confirmed scope.
+- **`module/paid-creative`** (migration 042) — `creatives` library +
+  `lib/adCreative.ts`. The fan-out gate (`fanOutSizes()`) is the one piece
+  worth reading closely: 1:1/9:16 are only ever generated for an approved
+  4:5, never as a default.
+
+### Escalation for Tom, not a blocker
+Live pause/amend against real Meta/Google/Microsoft ad accounts needs
+write-scope tokens — today's `auth_ref` credentials are read-only. Per
+CLAUDE.md's escalation list, provisioning those is a Tom-only step. Every
+adapter is built and tested against `MOCK_APIS=1` and stays dry-run-only
+against real accounts until that lands.
+
+### Honest gap
+**Could not run `npm test`** — this environment has no Node/npm installed.
+Every test file was hand-traced against the implementation instead of
+executed. Run the real suite before merging any of these six branches.
+
+### Next phase, explicitly not started
+Landing pages. Tom's direction: CTO starts researching landing-page
+technology now, in parallel — nothing in WO-006 blocks on it or depends on it.
+
+---
+
 ## 2026-08-03 · Session 1 · Onboarding a client was broken — `module/client-onboarding`
 
 Started as "add Emporium Threads", found that **no client could be added at all**.

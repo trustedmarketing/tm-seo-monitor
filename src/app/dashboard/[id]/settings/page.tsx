@@ -8,6 +8,7 @@
 // screen-share into a leak.
 import { redirect } from "next/navigation";
 import { userClient, getProfile } from "@/lib/supabaseServer";
+import { AEO_PROVIDERS, DEFAULT_PROVIDERS, enabledProviders } from "@/lib/aeoProviders";
 import { dbClient } from "@/lib/db";
 import { ClientHeader } from "@/components/ClientHeader";
 import { workspaceTabs, type ClientType } from "@/lib/workspaceTabs";
@@ -205,6 +206,47 @@ export default async function Settings({
           </label>
 
           <button type="submit" style={BTN}>Save client</button>
+        </form>
+
+        {/* ── AI assistants checked for AEO ─────────────────────────────── */}
+        <form action="/api/clients/settings" method="post" style={CARD}>
+          <input type="hidden" name="client_id" value={params.id} />
+          <input type="hidden" name="section" value="aeo" />
+
+          <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 400, fontSize: 24, margin: "0 0 6px" }}>
+            AI answer checks
+          </h2>
+          <p style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--fg2)", margin: "0 0 16px", maxWidth: 640 }}>
+            Which assistants this client&apos;s tracked prompts are asked. <strong>Each one is a separately
+            billed check per prompt, per run</strong> — enabling both extras roughly triples this client&apos;s
+            AEO spend, on a DataForSEO balance shared with every other collector.
+            <br />
+            Google AI Overviews are always included and cost nothing extra: they arrive in the SERP data
+            already bought for keyword rankings.
+          </p>
+
+          <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
+            {AEO_PROVIDERS.map((p) => {
+              const on = enabledProviders((client as any).aeo_providers).some((e) => e.key === p.key);
+              const locked = p.key === DEFAULT_PROVIDERS[0];
+              return (
+                <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: locked ? "var(--fg3)" : "var(--fg1)" }}>
+                  <input type="checkbox" name={`provider_${p.key}`} defaultChecked={on}
+                         disabled={locked || !isOwner} />
+                  {p.label}
+                  {locked && <span style={{ fontSize: 11.5, color: "var(--fg3)" }}>(baseline — always on)</span>}
+                </label>
+              );
+            })}
+          </div>
+
+          {isOwner ? (
+            <button type="submit" style={{ ...BTN, marginTop: 18 }}>Save AI assistants</button>
+          ) : (
+            <div style={{ fontSize: 12.5, color: "var(--fg3)", marginTop: 14 }}>
+              Owner-only — enabling an assistant is a spend decision.
+            </div>
+          )}
         </form>
 
         {/* ── platform connections ──────────────────────────────────────── */}

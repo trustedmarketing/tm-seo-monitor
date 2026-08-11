@@ -19,10 +19,11 @@
 // parsed bundle is only ever passed to fetchAdMetrics(); it's never logged or
 // included in a detail/error string recorded to collector_runs.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAdMetrics, type MicrosoftAdsAuth } from "@/lib/microsoftAds";
+import { fetchAdMetrics, fetchCampaigns, type MicrosoftAdsAuth } from "@/lib/microsoftAds";
 import { readSecret } from "@/lib/vault";
 import { tracked } from "@/lib/collectorRuns";
 import { mockApis } from "@/lib/apiMock";
+import { upsertCampaigns } from "@/lib/campaignSync";
 
 const MODULE = "microsoft_ads";
 const PLATFORM = "microsoft";
@@ -99,11 +100,14 @@ export async function collectMicrosoftAds(
       };
     }
 
-    const metrics = await fetchAdMetrics(
-      auth ?? { developerToken: "", accessToken: "", customerId: "" },
-      row.external_id,
-      days
-    );
+    const fallbackAuth: MicrosoftAdsAuth = { developerToken: "", accessToken: "", customerId: "" };
+    const metrics = await fetchAdMetrics(auth ?? fallbackAuth, row.external_id, days);
+
+    // Campaign entity sync (WO-006 stream A) — status/budget/objective, into
+    // the `campaigns` registry. Separate request from the reporting one
+    // above; a failure here surfaces through tracked()'s catch like the rest.
+    const campaigns = await fetchCampaigns(auth ?? fallbackAuth, row.external_id);
+    const campaignsSynced = await upsertCampaigns(db, client.id, PLATFORM, campaigns);
 
     let written = 0;
     for (const r of metrics) {
@@ -142,7 +146,11 @@ export async function collectMicrosoftAds(
       written++;
     }
 
-    return { value: written, rows: written, detail: `wrote ${written} row(s) for ${client.domain}` };
+    return {
+      value: written,
+      rows: written,
+      detail: `wrote ${written} row(s), synced ${campaignsSynced} campaign(s) for ${client.domain}`,
+    };
   });
 
   return result ?? 0;

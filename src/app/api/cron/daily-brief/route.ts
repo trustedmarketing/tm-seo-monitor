@@ -42,7 +42,7 @@ export async function GET(req: Request) {
   const dateLabel = new Date().toISOString().slice(0, 10);
   const { subject, text } = formatBriefEmail(briefs, dateLabel);
   const to = process.env.BRIEF_EMAIL_TO ?? "thomas@trustedmarketing.com";
-  const emailSent = await sendResendEmail({ subject, text, to });
+  const email = await sendResendEmail({ subject, text, to });
 
   // Independent per client: one revoked/bad webhook must not block the others.
   const slackTargets = briefs.filter((b): b is ClientBrief & { slackWebhookUrl: string } => !!b.slackWebhookUrl);
@@ -51,16 +51,19 @@ export async function GET(req: Request) {
   );
 
   await recordRun(db, "daily_brief", null, {
-    status: emailSent ? "success" : "error",
+    status: email.ok ? "success" : "error",
     detail: `clients=${briefs.length} email_to=${to} slack_posts=${slackResults.filter(Boolean).length}/${slackTargets.length}`,
-    error: emailSent ? undefined : "email not sent — RESEND_API_KEY unset or send failed",
+    // Resend's actual reason, not a guess at it. A brief that silently fails to
+    // send is exactly the failure this feature exists to prevent elsewhere.
+    error: email.ok ? undefined : `email not sent — ${email.error ?? "unknown"}`,
     duration_ms: Date.now() - t0,
   });
 
   return Response.json({
     ran_at: new Date().toISOString(),
     clients: briefs.length,
-    email_sent: emailSent,
+    email_sent: email.ok,
+    email_error: email.error ?? null,
     email_to: to,
     slack_posts: slackResults.filter(Boolean).length,
     slack_targets: slackTargets.length,

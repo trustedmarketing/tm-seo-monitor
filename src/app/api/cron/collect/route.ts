@@ -13,17 +13,21 @@ import {
   onPageSummary,
   visibilityScore,
   aiPromptCheck,
-  AEO_MODEL,
 } from "@/lib/dataforseo";
 import { syncRecommendations, measureChanges } from "@/lib/recSync";
 import { recordRun } from "@/lib/collectorRuns";
 import { alertOnFailures, slackAlert, type CollectorFailure } from "@/lib/slack";
+import { alertOnRevenueMismatch, alertOnStaleData, type RevenueMismatch } from "@/lib/accuracyAlerts";
+import { findStaleData } from "@/lib/dataFreshness";
+import { enabledProviders, modelFor } from "@/lib/aeoProviders";
+import { pingHeartbeat } from "@/lib/heartbeat";
 import { classifyChecks, criticalIssues, isCrawlStale, STALE_CRAWL_HOURS } from "@/lib/qc";
 import { collectConversions } from "@/lib/conversionsCollector";
 import { collectMetaAds } from "@/lib/metaAdsCollector";
 import { collectGoogleAds } from "@/lib/googleAdsCollector";
 import { collectMicrosoftAds } from "@/lib/microsoftAdsCollector";
 import { collectShopify } from "@/lib/shopifyCollector";
+import { checkShopifyReconciliation } from "@/lib/revenueReconciliation";
 import { collectSocial } from "@/lib/socialCollector";
 import { syncApprovedRecs } from "@/lib/clickupSync";
 import { checkTokenExpiry } from "@/lib/tokenExpiry";
@@ -72,6 +76,7 @@ export async function GET(req: Request) {
 
   const report: Record<string, string[]> = {};
   const failures: CollectorFailure[] = [];
+  const revenueMismatches: RevenueMismatch[] = [];
 
   for (const c of clients ?? []) {
     const done: string[] = [];
@@ -147,11 +152,16 @@ export async function GET(req: Request) {
           // (e.g. DataForSEO 40101) skips that keyword instead of failing the run.
           const rows = await mapLimit(kws, 8, async (kw) => {
             try {
-              const { position, url } = await serpPosition(kw.keyword, c.domain, c.location_code, c.language_code);
-              return { keyword_id: kw.id, position, url };
+              const s = await serpPosition(kw.keyword, c.domain, c.location_code, c.language_code);
+              // AI Overview rides along on a SERP call we already pay for — it
+              // arrives in the same response and was previously discarded.
+              return {
+                keyword_id: kw.id, position: s.position, url: s.url,
+                ai_overview: s.aiOverview, ai_overview_cited: s.aiOverviewCited,
+              };
             } catch { return null; }
           });
-          const ok = rows.filter((r): r is { keyword_id: string; position: number | null; url: string | null } => r !== null);
+          const ok = rows.filter((r): r is NonNullable<typeof r> => r !== null);
           if (ok.length > 0) {
             await db.from("keyword_rankings").insert(ok.map((r) => ({ client_id: c.id, ...r })));
           }
@@ -178,11 +188,19 @@ export async function GET(req: Request) {
           .from("tracked_prompts").select("id, prompt")
           .eq("client_id", c.id).eq("active", true);
 
+        // Which assistants this client is checked against. Opt-in per client
+        // (clients.aeo_providers) because each extra provider is a separate
+        // billed call per prompt per run — see lib/aeoProviders.ts.
+        const providers = enabledProviders((c as { aeo_providers?: unknown }).aeo_providers);
+
         if (prompts && prompts.length > 0) {
-          // Parallel (cap 6); one prompt failing shouldn't sink the batch.
-          const rows = await mapLimit(prompts, 6, async (p) => {
+          // One unit of work per (prompt × provider). Parallel (cap 6); one
+          // failing must not sink the batch — and one provider being down must
+          // not lose the answers the others returned.
+          const jobs = prompts.flatMap((p) => providers.map((provider) => ({ p, provider })));
+          const rows = await mapLimit(jobs, 6, async ({ p, provider }) => {
             try {
-              const r = await aiPromptCheck(p.prompt, c.domain, c.name);
+              const r = await aiPromptCheck(p.prompt, c.domain, c.name, "US", provider);
               return {
                 prompt_id: p.id, mentioned: r.mentioned, cited: r.cited,
                 // The answer and its sources are stored so a 0% can be READ
@@ -190,22 +208,34 @@ export async function GET(req: Request) {
                 // claim with no evidence behind it — which is how 121 checks
                 // went unquestioned for a week.
                 answer: r.answer, sources: r.sources,
-                model: AEO_MODEL, web_search: true,
+                provider: provider.key, model: modelFor(provider), web_search: true,
               };
             } catch { return null; }
           });
           const ok = rows.filter((r): r is NonNullable<typeof r> => r !== null);
-          const mentionedCount = ok.filter((r) => r.mentioned).length;
           const wrote = ok.length;
           if (ok.length > 0) {
             await db.from("prompt_results").insert(ok.map((r) => ({ client_id: c.id, ...r })));
           }
+
+          // ai_visibility stays a single headline number, measured on the
+          // DEFAULT provider only. Averaging across providers would silently
+          // change what the metric means and make today's figure incomparable
+          // with every one already collected — a client would see a jump that
+          // was a definition change, not a result. Per-provider detail lives on
+          // the AEO page instead.
+          const baseline = providers[0].key;
+          const baseRows = ok.filter((r) => r.provider === baseline);
+          const mentionedCount = baseRows.filter((r) => r.mentioned).length;
           snapshot.ai_visibility = Math.round((mentionedCount / prompts.length) * 10000) / 100;
           snapshot.ai_mentions = mentionedCount;
           hasData = true;
-          done.push(`ai (${prompts.length} prompts, ${mentionedCount} mentioned)`);
+          done.push(`ai (${prompts.length} prompts × ${providers.length} provider(s), ${mentionedCount} mentioned on ${baseline})`);
           await recordRun(db, "ai", c.id, {
-            status: "success", detail: `ai_visibility=${snapshot.ai_visibility} mentions=${mentionedCount}`,
+            status: "success",
+            detail:
+              `ai_visibility=${snapshot.ai_visibility} mentions=${mentionedCount} ` +
+              `providers=${providers.map((p) => p.key).join("+")}`,
             rows_written: wrote, duration_ms: Date.now() - tAi,
           });
         }
@@ -350,6 +380,25 @@ export async function GET(req: Request) {
     const shopN = await collectShopify(db, c);
     done.push(`shopify (${shopN})`);
 
+    // ── Accuracy gate: does the stored 30-day Shopify revenue we just wrote
+    // still agree with a fresh pull from Shopify itself? Catches both a bad
+    // number (e.g. an unbounded query summing more than the intended window)
+    // and a frozen collector (stored figures stop moving while Shopify's own
+    // keep climbing) — the two ways "the numbers don't match Shopify" happens.
+    const reconciliation = await checkShopifyReconciliation(db, c);
+    if (reconciliation?.mismatched) {
+      revenueMismatches.push({
+        client: c.domain,
+        storedRevenue: reconciliation.storedRevenue,
+        freshRevenue: reconciliation.freshRevenue,
+        diffAbs: reconciliation.diffAbs,
+        diffPct: reconciliation.diffPct,
+      });
+      done.push("shopify reconciliation MISMATCH");
+    } else if (reconciliation) {
+      done.push("shopify reconciliation ok");
+    }
+
     // ── Organic social via PostFlow → social_posts + social_metrics_daily ──
     // Wrapped rather than left to throw: a social failure must not take down the
     // collection that revenue reporting depends on.
@@ -408,6 +457,19 @@ export async function GET(req: Request) {
   const ranAt = new Date().toISOString();
   // surface any module failures to the ops Slack channel (no-op if none)
   await alertOnFailures(ranAt, failures);
+  // surface any Shopify revenue disagreements (no-op if none)
+  await alertOnRevenueMismatch(ranAt, revenueMismatches);
+
+  // The quieter failure: collection ran, reported no errors, and still nothing
+  // new landed. Never fatal — a freshness check must not sink the run it rides on.
+  let staleSources = 0;
+  try {
+    const stale = await findStaleData(db, (clients ?? []) as { id: string; domain: string }[]);
+    staleSources = stale.length;
+    await alertOnStaleData(ranAt, stale);
+  } catch (e) {
+    console.error("[freshness] check failed:", (e as Error).message);
+  }
 
   // Punch list #9: the SLA gets a consequence rather than a colour. Never fatal —
   // a queue-health check must not be able to fail the collection it rides on.
@@ -420,11 +482,21 @@ export async function GET(req: Request) {
     console.error("[sla] check failed:", (e as Error).message);
   }
 
+  // Dead-man's switch. Deliberately the LAST thing the run does: it means "the
+  // cron got all the way here", so a run that dies partway never reports health.
+  // Everything above alerts from inside the cron and is therefore blind to the
+  // cron not running at all — an external service watching for this ping is the
+  // only thing that can see that.
+  const heartbeat = await pingHeartbeat();
+
   return Response.json({
     ran_at: ranAt,
     measured_changes: measured,
     failures: failures.length,
     sla_breaches: slaBreaches,
+    revenue_mismatches: revenueMismatches.length,
+    stale_sources: staleSources,
+    heartbeat: heartbeat.configured ? (heartbeat.ok ? "ok" : `failed: ${heartbeat.error}`) : "not configured",
     report,
   });
 }

@@ -100,6 +100,76 @@ function iso(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Raw shape of one row of Meta's /campaigns list response.
+export interface MetaCampaignRawRow {
+  id: string;
+  name?: string;
+  status?: string; // ACTIVE | PAUSED | DELETED | ARCHIVED
+  objective?: string;
+  daily_budget?: string | number;
+}
+
+// Mapped, DB-ready shape — one row per campaign, for the `campaigns` registry
+// (WO-006 stream A), not ad_metrics_daily.
+export interface CampaignRow {
+  campaign_id: string;
+  campaign_name: string | null;
+  status: "active" | "paused" | "removed";
+  objective: string | null;
+  daily_budget: number | null;
+}
+
+function mapCampaignStatus(raw: string | undefined): "active" | "paused" | "removed" {
+  if (raw === "ACTIVE") return "active";
+  if (raw === "PAUSED") return "paused";
+  return "removed"; // DELETED, ARCHIVED, or unrecognized
+}
+
+function mapCampaignRow(raw: MetaCampaignRawRow): CampaignRow {
+  return {
+    campaign_id: raw.id,
+    campaign_name: raw.name ?? null,
+    status: mapCampaignStatus(raw.status),
+    objective: raw.objective ?? null,
+    // Meta returns daily_budget in the ad account's minor currency unit
+    // (cents), unlike the insights `spend` field above which is already in
+    // whole units — verify against one staging account before trusting this
+    // in a client-facing budget-pacing rule (accuracy gate).
+    daily_budget: raw.daily_budget != null ? toNumber(raw.daily_budget) / 100 : null,
+  };
+}
+
+// GET /{adAccountId}/campaigns — campaign-level status/budget/objective, for
+// the `campaigns` registry (not insights). Paginated the same way as
+// fetchAdInsights. Under MOCK_APIS=1, reads from a fixture.
+export async function fetchCampaigns(accessToken: string, adAccountId: string): Promise<CampaignRow[]> {
+  if (mockApis()) {
+    const raw = readFixture<MetaCampaignRawRow[]>("meta/campaigns.json");
+    return raw.map(mapCampaignRow);
+  }
+
+  const params = new URLSearchParams({
+    fields: "id,name,status,objective,daily_budget",
+    access_token: accessToken,
+    limit: "500",
+  });
+
+  let url: string | null = `${GRAPH_BASE}/${adAccountId}/campaigns?${params.toString()}`;
+  const rows: CampaignRow[] = [];
+
+  while (url) {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Meta campaigns request failed: ${res.status} ${res.statusText}`);
+    }
+    const body = (await res.json()) as { data: MetaCampaignRawRow[]; paging?: { next?: string } };
+    for (const raw of body.data ?? []) rows.push(mapCampaignRow(raw));
+    url = body.paging?.next ?? null;
+  }
+
+  return rows;
+}
+
 // GET /{adAccountId}/insights, level=ad, time_increment=1 (one row per ad per
 // day), paginated via `paging.next` until exhausted. Under MOCK_APIS=1, reads
 // raw insight rows from the fixture and runs them through the same mapping —

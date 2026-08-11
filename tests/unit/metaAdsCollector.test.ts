@@ -47,6 +47,7 @@ describe("collectMetaAds", () => {
 
     const run = db._rows("collector_runs")[0];
     expect(run).toMatchObject({ module: "meta_ads", client_id: CLIENT_ID, status: "success", rows_written: 5 });
+    expect(run.detail).toContain("synced 2 campaign(s)");
   });
 
   it("updates existing rows instead of duplicating on a second run", async () => {
@@ -58,6 +59,38 @@ describe("collectMetaAds", () => {
 
     const rows = db._rows("ad_metrics_daily");
     expect(rows).toHaveLength(5); // still 5 — second run updated, not appended
+  });
+
+  it("syncs campaign status/budget/objective into the campaigns registry (WO-006 stream A)", async () => {
+    vi.stubEnv("MOCK_APIS", "1");
+    const db = seedDb();
+
+    await collectMetaAds(db, { id: CLIENT_ID, domain: "example.com" });
+
+    const campaigns = db._rows("campaigns");
+    expect(campaigns).toHaveLength(2); // matches tests/fixtures/meta/campaigns.json
+    expect(campaigns).toContainEqual(
+      expect.objectContaining({
+        client_id: CLIENT_ID,
+        platform: "meta",
+        campaign_id: "120210000000001",
+        campaign_name: "Prospecting - Broad",
+        status: "active",
+        objective: "OUTCOME_SALES",
+        daily_budget: 50, // fixture's "5000" cents / 100
+      })
+    );
+    expect(campaigns).toContainEqual(expect.objectContaining({ campaign_id: "120210000000002", status: "paused" }));
+  });
+
+  it("updates campaign rows instead of duplicating on a second run", async () => {
+    vi.stubEnv("MOCK_APIS", "1");
+    const db = seedDb();
+
+    await collectMetaAds(db, { id: CLIENT_ID, domain: "example.com" });
+    await collectMetaAds(db, { id: CLIENT_ID, domain: "example.com" });
+
+    expect(db._rows("campaigns")).toHaveLength(2); // still 2 — second run updated, not appended
   });
 
   it("records a skipped run and does not throw when the client has no ad_platform_accounts row", async () => {

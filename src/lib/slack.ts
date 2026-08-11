@@ -1,5 +1,13 @@
-// lib/slack.ts — internal ops alerts (collector failure + data staleness),
-// plus the per-client webhook path used by module/daily-brief.
+// lib/slack.ts — internal ops alerts (collector failures), the low-level
+// slackAlert() every other alerting module posts through, and slackAlertTo()
+// for posting to an arbitrary webhook.
+//
+// Two audiences, deliberately kept apart: SLACK_WEBHOOK_URL is ONE internal ops
+// channel (failures, token expiry, SLA breaches, revenue mismatches), while
+// slackAlertTo() carries the daily brief to each client's own channel. Pointing
+// the internal alerts at a client channel would deliver every other client's
+// revenue and spend figures into it.
+//
 // No-op (logs) when SLACK_WEBHOOK_URL is unset, so dev/test/CI never need Slack.
 
 // Posts to an arbitrary incoming webhook URL (e.g. a client's own channel).
@@ -44,13 +52,6 @@ export async function alertOnFailures(runAt: string, failures: CollectorFailure[
   );
 }
 
-// Alert when a client's freshest data is older than the staleness threshold (default 36h).
-export async function alertOnStaleness(
-  stale: { client: string; module: string; hoursOld: number }[]
-): Promise<void> {
-  if (stale.length === 0) return;
-  const lines = stale
-    .map((s) => `• *${s.client}* / ${s.module}: ${s.hoursOld}h since last fresh data`)
-    .join("\n");
-  await slackAlert(`:hourglass: *Growth OS staleness* — ${stale.length} client(s) stale\n${lines}`);
-}
+// Staleness alerting lives in lib/accuracyAlerts.ts, not here — it goes through
+// notify() so it reaches email as well as Slack. The unused Slack-only
+// alertOnStaleness() that sat here was never called by anything.

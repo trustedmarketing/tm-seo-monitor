@@ -1,7 +1,125 @@
 # Growth OS — STATUS
 
-_Last updated: 2026-07-29_
+_Last updated: 2026-08-10_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
+
+### Crawls fixed after a month dead (2026-08-10) — ✅ MERGED, ⏳ NEEDS LIVE CONFIRMATION
+
+PR #40. DataForSEO's `/v3/on_page/summary/$id` is a **GET**; we sent POST. It
+answers 200 with an empty result rather than erroring, which our code read as
+"still crawling" — so every crawl stalled, was abandoned at 48h, requeued, and
+repeated. Zero completed crawls in 30 days across all four clients, with no
+exception ever raised: the error path was fine, the **success path lied**.
+
+Site-health / QC data was dead portfolio-wide for a month.
+
+**Pending:** confirm against a live task —
+`api/ops/dataforseo-check?task=<id>` (ids listed under `pending_tasks`).
+`crawlProgress: "finished"` = fixed; `resultRows: 0` = still wrong. Existing
+in-flight tasks are days old, so the next cron should score them immediately.
+
+### Paid workspace completed (2026-08-10) — ✅ MERGED
+
+- **PR #39** — `PaidNav` sub-nav. `/paid/personas` previously had no link from
+  anywhere in the app; `/paid/creative`'s only route was buried in body copy.
+- **PR #41** — Stream J, spend-guard settings UI at `/paid/guardrails`. The
+  guardrail has been enforced since stream D but ceilings could only be set via
+  hand-written SQL, so no client had one and every budget change passed
+  unchallenged. Owner-only writes.
+
+WO-006 is now complete: streams A–J all shipped.
+
+### Portfolio + /paid date windows (2026-08-10) — ✅ MERGED
+
+PR #37. The #28 fix was applied to `/dashboard/[id]` only; the portfolio page and
+`/paid` still had **no date filter**, so their Revenue / MER / Ad spend figures
+were lifetime totals labelled "period total". The portfolio and client Overview
+disagreed with each other for any client live over 30 days. Swept both tables'
+readers — only those three were unbounded. All windows are now labelled.
+
+PR #38 also fixed the attention rail, which never selected `collector_runs.error`
+(so it could only ever say "Collection failed") and kept showing red for modules
+that had since recovered.
+
+### Accuracy alerting (2026-08-10) — ✅ ALL CHANNELS ARMED AND VERIFIED
+
+The platform now tells you when its own numbers stop being trustworthy, rather
+than waiting for someone to spot it by eye against Shopify's dashboard (which
+is how the Overview page's revenue bug went unnoticed for a week). PRs #29–#35.
+
+| Failure mode | Check | Status |
+|---|---|---|
+| Numbers are **wrong** | `lib/revenueReconciliation.ts` — stored vs. a fresh Shopify pull, >2% AND >$25 | ✅ armed |
+| Numbers **stopped** | `lib/dataFreshness.ts` — no new revenue/spend row in 3+ days | ✅ armed |
+| Cron **never ran** | `lib/heartbeat.ts` — external dead-man's switch | ✅ armed, ping confirmed |
+| Alerting itself broken | `api/ops/alert-check` | ✅ Slack + email both confirmed arriving |
+
+Delivery via `lib/notify.ts` → Slack **and** email, independently, so one
+misconfigured channel can't swallow an alert. All verified by an actual
+delivered message, not by the env vars looking right — it took three separate
+misconfigurations to get email working (default `ALERT_EMAIL_FROM` sender,
+missing `ALERT_EMAIL_TO`, unverified Resend domain) and every one of them
+looked fine from the Vercel dashboard.
+
+**Known blind spot, by construction.** Reconciliation compares stored rows
+against a fresh `fetchDailySales()` call — but the stored rows were *written*
+by `fetchDailySales()`. A bug in that query moves both sides together and
+reconciles perfectly clean. It proves the pipeline is internally consistent; it
+cannot prove the query is right. That has to be checked against Shopify's own
+reporting UI. PR #35 fixed exactly such a bug (see below), which reconciliation
+had been reporting as healthy the whole time.
+
+Env vars, the `ALERT_EMAIL_FROM` / `ALERT_EMAIL_TO` gotchas, and the heartbeat
+setup are documented in the README's "Alerting channels" section.
+
+### Shopify revenue definition fixed (2026-08-10) — ✅ MERGED, ⏳ NEEDS ACCURACY CHECK
+
+PR #35. The collector summed `totalPriceSet` — Shopify's docs: "the total price
+of the order, **before returns**" — so refunded money counted as revenue
+permanently, and test-gateway orders counted too. Now uses
+`currentTotalPriceSet` ("**after returns**") with a `test:false` filter.
+
+**Expect reported revenue to DROP toward Shopify's own figure on the next
+collection. That drop is the fix working, not a regression.**
+
+**Pending (accuracy gate, `CLAUDE.md` autonomy #3):** parallel-check Salty Dog's
+next two collection cycles against the Shopify admin dashboard before trusting
+the number. Still unsettled: whether cancelled-but-unrefunded orders need a
+separate `status:` filter — deliberately not guessed at, needs real store data.
+
+### Paid ads control surface — WO-006 (2026-08-10) — ✅ MERGED TO MAIN
+
+All nine module streams (`module/paid-campaign-registry` through
+`-ui-actions`, plus the docs branch) are merged into `main` — PRs #15–#24, in
+dependency order. Migrations 039–043 have been run against **both**
+`tm-growth-staging` and production Supabase, confirmed via a direct
+`information_schema` check (all 5 tables present, `creatives.approval_id`
+column present). `npm test` (455/455) and `tsc --noEmit` verified clean on
+the actual merged `main`, not just a local scratch branch. Full writeup:
+`docs/wo-006-paid-ads-control-surface.md`; session summaries in `WORKLOG.md`.
+
+Ships: campaign-level day-prior/7-day/30-day ROAS on `/paid`, a `"Paid"`
+recommendations category, dry-run-first pause/resume/budget/create-campaign
+adapters behind the existing approval-card flow with a spend-guard hard
+guardrail, a customer-persona data model (copy/creative context only, no
+platform targeting sync), Bloom ad creative that generates 4:5 first and only
+fans out to 1:1/9:16 after a human approves the concept, generated ad copy
+per platform (Google RSA/PMax, Microsoft RSA, Meta feed) with verified
+real character/count limits, locally-rendered previews of how each format's
+copy will look, and real in-app forms (`/paid`, `/paid/creative`) for all of
+the above instead of typed API URLs. Staging a new campaign bundles creative
++ copy generation together — the turnkey path.
+
+**Open before live ad-account writes are safe:** write-scope OAuth tokens for
+Meta/Google/Microsoft Ads (escalation — Tom-only, see CLAUDE.md) — until
+these exist, pause/resume/budget/create-campaign stay dry-run-only against
+real accounts. Testing plan: Salty Dog only for now (already onboarded, real
+ad accounts connected) — the next daily cron (10:00 UTC) or a manual
+`/api/cron/collect` hit will populate the new `campaigns` table for it.
+
+**Not yet built:** spend-guard ceiling settings UI (still a direct DB
+insert), rich creative/copy preview inside `ApprovalCard.tsx` itself (lives
+only on `/paid/creative` today), a real Bloom brand allowlist.
 
 ### Social content planner — WO-004 (2026-07-28)
 

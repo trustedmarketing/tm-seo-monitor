@@ -14,33 +14,71 @@ export type Notification = {
   body: string;
 };
 
-// Shared Resend send path, factored out so module/daily-brief can send to its
-// own recipient list without duplicating the fetch call notify() already has.
-// No-ops (returns false) when RESEND_API_KEY is unset — same philosophy as
-// slackAlert: adding the key turns email on with no code change.
-export async function sendResendEmail(opts: { subject: string; text: string; to: string; from?: string }): Promise<boolean> {
+export interface EmailResult {
+  ok: boolean;
+  /** Why it failed — the missing env var, or Resend's own message. */
+  error?: string;
+}
+
+/**
+ * The one Resend send path.
+ *
+ * Shared so module/daily-brief can send to its own recipient list without
+ * duplicating the fetch, and so the diagnostics live in ONE place: getting
+ * email working took three separate misconfigurations (default sender, missing
+ * recipient, unverified domain) and every one of them looked fine from the
+ * Vercel dashboard. A second copy of this call would have needed all three
+ * lessons re-learned.
+ *
+ * Never throws. Returns WHY it failed rather than a bare false, because
+ * "unverified domain", "test-mode recipient restriction" and "bad API key" are
+ * indistinguishable otherwise.
+ */
+export async function sendResendEmail(opts: {
+  subject: string; text: string; to: string | undefined; from?: string;
+}): Promise<EmailResult> {
   const key = process.env.RESEND_API_KEY;
-  if (!key) return false;
+  const to = opts.to;
+
+  // Both are required. Saying WHICH is missing matters: a Resend key with no
+  // recipient looks configured and sends nothing at all.
+  if (!key || !to) {
+    return {
+      ok: false,
+      error: !key && !to
+        ? "RESEND_API_KEY and recipient both unset"
+        : !key ? "RESEND_API_KEY unset" : "recipient unset",
+    };
+  }
+
+  // ALERT_EMAIL_FROM is optional in theory and required in practice: Resend only
+  // lets the default onboarding@resend.dev sender deliver to the account owner's
+  // own address, so it works in a first test and fails for everyone else.
   const from = opts.from ?? process.env.ALERT_EMAIL_FROM ?? "Growth OS <onboarding@resend.dev>";
+
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         from,
-        to: opts.to.split(",").map((t) => t.trim()).filter(Boolean),
+        to: to.split(",").map((t) => t.trim()).filter(Boolean),
         subject: opts.subject,
         text: opts.text,
       }),
     });
-    return res.ok;
-  } catch {
-    return false;
+    if (res.ok) return { ok: true };
+    const body = await res.text().catch(() => "");
+    return { ok: false, error: `Resend HTTP ${res.status}: ${body.slice(0, 300)}` };
+  } catch (e) {
+    return { ok: false, error: `fetch failed: ${(e as Error).message}` };
   }
 }
 
-export async function notify(n: Notification): Promise<{ slack: boolean; email: boolean }> {
-  const out = { slack: false, email: false };
+export async function notify(
+  n: Notification
+): Promise<{ slack: boolean; email: boolean; emailError?: string }> {
+  const out: { slack: boolean; email: boolean; emailError?: string } = { slack: false, email: false };
 
   // Both are attempted independently: a broken email provider must not swallow
   // a Slack alert that would otherwise have reached someone.
@@ -52,26 +90,19 @@ export async function notify(n: Notification): Promise<{ slack: boolean; email: 
     // and still must not stop the email.
   }
 
-  const key = process.env.RESEND_API_KEY;
-  const to = process.env.ALERT_EMAIL_TO;
-  const from = process.env.ALERT_EMAIL_FROM ?? "Growth OS <onboarding@resend.dev>";
-
-  if (key && to) {
-    try {
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from,
-          to: to.split(",").map((t) => t.trim()).filter(Boolean),
-          subject: n.subject,
-          text: n.body,
-        }),
-      });
-      out.email = res.ok;
-    } catch {
-      out.email = false;
-    }
+  const sent = await sendResendEmail({
+    subject: n.subject,
+    text: n.body,
+    to: process.env.ALERT_EMAIL_TO,
+  });
+  out.email = sent.ok;
+  if (sent.error) {
+    // Name ALERT_EMAIL_TO specifically — sendResendEmail is shared, so it can
+    // only say "recipient unset", and knowing which env var to set is the
+    // difference between a two-minute fix and an afternoon of guessing.
+    out.emailError = sent.error === "recipient unset" ? "ALERT_EMAIL_TO unset"
+      : sent.error === "RESEND_API_KEY and recipient both unset" ? "RESEND_API_KEY and ALERT_EMAIL_TO both unset"
+      : sent.error;
   }
 
   return out;
