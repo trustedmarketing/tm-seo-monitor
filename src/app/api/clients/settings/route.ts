@@ -16,10 +16,10 @@ import { getProfile, isAgency } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
 import { AEO_PROVIDERS, DEFAULT_PROVIDERS } from "@/lib/aeoProviders";
+import { TIERS } from "@/lib/clientProfile";
 
 export const dynamic = "force-dynamic";
 
-const TIERS = ["Consistency", "Momentum", "Dominate"];
 const TYPES = ["local_service", "national_ecom", "hybrid"];
 /** Must match the cron's FREQ_DAYS keys, plus `paused`. */
 const AI_FREQUENCIES = ["daily", "weekly", "biweekly", "monthly", "paused"];
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
     const tier = opt(form, "tier");
     const clientType = opt(form, "client_type");
 
-    if (tier && !TIERS.includes(tier)) return back(req, id, "bad-tier");
+    if (tier && !(TIERS as readonly string[]).includes(tier)) return back(req, id, "bad-tier");
     if (clientType && !TYPES.includes(clientType)) return back(req, id, "bad-type");
 
     const patch: Record<string, unknown> = {

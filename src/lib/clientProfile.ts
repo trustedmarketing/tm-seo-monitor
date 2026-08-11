@@ -16,7 +16,14 @@
 // ID (G-…) pasted into a property-ID field produces exactly that error, so it is
 // rejected by name rather than by a generic "invalid".
 
-export const TIERS = ["Consistency", "Momentum", "Dominate"] as const;
+// "Project" is a real engagement type, not a retainer rung — fixed-scope work
+// rather than an ongoing tier. It sits last because the first three are ordered
+// by commitment and it does not belong on that ladder.
+//
+// No migration needed: clients.tier is plain text (001_core.sql). The only thing
+// that ever constrained it was this list, which existed in three copies until
+// the other two started importing it from here.
+export const TIERS = ["Consistency", "Momentum", "Dominate", "Project"] as const;
 export const CLIENT_TYPES = ["local_service", "national_ecom", "hybrid"] as const;
 export const STORE_PLATFORMS = ["shopify", "woocommerce", "custom"] as const;
 

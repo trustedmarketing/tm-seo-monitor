@@ -17,7 +17,8 @@ type Prompt = { id: string; client_id: string; prompt: string };
 type Suggestion = { keyword: string; source: string; note: string };
 
 const FREQS = ["daily", "weekly", "biweekly", "monthly", "paused"];
-const TIERS = ["", "Consistency", "Momentum", "Dominate"];
+import { TIERS as TIER_VALUES } from "@/lib/clientProfile";
+const TIERS = ["", ...TIER_VALUES];
 const TYPES: Array<[string, string]> = [
   ["", "Unclassified"],
   ["local_service", "Local service"],

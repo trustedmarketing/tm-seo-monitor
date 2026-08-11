@@ -9,6 +9,7 @@
 import { redirect } from "next/navigation";
 import { userClient, getProfile } from "@/lib/supabaseServer";
 import { AEO_PROVIDERS, DEFAULT_PROVIDERS, enabledProviders } from "@/lib/aeoProviders";
+import { TIERS } from "@/lib/clientProfile";
 import { dbClient } from "@/lib/db";
 import { ClientHeader } from "@/components/ClientHeader";
 import { workspaceTabs, type ClientType } from "@/lib/workspaceTabs";
@@ -117,7 +118,7 @@ export default async function Settings({
               <label style={L}>Tier</label>
               <select name="tier" defaultValue={client.tier ?? ""} style={I}>
                 <option value="">Not set</option>
-                <option>Consistency</option><option>Momentum</option><option>Dominate</option>
+                {TIERS.map((t) => <option key={t}>{t}</option>)}
               </select>
             </div>
 
