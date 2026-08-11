@@ -58,11 +58,11 @@ export async function GET(req: Request) {
     // it would be spent from.
     const { data: aeoClients } = await db
       .from("clients")
-      .select("id, name, serp_frequency, aeo_providers")
+      .select("id, name, ai_frequency, aeo_providers")
       .eq("active", true);
 
     const projections: ClientProjection[] = [];
-    for (const c of (aeoClients ?? []) as { id: string; name: string; serp_frequency: string | null; aeo_providers: unknown }[]) {
+    for (const c of (aeoClients ?? []) as { id: string; name: string; ai_frequency: string | null; aeo_providers: unknown }[]) {
       const { count } = await db
         .from("tracked_prompts")
         .select("id", { count: "exact", head: true })
@@ -71,7 +71,7 @@ export async function GET(req: Request) {
 
       const providers = enabledProviders(c.aeo_providers).map((p) => ({ key: p.key, model: modelFor(p) }));
       projections.push(
-        projectClient({ client: c.name, prompts: count ?? 0, frequency: c.serp_frequency, providers })
+        projectClient({ client: c.name, prompts: count ?? 0, frequency: c.ai_frequency ?? "weekly", providers })
       );
     }
 

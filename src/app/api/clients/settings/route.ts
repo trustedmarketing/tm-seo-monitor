@@ -21,6 +21,8 @@ export const dynamic = "force-dynamic";
 
 const TIERS = ["Consistency", "Momentum", "Dominate"];
 const TYPES = ["local_service", "national_ecom", "hybrid"];
+/** Must match the cron's FREQ_DAYS keys, plus `paused`. */
+const AI_FREQUENCIES = ["daily", "weekly", "biweekly", "monthly", "paused"];
 
 function back(req: Request, id: string, msg: string) {
   const url = new URL(`/dashboard/${id}/settings`, req.url);
@@ -67,7 +69,16 @@ export async function POST(req: Request) {
       .filter((p) => p.key === DEFAULT_PROVIDERS[0] || form.get(`provider_${p.key}`) === "on")
       .map((p) => p.key);
 
-    const { error } = await db.from("clients").update({ aeo_providers: chosen }).eq("id", id);
+    // Validated against the cron's own vocabulary — an unrecognised value would
+    // silently fall back to weekly inside isDue(), so the setting would appear
+    // to save and then not do what it says.
+    const freq = String(form.get("ai_frequency") ?? "weekly");
+    if (!AI_FREQUENCIES.includes(freq)) return back(req, id, "bad-frequency");
+
+    const { error } = await db
+      .from("clients")
+      .update({ aeo_providers: chosen, ai_frequency: freq })
+      .eq("id", id);
     if (error) return back(req, id, "save-failed");
 
     await writeAudit(
@@ -76,7 +87,9 @@ export async function POST(req: Request) {
         targetType: "client",
         targetId: id,
         clientId: id,
-        detail: `AEO providers set to ${chosen.join("+")} (was ${(before.aeo_providers ?? []).join("+") || "none"})`,
+        detail:
+          `AEO providers set to ${chosen.join("+")} (was ${(before.aeo_providers ?? []).join("+") || "none"}), ` +
+          `cadence ${freq} (was ${before.ai_frequency ?? "weekly"})`,
       },
       profile
     );

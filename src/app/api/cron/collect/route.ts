@@ -137,7 +137,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // ── SERP rankings + AI prompt checks (shared cadence) ─────────
+    // ── SERP rankings ─────────────────────────────────────────────
     if (force || isDue(c.serp_frequency, c.last_serp_at)) {
       // Keyword rankings → visibility %
       const tSerp = Date.now();
@@ -181,7 +181,18 @@ export async function GET(req: Request) {
         await recordRun(db, "serp", c.id, { status: "error", error: msg, duration_ms: Date.now() - tSerp });
       }
 
-      // AI prompts → ai_visibility %
+      await db.from("clients").update({ last_serp_at: new Date().toISOString() }).eq("id", c.id);
+    }
+
+    // ── AI prompt checks → ai_visibility % ────────────────────────
+    //
+    // Its OWN cadence, not serp_frequency's. These used to ride inside the SERP
+    // gate, so a client on daily keyword tracking got daily AI checks as a side
+    // effect nobody chose — at roughly 7x the cost, for granularity that carries
+    // no signal. Keyword positions move day to day; a brand does not appear in
+    // ChatGPT on Tuesday and vanish on Wednesday. And every check is a billed
+    // LLM call per prompt PER PROVIDER, so the multiplier compounds.
+    if (force || isDue(c.ai_frequency ?? "weekly", c.last_ai_at)) {
       const tAi = Date.now();
       try {
         const { data: prompts } = await db
@@ -246,7 +257,7 @@ export async function GET(req: Request) {
         await recordRun(db, "ai", c.id, { status: "error", error: msg, duration_ms: Date.now() - tAi });
       }
 
-      await db.from("clients").update({ last_serp_at: new Date().toISOString() }).eq("id", c.id);
+      await db.from("clients").update({ last_ai_at: new Date().toISOString() }).eq("id", c.id);
     }
 
     // ── On-page crawl: post task now, score next run ──────────────
