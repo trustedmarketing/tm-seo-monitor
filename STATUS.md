@@ -1,7 +1,43 @@
 # Growth OS — STATUS
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-08-11_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
+
+### 🔴 Open right now — portfolio expansion (2026-08-11)
+
+Went from 4 clients to 19. Everything below is sequenced and unfinished.
+
+**Done:** 15 clients inserted with `location_code` 9057285 (Martin County — Stuart,
+Palm City, Jensen Beach, Hobe Sound), plus Alpha Zeta corrected off 2840. eCommerce
+and arX Display stay national on 2840.
+
+**Deliberately NOT done — client Slack webhooks.** Held back so the first daily
+brief is email-only and can be read before any of it reaches a client, per the
+accuracy gate (autonomy #3). Tom holds the 19 webhook URLs; the SQL to apply them
+is a `case lower(domain)` update, regenerated from his list rather than stored
+here — webhooks are credentials and do not belong in the repo.
+
+**Next, in order:**
+
+1. **Top up DataForSEO.** Balance was $12.93 at 4 clients. Crawls and SERP scale
+   per client — 19 will exhaust it, and collection fails partway through.
+2. **Read the 10:30 UTC brief**, then apply the client webhooks.
+3. **Keywords, prompts, GA4 and GSC** for the 15 new clients — they show
+   "collecting" until then, which is expected, not a fault. See
+   `docs/sop-client-onboarding.md`.
+4. **Verify Salty Dog against Shopify** — order count should be near ~370, not
+   599. If it has not moved, the date-window fix did not take.
+5. **Confirm the crawl fix on a live task** —
+   `api/ops/dataforseo-check?task=<id>`. `crawlProgress: "finished"` = fixed.
+
+**Known gap, unbuilt:** DataForSEO has NO spend ceiling. Ads have a hard
+guardrail and Anthropic usage is metered, but crawls/SERP/AEO all draw from one
+balance with nothing to stop a runaway. At 4 clients that was theoretical; at 19
+it is not, and the failure mode is collection stopping silently mid-month.
+
+**Known gap, unbuilt:** `clients.service_areas` is stored and editable but read
+by no collector. `location_code` is the only field that affects tracking. Flagged
+in the UI so nobody fills it in believing otherwise.
 
 ### Crawls fixed after a month dead (2026-08-10) — ✅ MERGED, ⏳ NEEDS LIVE CONFIRMATION
 
