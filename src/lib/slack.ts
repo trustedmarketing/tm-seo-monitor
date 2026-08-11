@@ -1,12 +1,19 @@
-// lib/slack.ts — internal ops alerts (collector failures), plus the low-level
-// slackAlert() every other alerting module posts through.
+// lib/slack.ts — internal ops alerts (collector failures), the low-level
+// slackAlert() every other alerting module posts through, and slackAlertTo()
+// for posting to an arbitrary webhook.
+//
+// Two audiences, deliberately kept apart: SLACK_WEBHOOK_URL is ONE internal ops
+// channel (failures, token expiry, SLA breaches, revenue mismatches), while
+// slackAlertTo() carries the daily brief to each client's own channel. Pointing
+// the internal alerts at a client channel would deliver every other client's
+// revenue and spend figures into it.
+//
 // No-op (logs) when SLACK_WEBHOOK_URL is unset, so dev/test/CI never need Slack.
-export async function slackAlert(text: string): Promise<void> {
-  const url = process.env.SLACK_WEBHOOK_URL;
-  if (!url) {
-    console.warn("[slack] SLACK_WEBHOOK_URL unset — would have sent:", text);
-    return;
-  }
+
+// Posts to an arbitrary incoming webhook URL (e.g. a client's own channel).
+// Returns whether the post succeeded, rather than throwing, so one client's
+// bad/revoked webhook can't take down the others in the same run.
+export async function slackAlertTo(url: string, text: string): Promise<boolean> {
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -14,9 +21,20 @@ export async function slackAlert(text: string): Promise<void> {
       body: JSON.stringify({ text }),
     });
     if (!res.ok) console.error("[slack] webhook HTTP", res.status);
+    return res.ok;
   } catch (e) {
     console.error("[slack] webhook failed:", (e as Error).message);
+    return false;
   }
+}
+
+export async function slackAlert(text: string): Promise<void> {
+  const url = process.env.SLACK_WEBHOOK_URL;
+  if (!url) {
+    console.warn("[slack] SLACK_WEBHOOK_URL unset — would have sent:", text);
+    return;
+  }
+  await slackAlertTo(url, text);
 }
 
 export interface CollectorFailure {

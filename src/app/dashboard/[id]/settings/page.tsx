@@ -189,6 +189,16 @@ export default async function Settings({
               <label style={L}>ClickUp list ID</label>
               <input name="clickup_list_id" defaultValue={client.clickup_list_id ?? ""} style={I} />
             </div>
+            <div>
+              <label style={L}>Slack webhook URL</label>
+              <input name="slack_webhook_url" defaultValue={(client as any).slack_webhook_url ?? ""}
+                     placeholder="https://hooks.slack.com/services/…" style={I} />
+              <div style={HINT}>
+                Incoming Webhook for this client&apos;s own Slack channel — Slack → your workspace →
+                search &quot;Incoming Webhooks&quot; → Add to Slack → pick the channel → copy the URL here.
+                Leave blank and the daily brief just skips Slack for this client (email still goes out).
+              </div>
+            </div>
           </div>
 
           <label style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 20, fontSize: 14 }}>
