@@ -3,6 +3,38 @@
 _Last updated: 2026-08-18_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
 
+### GSC property strings malformed portfolio-wide (2026-08-18) — 🔧 FIX WRITTEN, NOT YET APPLIED
+
+Found while onboarding arX. **Twelve of nineteen clients** held
+`sc-domain:https://example.com/` — a blend of the two forms Search Console
+accepts, which matches no property and returns **403**. That reads as a
+permissions error, so it invites re-granting access instead of fixing a string.
+
+`collectOrganicQueries` throws on it, so these clients have been recording
+`organic_queries` errors every morning. Knock-on: `Suggest keywords` silently
+returns the DataForSEO half only, GSC backfill fails, GSC-sourced organic data
+absent. **Salty Dog is among the twelve.**
+
+The tell: the only two correct rows were exactly the two **Domain** properties
+(`daps.fit`, `emporiumthreads.com`). Every malformed one is a URL-prefix
+property with `sc-domain:` bolted on, so the original is recoverable by
+stripping the prefix.
+
+**Root cause: `gsc_property` was the one client field with no validator.**
+Domain, GA4 property ID, tier, client type and location code all normalise
+through `lib/clientProfile.ts`; this one was trimmed and stored raw, in *both*
+write paths. So `/admin` would have accepted these too — the bulk SQL insert
+is not solely to blame.
+
+Shipped on `docs/onboard-arx-display`: `normaliseGscProperty()` with 8 tests,
+wired into `buildClientRow` **and** `/api/clients/settings`, plus a `bad-gsc`
+message naming both correct forms. Repair in `supabase/047_fix_gsc_property_form.sql`
+— strictly non-regressive, since every row it touches is already 403ing.
+
+⏳ **Pending:** apply 047 (staging first), then confirm the nine unverified
+clients against Search Console's property picker and watch `organic_queries`
+on the next collection.
+
 ### arX Display onboarding — runbook ready, execution pending (2026-08-18)
 
 `docs/onboarding-arx-display.md`. Ad accounts verified live and **not yet

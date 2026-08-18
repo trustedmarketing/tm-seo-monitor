@@ -63,7 +63,13 @@ describe("buildClientBrief", () => {
   });
 
   it("computes per-platform paid trend from day-prior vs 7-day-trailing ROAS", async () => {
-    const anchor = "2026-08-09";
+    // Relative to today, not a fixed date. buildClientBrief anchors its ANALYSIS
+    // on the latest date present in the rows, but its QUERY still filters
+    // `date >= eightDaysAgo` from Date.now() — so a hard-coded anchor silently
+    // ages out of the window and the test starts asserting on zero rows. This
+    // was pinned to 2026-08-09 and began failing on 2026-08-18, testing nothing
+    // in between except that the fixture was still recent enough.
+    const anchor = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
     const rows = [];
     // six flat days at 2x ROAS ($100 spend / $200 revenue), then a strong anchor day at 4x
     for (let i = 6; i >= 1; i--) {

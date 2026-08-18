@@ -3,6 +3,7 @@ import {
   buildClientRow,
   normaliseDomain,
   normaliseGa4PropertyId,
+  normaliseGscProperty,
   normaliseLocationCode,
   parseServiceAreas,
   US_LOCATION_CODE,
@@ -101,6 +102,59 @@ describe("parseServiceAreas", () => {
   it("names the offending line", () => {
     expect(err(parseServiceAreas("Dallas, TX"))).toMatch(/Dallas, TX/);
     expect(err(parseServiceAreas("Dallas, TX | nope"))).toMatch(/not a location code/i);
+  });
+});
+
+describe("normaliseGscProperty", () => {
+  it("accepts the two forms Google actually accepts", () => {
+    expect(ok(normaliseGscProperty("sc-domain:daps.fit"))).toBe("sc-domain:daps.fit");
+    expect(ok(normaliseGscProperty("https://getsaltydog.com/"))).toBe("https://getsaltydog.com/");
+  });
+
+  it("treats blank as not set rather than invalid", () => {
+    expect(ok(normaliseGscProperty(""))).toBeNull();
+    expect(ok(normaliseGscProperty(null))).toBeNull();
+    expect(ok(normaliseGscProperty("   "))).toBeNull();
+  });
+
+  it("rejects the blend that was on twelve production clients", () => {
+    const e = err(normaliseGscProperty("sc-domain:https://alphazetaent.com/"));
+    expect(e).toMatch(/mixes both/i);
+    // The message must carry BOTH corrected forms — the whole failure was not
+    // knowing which one this property is.
+    expect(e).toContain("sc-domain:alphazetaent.com");
+    expect(e).toContain("https://alphazetaent.com/");
+  });
+
+  it("refuses to guess at a bare hostname", () => {
+    // Ambiguous by construction: a Domain property missing its prefix and a
+    // URL-prefix property missing its scheme look identical here.
+    const e = err(normaliseGscProperty("arxdisplay.com"));
+    expect(e).toMatch(/sc-domain:arxdisplay\.com/);
+    expect(e).toMatch(/https:\/\/arxdisplay\.com\//);
+  });
+
+  it("fixes what is unambiguous instead of refusing it", () => {
+    // Google's URL-prefix siteUrl always ends in a slash; there is one reading.
+    expect(ok(normaliseGscProperty("https://cwnow.com"))).toBe("https://cwnow.com/");
+    // A trailing slash on the domain form has one reading too.
+    expect(ok(normaliseGscProperty("sc-domain:daps.fit/"))).toBe("sc-domain:daps.fit");
+  });
+
+  it("normalises case and whitespace but never the path", () => {
+    expect(ok(normaliseGscProperty("  SC-Domain:DAPS.Fit  "))).toBe("sc-domain:daps.fit");
+    expect(ok(normaliseGscProperty("HTTPS://CWNOW.COM/"))).toBe("https://cwnow.com/");
+    // Search Console paths are case-sensitive — a subpath property must survive.
+    expect(ok(normaliseGscProperty("https://example.com/Shop"))).toBe("https://example.com/Shop/");
+  });
+
+  it("keeps http properties, which Search Console still has", () => {
+    expect(ok(normaliseGscProperty("http://example.com/"))).toBe("http://example.com/");
+  });
+
+  it("names what is wrong rather than saying invalid", () => {
+    expect(err(normaliseGscProperty("sc-domain:"))).toMatch(/no domain/i);
+    expect(err(normaliseGscProperty("sc-domain:notadomain"))).toMatch(/not a domain/i);
   });
 });
 

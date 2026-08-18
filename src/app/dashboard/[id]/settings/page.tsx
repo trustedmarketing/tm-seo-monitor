@@ -27,6 +27,8 @@ const MSG: Record<string, string> = {
   "bad-tier": "That is not a valid tier.",
   "bad-type": "That is not a valid client type.",
   "bad-frequency": "That is not a valid check frequency.",
+  "bad-gsc":
+    "That Search Console property is not in a form Google accepts. A Domain property is sc-domain:example.com — no scheme, no slash. A URL-prefix property is https://example.com/ — scheme and trailing slash. Never both. Search Console's property picker shows which type it is.",
 };
 
 const L: React.CSSProperties = {
