@@ -1,7 +1,89 @@
 # Growth OS — STATUS
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-08-18_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
+
+### DataForSEO Labs rejected every metro location code (2026-08-18) — 🔧 FIXED, ON PR #52
+
+Surfaced once the DataForSEO 401 lifted: `core: /dataforseo_labs/google/
+domain_rank_overview/live → 40501 Invalid Field: 'location_code'` on Papa T's
+and C&W. **Labs and SERP do not share a locations list** — Labs publishes its
+own, smaller set and rejects city/metro codes.
+
+Four Labs endpoints passed `clients.location_code` straight through, so
+**following the onboarding SOP correctly is what broke them**: the SOP tells you
+to set a metro code for local-service clients so their rankings are not measured
+nationally, and that same code then went to Labs.
+
+⚠️ **`domain_rank_overview` is the visible symptom; `ranked_keywords` is the
+damage.** It powers `Suggest keywords`, so every metro-coded local client failed
+keyword suggestion during onboarding and was left with none. That is a strong
+candidate for why **16 of 19 clients have zero prompts and several have no
+keywords** — worth re-running `Suggest keywords` for each rather than assuming
+it was never attempted.
+
+`labsLocationCode()` sends country level to all four Labs endpoints — correct on
+the merits, since those metrics are domain-wide — and `serpPosition` keeps the
+client's metro code, with a test asserting that split so it cannot silently
+invert. **Known limit:** the fallback is US and `clients` has no country column,
+so a non-US client with a metro code would be asked at US level. It is a
+parameter, not a constant, so the fix is to pass a country when one exists.
+
+### GSC property strings malformed portfolio-wide (2026-08-18) — 🔧 FIX WRITTEN, NOT YET APPLIED
+
+Found while onboarding arX. **Twelve of nineteen clients** held
+`sc-domain:https://example.com/` — a blend of the two forms Search Console
+accepts, which matches no property and returns **403**. That reads as a
+permissions error, so it invites re-granting access instead of fixing a string.
+
+`collectOrganicQueries` throws on it, so these clients have been recording
+`organic_queries` errors every morning. Knock-on: `Suggest keywords` silently
+returns the DataForSEO half only, GSC backfill fails, GSC-sourced organic data
+absent. **Salty Dog is among the twelve.**
+
+The tell: the only two correct rows were exactly the two **Domain** properties
+(`daps.fit`, `emporiumthreads.com`). Every malformed one is a URL-prefix
+property with `sc-domain:` bolted on, so the original is recoverable by
+stripping the prefix.
+
+**Root cause: `gsc_property` was the one client field with no validator.**
+Domain, GA4 property ID, tier, client type and location code all normalise
+through `lib/clientProfile.ts`; this one was trimmed and stored raw, in *both*
+write paths. So `/admin` would have accepted these too — the bulk SQL insert
+is not solely to blame.
+
+Shipped on `docs/onboard-arx-display`: `normaliseGscProperty()` with 8 tests,
+wired into `buildClientRow` **and** `/api/clients/settings`, plus a `bad-gsc`
+message naming both correct forms. Repair in `supabase/047_fix_gsc_property_form.sql`
+— strictly non-regressive, since every row it touches is already 403ing.
+
+⏳ **Pending:** apply 047 (staging first), then confirm the nine unverified
+clients against Search Console's property picker and watch `organic_queries`
+on the next collection.
+
+### arX Display onboarding — runbook ready, execution pending (2026-08-18)
+
+`docs/onboarding-arx-display.md`. Ad accounts verified live and **not yet
+connected**: Meta `act_1761764321488072`, Google Ads `7598077939` (already under
+MCC 711-022-5227). Client row not yet created.
+
+Three code gaps this surfaced, none fixed yet — all small, none blocking the
+onboarding itself:
+
+1. **No `national_lead_gen` client type.** `CLIENT_TYPES` has no slot for
+   national B2B lead-gen; `hybrid` is the least-wrong workaround and carries two
+   irrelevant tabs. Fix is `clientProfile.ts` + `workspaceTabs.ts`, no migration
+   (`clients.client_type` is plain text).
+2. **A `skipped` collector run is invisible.** `failingModules` selects
+   `status = 'error'` only, so an unconnected ad account produces an empty Paid
+   tab, a healthy portfolio row, and no alert. Widest-reaching of the three —
+   it applies to every collector, not just paid.
+3. **No `meta-check` / `google-ads-check` ops endpoint**, while GA4, Shopify,
+   WordPress and PostFlow all have one.
+
+⚠️ **Call tracking (plan §10 decision 0) — fifth appearance.** arX is the first
+client for which MER is *permanently* uncomputable: B2B lead-gen, no online
+revenue, sales cycle in months. No eCommerce fallback exists here.
 
 ### Crawls fixed after a month dead (2026-08-10) — ✅ MERGED, ⏳ NEEDS LIVE CONFIRMATION
 

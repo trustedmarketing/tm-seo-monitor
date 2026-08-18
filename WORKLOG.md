@@ -5,6 +5,96 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-18 · Session 6 · Onboarding arX Display, and the SOP hole it found
+
+Tom asked to bring arX Display (`arxdisplay.com`) into the platform and build
+the SOP off a real account rather than in the abstract. Nothing was written to
+production — no DB credentials in this environment — so this session produced
+the runbook, the SOP fix, and the verified values to execute against.
+
+**`docs/onboarding-arx-display.md`** — the filled-in instance. Every value read
+from the live APIs rather than asked for: Meta `act_1761764321488072` (ACTIVE,
+$309.91, 13 days old, 2 campaigns — `OUTCOME_LEADS` remarketing and
+`OUTCOME_TRAFFIC` awareness); Google Ads customer `7598077939`, **already linked
+under MCC 711-022-5227** and running 3 Search campaigns totalling $26.67/day. No
+Microsoft account. Site is WordPress on the `trusted-marketing` theme, so a TM
+build and the standard WP adapter path applies.
+
+### The hole: connecting an ad account is not in the SOP at all
+
+`ad_platform_accounts` is read by all three ad collectors and written by nothing
+in `src/` — only `seed.sql` and hand-written SQL. No UI, no ops endpoint, and no
+SOP step. Without a row the collectors return `0` and record **`skipped`**, and
+**nothing surfaces a skipped run**: `failingModules` selects `status = 'error'`
+only (`lib/collectorHealth.ts:54`), and the client's freshness stamp is satisfied
+by its organic collectors. So a paid client onboarded exactly per the SOP
+collects zero paid data, shows an empty Paid tab and a healthy portfolio row, and
+never raises anything.
+
+Same shape as the DataForSEO crawl bug: the error path was fine, the success path
+said nothing. Now `docs/sop-client-onboarding.md` §6, with the insert, the
+`auth_ref` rules per platform, and a `collector_runs` query as the verification —
+because the attention rail structurally cannot answer this one.
+
+Also noted there: every ad collector resolves its account with `.maybeSingle()`,
+so **one row per client per platform** is a hard constraint, not a convention.
+
+### arX fits none of the three client types
+
+`local_service | national_ecom | hybrid` does not have a slot for national B2B
+lead-gen. `client_type` drives `revenueMode()`, so the choice decides whether the
+client sees an honest blank or a revenue hero with no store behind it. Use
+`hybrid` — it buys `leads_pending` at the price of two irrelevant tabs, both of
+which already render holding states. A fourth type `national_lead_gen` is the
+real fix and is code, not onboarding.
+
+### Then the client list showed twelve broken GSC properties
+
+Verifying arX's GA4 ID meant dumping `clients`, and the dump answered a question
+nobody had asked: **twelve of nineteen `gsc_property` values are malformed** —
+`sc-domain:https://example.com/`, both forms at once. It matches no property,
+returns 403, and 403 reads as "permissions", which is why it survived. Salty Dog
+is one of the twelve.
+
+The two correct rows were the two Domain properties. Everything else is a
+URL-prefix property that got `sc-domain:` prefixed anyway, so the original value
+is recoverable — confirmed against the property picker for alphazetaent.com,
+cwnow.com and getsaltydog.com.
+
+**Root cause is a missing validator, not a bad SQL insert.** Every other field on
+the client row normalises through `lib/clientProfile.ts` — GA4 even rejects
+`G-`, `GTM-` and `UA-` by name. `gsc_property` was trimmed and stored raw in
+*both* write paths, so `/admin` would have accepted these too.
+
+Shipped: `normaliseGscProperty()` — accepts the two real forms, rejects the
+blend with **both** corrected strings in the message, refuses to guess at a bare
+`example.com` (genuinely ambiguous), and fixes what is unambiguous rather than
+refusing it (missing trailing slash, case, whitespace). Eight tests. Wired into
+`buildClientRow` and `/api/clients/settings`, with a `bad-gsc` message on the
+Settings page. Repair migration `047`, written to be non-regressive: every row it
+touches already 403s, so a wrong guess leaves it exactly as broken as it is now.
+
+### One unrelated red test, fixed
+
+`dailyBrief.test.ts` "computes per-platform paid trend" was failing on `main`
+before any of this. A **time-bomb**: the fixture pinned `anchor = "2026-08-09"`,
+but `buildClientBrief` filters `date >= eightDaysAgo` from `Date.now()`. It
+passed until 2026-08-17 and started failing 2026-08-18. Anchor now derives from
+today, so it tests the trend logic rather than the freshness of its own fixture.
+Suite green: 589 passed, 11 skipped.
+
+### Two things for Tom
+
+- **Call tracking (plan §10 decision 0) — fifth appearance, and the sharpest.**
+  arX sells B2B display programs that start with a call to 855-279-3477. That
+  call is invisible to every part of this platform, and unlike the local-service
+  cases there is no eCommerce fallback: MER is uncomputable for this client
+  permanently. Either decide it or agree with arX that paid reporting stops at
+  form-attributed leads — before the first report, not in response to it.
+- **No `meta-check` / `google-ads-check` ops endpoint.** GA4, Shopify, WordPress
+  and PostFlow all have per-client verifiers. The two connections whose failure
+  is silent are the two with none.
+
 ## 2026-08-10 · Session 5b · A month of dead crawls, three unbounded pages, Stream J
 
 Follow-on from the alerting work below. Tom asked why the portfolio still showed

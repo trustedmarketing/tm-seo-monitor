@@ -91,6 +91,9 @@ half-configured and quietly collecting nothing:
 - GA4 property ID
 - Their Slack channel's incoming webhook URL (for the daily brief)
 - Shopify custom-app Client ID + secret, if eCommerce
+- Ad account IDs for every platform they run — Meta `act_…`, Google Ads customer
+  ID, Microsoft account ID (§6). Read them from the platform rather than from an
+  email; both are one API call away
 
 ---
 
@@ -104,10 +107,28 @@ Automation. Left blank, the client gets the universal tab set and nobody has
 decided anything; `/admin` shows an "Unclassified" badge so the gap stays
 visible rather than silently defaulting.
 
+**A national lead-gen client fits none of the three types.** `local_service`,
+`national_ecom` and `hybrid` cover the portfolio as it was; a national B2B
+business that sells by quote is outside all of them. Pick **`hybrid`** — it is
+the least wrong. `client_type` decides the revenue block via `revenueMode()`
+(`lib/workspaceTabs.ts`), and `hybrid` gives the honest `leads_pending` state,
+where `national_ecom` would promise a revenue hero backed by a store that does
+not exist. The cost is two irrelevant tabs (GBP, Automation), and both already
+render holding states rather than empty numbers. A fourth type,
+`national_lead_gen`, is the real fix — code, not an onboarding step.
+
 **Location code** defaults to `2840`, which is the entire United States. For a
 local business competing in one metro that is wrong, and the rankings still look
 plausible — which is what makes it dangerous. Look up the city/metro code via
 DataForSEO's `serp_locations` endpoint for any local-service client.
+
+Setting a metro code is safe as of 2026-08-18. It was not before: DataForSEO
+Labs keeps a **different, smaller locations list** than SERP and rejects metro
+codes with `40501 Invalid Field: 'location_code'`, so a correctly-coded local
+client failed `Suggest keywords` at onboarding and was quietly left with none.
+`labsLocationCode()` now asks the four Labs endpoints at country level — right
+on the merits, since those metrics are domain-wide — while rank tracking keeps
+the client's own metro code.
 
 ---
 
@@ -136,7 +157,7 @@ Everything that used to need hand-written SQL.
 | Field | Notes |
 |---|---|
 | GA4 property ID | Digits only. **A wrong ID looks exactly like a permissions error** — verify against GA4 → Admin → Property Settings before assuming access is the problem. This cost six days once. |
-| Search Console property | Exact form matters: `sc-domain:example.com` for a Domain property, `https://example.com/` **with trailing slash** for URL-prefix. |
+| Search Console property | Two forms, and they do not mix. Domain property → `sc-domain:example.com` (no scheme, no slash). URL-prefix → `https://example.com/` (scheme **and** trailing slash). ⚠️ `sc-domain:https://example.com/` is the blend that put twelve clients on a permanent 403 — validated against since. **Search Console's property picker tells you which type it is**: a bare hostname is a Domain property, a full URL is URL-prefix. |
 | PostFlow group ID | Required for social analytics. |
 | Slack webhook URL | The client's **own** channel — see §5. |
 | Competitor domains | Stored normalised to bare lowercase hostnames. |
@@ -191,7 +212,56 @@ to add these gradually.
 
 ---
 
-## 6. ⚑ Spend guardrails — `/dashboard/[id]/paid/guardrails`
+## 6. ⚑ Connect the ad accounts — `ad_platform_accounts`
+
+**Do this for every client that runs paid, and verify it in SQL.** This is the
+only connection in the whole onboarding with no UI, no ops endpoint, and no
+failure signal.
+
+`ad_platform_accounts` is read by all three ad collectors and written by nothing
+in `src/` — it is a hand-written insert. Without a row, `collectMetaAds`,
+`collectGoogleAds` and `collectMicrosoftAds` each return `0` and record a
+**`skipped`** run.
+
+> **Nothing surfaces a skipped run.** The attention rail selects
+> `status = 'error'` only (`failingModules`, `lib/collectorHealth.ts`), and the
+> client's freshness stamp is satisfied by its organic collectors. So an
+> unconnected paid client shows an empty Paid tab, a healthy portfolio row, and
+> no alert anywhere. For a paid-led client that is the entire engagement,
+> invisible.
+
+Run once the client row exists — by domain, so there is no UUID to copy wrong:
+
+```sql
+insert into ad_platform_accounts (client_id, platform, external_id, auth_ref)
+select id, 'meta', 'act_XXXXXXXXXXXX', null
+from clients where domain = 'example.com';
+```
+
+| Platform | `external_id` | `auth_ref` |
+|---|---|---|
+| `meta` | `act_` + digits | `null` falls back to the `META_ACCESS_TOKEN` system-user token. **Verify per client** — a system-user token is scoped to the Business Manager that issued it, so another client collecting fine proves nothing about this one. If the account sits in a different BM, mint a scoped token, vault it, and point `auth_ref` at it |
+| `google_ads` | customer ID, digits only | `null`. Credentials are portfolio-level: `google_ads_oauth` + `google_ads_developer_token` vaulted once, MCC from `GOOGLE_ADS_LOGIN_CUSTOMER_ID`. The account must be linked under **MCC 711-022-5227** first |
+| `microsoft` | account ID | `null` |
+
+**One row per client per platform.** All three collectors resolve the account
+with `.maybeSingle()`, which errors when a client has two rows for one platform.
+A second ad account on the same platform cannot be added this way.
+
+Verify after the next collection — `status = 'skipped'` means not connected,
+however healthy the dashboard looks:
+
+```sql
+select module, status, detail, error, started_at
+from collector_runs
+where client_id = (select id from clients where domain = 'example.com')
+  and module in ('meta_ads','google_ads','microsoft_ads')
+order by started_at desc limit 10;
+```
+
+---
+
+## 7. ⚑ Spend guardrails — `/dashboard/[id]/paid/guardrails`
 
 If the client runs paid, set daily and monthly ceilings per platform **before**
 any campaign work. Any approval that would breach one is blocked and escalated
@@ -206,16 +276,22 @@ that stops it, the limit is decoration.
 
 ---
 
-## 7. Verify — do not skip this
+## 8. Verify — do not skip this
 
 Per the accuracy gate in `CLAUDE.md`, **no module is client-visible until it has
 run two full collection cycles parallel-checked against the platform's own UI.**
 
-Trigger a collection rather than waiting a day:
+Trigger a collection rather than waiting a day: **Vercel → project
+`trusted-marketing-seo` → Settings → Cron Jobs → the `/api/cron/collect` entry
+(`0 10 * * *`) → Run.**
 
-```
-curl -H "Authorization: Bearer $CRON_SECRET" https://seo.trustedmarketing.com/api/cron/collect
-```
+> ⚠️ **`CRON_SECRET` is a Vercel *Sensitive* variable, so its value cannot be
+> read back** — not in the dashboard, not via `vercel env pull`. The route
+> requires `Authorization: Bearer $CRON_SECRET` exactly, with no fallback
+> (`api/cron/collect/route.ts:66`), so **there is no working curl trigger**.
+> Vercel's Run button injects the header itself, which is why it works.
+> Rotating the variable to a non-sensitive value is the only way to get a
+> curl-able trigger back, and costs a redeploy.
 
 Then check:
 
@@ -224,6 +300,9 @@ Then check:
 - `/api/ops/ga4-check?client=<id>` — GA4 reachable, right property.
 - `/api/ops/dataforseo-check` — balance moved (proves the run happened);
   `pending_tasks` shows a crawl queued.
+- **Paid clients**: run the `collector_runs` query in §6. The attention rail
+  cannot tell you this one — a `skipped` ad collector looks identical to a
+  client that simply does not run ads.
 - **eCommerce only**: compare the Overview's 30-day revenue and order count
   against the client's own Shopify dashboard on "Last 30 days". Order count is
   the cleaner signal — it can't be explained away by refunds or valuation
@@ -234,7 +313,7 @@ alerts if they ever drift again.
 
 ---
 
-## 8. Read the first daily brief before adding the webhook
+## 9. Read the first daily brief before adding the webhook
 
 The brief runs at 10:30 UTC. Read the client's section in your consolidated
 email **before** pasting their Slack webhook — once it's in, the content goes
@@ -247,11 +326,15 @@ straight to them with no further review.
 | Symptom | Almost always |
 |---|---|
 | GA4 "permission" error | Wrong property ID, not access. Check the digits first. |
-| GSC 403 | `gsc_property` string form (`sc-domain:` vs `https://…/`), or the service account isn't a Full user on that property. |
+| GSC 403 / `organic_queries` failing daily | The `gsc_property` string form — check it before checking access. `sc-domain:https://example.com/` matches nothing and reads as a permissions error. Otherwise the service account isn't a **Full** user (Restricted is not enough). |
 | Revenue doesn't match Shopify | Compare **order counts** first — if those differ, it's a window or filter problem, not a valuation one. |
 | Client shows "collecting" forever | No keywords or prompts added, or `serp_frequency` is `paused`. |
 | No AI answers | Client has no tracked prompts, or `ai_frequency` is `paused`. |
 | No Slack brief | No `slack_webhook_url` on that client. Silent by design. |
+| Paid tab empty, nothing in the attention rail | No `ad_platform_accounts` row (§6). The collector recorded `skipped`, which nothing surfaces. Check `collector_runs`, not the dashboard. |
+| Meta collects for one client but not another | The `META_ACCESS_TOKEN` system user isn't on that account's Business Manager. Per-account, not per-portfolio. |
+| Google Ads collects nothing | Account not linked under MCC 711-022-5227, or `external_id` written with dashes — customer IDs are digits only. |
+| Revenue block blank on a lead-gen client | Correct behaviour, not a bug — `revenueMode()` returns `leads_pending`. Calls stay untracked until plan §10 decision 0. |
 
 ---
 

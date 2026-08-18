@@ -16,7 +16,7 @@ import { getProfile, isAgency } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
 import { AEO_PROVIDERS, DEFAULT_PROVIDERS } from "@/lib/aeoProviders";
-import { TIERS } from "@/lib/clientProfile";
+import { TIERS, normaliseGscProperty } from "@/lib/clientProfile";
 
 export const dynamic = "force-dynamic";
 
@@ -104,6 +104,13 @@ export async function POST(req: Request) {
     if (tier && !(TIERS as readonly string[]).includes(tier)) return back(req, id, "bad-tier");
     if (clientType && !TYPES.includes(clientType)) return back(req, id, "bad-type");
 
+    // Validated rather than stored raw: this field goes straight into the
+    // Search Console API path, so a wrong form is a 403 that reads as a
+    // permissions error. Twelve production clients held `sc-domain:https://…/`
+    // before this check existed.
+    const gsc = normaliseGscProperty(opt(form, "gsc_property"));
+    if ("error" in gsc) return back(req, id, "bad-gsc");
+
     const patch: Record<string, unknown> = {
       name: opt(form, "name") ?? before.name,
       domain: opt(form, "domain") ?? before.domain,
@@ -111,7 +118,7 @@ export async function POST(req: Request) {
       // Nullable on purpose: clearing a client type is a legitimate action, and
       // the tab set falls back to the safe universal set rather than guessing.
       client_type: clientType,
-      gsc_property: opt(form, "gsc_property"),
+      gsc_property: gsc.value,
       ga4_property_id: opt(form, "ga4_property_id"),
       clickup_list_id: opt(form, "clickup_list_id"),
       postflow_group_id: opt(form, "postflow_group_id"),
