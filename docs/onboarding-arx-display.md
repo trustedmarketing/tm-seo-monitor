@@ -329,10 +329,10 @@ Order matters here.
 
 ### E · Collect, then verify — do not skip
 
-16. Trigger a run rather than waiting for 10:00 UTC:
-    ```
-    curl -H "Authorization: Bearer $CRON_SECRET" https://seo.trustedmarketing.com/api/cron/collect
-    ```
+16. Trigger a run rather than waiting for 10:00 UTC: **Vercel → Settings → Cron
+    Jobs → `/api/cron/collect` → Run.** Not curl — `CRON_SECRET` is a Vercel
+    *Sensitive* variable and cannot be read back, so the Run button (which
+    injects the header itself) is the only manual trigger. See the SOP §8 note.
 17. **Run both SQL checks in §4.** This is the step this runbook exists for — a
     `skipped` ad collector is invisible on every screen in the product.
 18. Portfolio page shows arX with a freshness stamp, not "collecting". Attention
