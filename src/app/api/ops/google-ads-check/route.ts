@@ -19,8 +19,8 @@
 import { getProfile } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
-import { mintAccessToken, type GoogleAdsOAuth } from "@/lib/googleAds";
-import { normaliseCustomerId, readCustomerRow } from "@/lib/googleAdsCheck";
+import { API_VERSION, mintAccessToken, type GoogleAdsOAuth } from "@/lib/googleAds";
+import { classifyApiFailure, normaliseCustomerId, readCustomerRow } from "@/lib/googleAdsCheck";
 import { mockApis } from "@/lib/apiMock";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,6 @@ export const maxDuration = 60;
 const OAUTH_SECRET = "google_ads_oauth";
 const DEV_TOKEN_SECRET = "google_ads_developer_token";
 
-const API_VERSION = "v18";
 
 interface ClientRow {
   id: string;
@@ -66,6 +65,11 @@ export async function GET(req: Request) {
 
   const db = dbClient();
   const out: Record<string, unknown> = {};
+
+  // Reported on every answer, pass or fail. A sunset version is the one failure
+  // here that is nobody's configuration and everybody's problem, and it is
+  // invisible unless the version is on screen next to the error.
+  out.api_version = API_VERSION;
 
   // MOCK_APIS makes the collector read fixtures, so a live check would be
   // answering for a file. Say so rather than returning a green that means
@@ -261,16 +265,10 @@ export async function GET(req: Request) {
 
     const body = await res.text();
     if (!res.ok) {
-      return Response.json({
-        ok: false,
-        failed_at: "google_ads_call",
-        status: res.status,
-        // Google's own message separates the cases that look identical from
-        // here: a developer token not approved for production, a customer not
-        // linked under this MCC, and a customer id that does not exist.
-        google_says: body.slice(0, 600),
-        ...out,
-      });
+      // classifyApiFailure separates a sunset API version — which answers HTML
+      // from the generic googleapis front door and looks exactly like a bad
+      // customer id — from a genuine API rejection.
+      return Response.json({ ok: false, status: res.status, ...classifyApiFailure(res.status, body), ...out });
     }
 
     const account_summary = readCustomerRow(JSON.parse(body));

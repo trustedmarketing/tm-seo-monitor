@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { fetchAdMetrics, mintAccessToken, type GoogleAdsAuth, type GoogleAdsOAuth } from "@/lib/googleAds";
+import { API_VERSION, fetchAdMetrics, mintAccessToken, type GoogleAdsAuth, type GoogleAdsOAuth } from "@/lib/googleAds";
 
 const OAUTH: GoogleAdsOAuth = {
   client_id: "cid.apps.googleusercontent.com",
@@ -61,7 +61,7 @@ describe("googleAds.fetchAdMetrics under MOCK_APIS", () => {
 });
 
 describe("googleAds.fetchAdMetrics live path (fetch mocked)", () => {
-  it("POSTs to the v18 searchStream endpoint with the expected headers and flattens batched results", async () => {
+  it("POSTs to the current searchStream endpoint with the expected headers and flattens batched results", async () => {
     vi.stubEnv("MOCK_APIS", "0");
 
     const streamBody = [
@@ -112,7 +112,13 @@ describe("googleAds.fetchAdMetrics live path (fetch mocked)", () => {
     expect(rows[1]).toMatchObject({ ad_id: "ad2", spend: 40.00, conversions: 1, revenue: 0 });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://googleads.googleapis.com/v18/customers/1234567890/googleAds:searchStream");
+    // Asserted against the exported constant, not a literal. This test used to
+    // pin "v18" — so when v18 sunset it kept passing, confirming the client
+    // still built the URL it had always built while every live call 404'd. A
+    // test that restates the code cannot notice the world changing.
+    expect(url).toBe(
+      `https://googleads.googleapis.com/${API_VERSION}/customers/1234567890/googleAds:searchStream`
+    );
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe(`Bearer ${AUTH.accessToken}`);
     expect(headers["developer-token"]).toBe(AUTH.developerToken);

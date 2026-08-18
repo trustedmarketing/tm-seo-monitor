@@ -85,3 +85,40 @@ export function readCustomerRow(body: unknown): CustomerSummary | null {
   }
   return null;
 }
+
+/** How a failed Google Ads call should be reported. */
+export interface ApiFailure {
+  failed_at: string;
+  hint: string;
+  /** Google's own words, trimmed. HTML is summarised rather than dumped. */
+  google_says: string;
+}
+
+// Google Ads answers a *sunset* API version with an HTML 404 from the generic
+// googleapis front door — not a JSON error, because the versioned path no
+// longer routes anywhere. Every caller here reports that as "404 Not Found",
+// which reads like a bad customer id and sends you at the account.
+//
+// That is what happened to v18: it took the collector, the execution adapter
+// and this check with it, and the symptom pointed at the wrong system the whole
+// time. So the HTML is diagnosed, not surfaced.
+export function classifyApiFailure(status: number, body: string): ApiFailure {
+  const looksHtml = /^\s*(<!doctype html|<html)/i.test(body);
+
+  if (looksHtml) {
+    return {
+      failed_at: "api_version_sunset",
+      hint:
+        `Google answered ${status} with an HTML error page rather than a JSON API error, which means the versioned path no longer exists — the API version is sunset, not the credentials or the account. ` +
+        "Find the live versions by probing unauthenticated (no credentials needed): a live version answers JSON UNAUTHENTICATED, a dead one answers this HTML. Then bump API_VERSION in src/lib/googleAds.ts.",
+      google_says: `HTML error page (${body.length} bytes) — the generic googleapis 404, carrying no API detail.`,
+    };
+  }
+
+  return {
+    failed_at: "google_ads_call",
+    hint:
+      "Google rejected the call. Its message below distinguishes the cases that look identical from here: a developer token not approved for production, a customer not linked under this MCC, and a customer id that does not exist.",
+    google_says: body.slice(0, 600),
+  };
+}
