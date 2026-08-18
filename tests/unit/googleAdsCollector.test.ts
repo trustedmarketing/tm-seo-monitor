@@ -72,8 +72,13 @@ describe("collectGoogleAds", () => {
     expect(written).toBe(0);
     expect(db._rows("ad_metrics_daily")).toHaveLength(0);
     const run = db._rows("collector_runs")[0];
-    expect(run.status).toBe("success"); // tracked() records "success" for a graceful 0-row skip path
+    // Was asserting "success" — the test name said skipped, the assertion said
+    // otherwise, and the assertion won. A client with no Google Ads account is
+    // not a successful collection.
+    expect(run.status).toBe("skipped");
     expect(run.detail).toContain("no google_ads ad_platform_accounts row");
+    // A skipped run wrote nothing; saying "0 rows" reads as "collected, found none".
+    expect(run.rows_written ?? null).toBeNull();
   });
 
   it("records a skipped detail when there is no auth_ref/vault secret and GOOGLE_ADS_CREDS is unset (MOCK_APIS off)", async () => {
@@ -185,7 +190,7 @@ describe("collectGoogleAds", () => {
 
     expect(written).toBe(0);
     const run = db._rows("collector_runs")[0];
-    expect(run.status).toBe("success"); // graceful skip
+    expect(run.status).toBe("skipped");
     expect(run.detail).toContain("no Google Ads creds bundle");
   });
 

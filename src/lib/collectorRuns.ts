@@ -40,17 +40,39 @@ export async function recordRun(
 
 // Run `fn`, time it, record the outcome. Returns fn's value on success, or null on
 // failure (after recording the error) — the caller decides how to proceed.
+//
+// `fn` may return `skipped: true` for "there was nothing to do", which records a
+// `skipped` run rather than a `success` one.
+//
+// That flag exists because it was missing. `tracked()` had exactly two outcomes,
+// so a collector using it could not say "this client is not configured" — it
+// returned success. Meta's collector calls recordRun directly and correctly
+// recorded `skipped` for the same condition, so the two disagreed: an arX Display
+// collection recorded `google_ads: success` and `meta_ads: skipped` in the same
+// second, for the same missing `ad_platform_accounts` row.
+//
+// `skipped` being invisible in the UI is a known gap. `success` is worse, and a
+// different kind of wrong: it is a positive claim. It counts toward the day's
+// collection total, it satisfies the freshness check, and it tells anyone reading
+// that Google Ads collection worked for a client that has no Google Ads account
+// connected. The detail string carried the truth and nothing renders details.
 export async function tracked<T>(
   db: SupabaseClient,
   module: string,
   clientId: string | null,
-  fn: () => Promise<{ value: T; rows?: number; detail?: string }>
+  fn: () => Promise<{ value: T; rows?: number; detail?: string; skipped?: boolean }>
 ): Promise<T | null> {
   const started = Date.now();
   try {
-    const { value, rows, detail } = await fn();
+    const { value, rows, detail, skipped } = await fn();
     await recordRun(db, module, clientId, {
-      status: "success", detail, rows_written: rows, duration_ms: Date.now() - started,
+      status: skipped ? "skipped" : "success",
+      detail,
+      // A skipped run wrote nothing. Reporting `rows_written: 0` is accurate but
+      // invites reading it as "collected, found nothing", which is a different
+      // claim from "did not run".
+      rows_written: skipped ? undefined : rows,
+      duration_ms: Date.now() - started,
     });
     return value;
   } catch (e) {
