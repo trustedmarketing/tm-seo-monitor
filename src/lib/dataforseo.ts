@@ -6,6 +6,46 @@ import { AEO_PROVIDERS, endpointFor, modelFor, type ProviderSpec } from "@/lib/a
 
 const BASE = "https://api.dataforseo.com/v3";
 
+/** DataForSEO's code for the United States, and the portfolio's country today. */
+const US_LOCATION_CODE = 2840;
+
+/**
+ * The location code to send to a **DataForSEO Labs** endpoint.
+ *
+ * Labs and SERP do not share a locations list. SERP takes city and metro codes;
+ * Labs publishes its own, smaller set via
+ * `/v3/dataforseo_labs/locations_and_languages`, and rejects anything outside it
+ * with `40501 Invalid Field: 'location_code'`.
+ *
+ * That made following the onboarding SOP the thing that broke collection: the
+ * SOP correctly tells you to set a metro code for a local-service client so its
+ * rankings are not measured nationally, and that same code was then handed to
+ * four Labs endpoints that will not take it. Papa T's and C&W surfaced it on
+ * `domain_rank_overview`, but `ranked_keywords` is the one that hurt — it powers
+ * `Suggest keywords`, so every metro-coded client failed keyword suggestion at
+ * onboarding and was quietly left with none.
+ *
+ * Falling back to the country is not a workaround, it is the right question to
+ * ask: every Labs metric here is **domain-wide** — total organic traffic, total
+ * ranked keywords, competing domains. There is no metro-scoped reading of "how
+ * many keywords does this domain rank for". Metro scoping belongs to
+ * `serpPosition`, which keeps the client's own code and is untouched by this.
+ *
+ * DataForSEO country codes are `2000 + ISO-3166 numeric` (US 840 → 2840, UK 826
+ * → 2826, Canada 124 → 2124), so a country code is always below 3000 and every
+ * state, metro and city code is far larger.
+ *
+ * ⚠️ **Known limit: the fallback is US.** `clients` has no country column, so a
+ * non-US client carrying a metro code would be asked at US country level rather
+ * than its own. Every client is US today. `fallback` is a parameter rather than
+ * a constant so that the day a non-US client arrives, the fix is to pass its
+ * country here — not to unpick this function.
+ */
+export function labsLocationCode(locationCode: number, fallback = US_LOCATION_CODE): number {
+  if (!Number.isInteger(locationCode) || locationCode <= 0) return fallback;
+  return locationCode < 3000 ? locationCode : fallback;
+}
+
 function authHeader(): string {
   const login = process.env.DATAFORSEO_LOGIN;
   const password = process.env.DATAFORSEO_PASSWORD;
@@ -58,7 +98,7 @@ export async function domainRankOverview(domain: string, locationCode: number, l
   type Row = { metrics?: { organic?: { etv?: number; count?: number } } };
   const result = await post<{ items?: Row[] }>(
     "/dataforseo_labs/google/domain_rank_overview/live",
-    [{ target: domain, location_code: locationCode, language_code: languageCode }]
+    [{ target: domain, location_code: labsLocationCode(locationCode), language_code: languageCode }]
   );
   const organic = result?.[0]?.items?.[0]?.metrics?.organic;
   return {
@@ -556,7 +596,7 @@ export async function rankedKeywords(
   const result = await post<{ items?: Item[] }>(
     "/dataforseo_labs/google/ranked_keywords/live",
     [{
-      target: domain, location_code: locationCode, language_code: languageCode,
+      target: domain, location_code: labsLocationCode(locationCode), language_code: languageCode,
       limit,
       order_by: ["keyword_data.keyword_info.search_volume,desc"],
       filters: [["ranked_serp_element.serp_item.rank_absolute", "<=", 30]],
@@ -579,7 +619,7 @@ export async function competitorsDomain(
   };
   const result = await post<{ items?: Item[] }>(
     "/dataforseo_labs/google/competitors_domain/live",
-    [{ target: domain, location_code: locationCode, language_code: languageCode, limit, exclude_top_domains: true }]
+    [{ target: domain, location_code: labsLocationCode(locationCode), language_code: languageCode, limit, exclude_top_domains: true }]
   );
   const bare = domain.replace(/^www\./, "");
   return (result?.[0]?.items ?? [])
@@ -605,7 +645,7 @@ export async function keywordSuggestions(
   };
   const result = await post<{ items?: Item[] }>(
     "/dataforseo_labs/google/keyword_suggestions/live",
-    [{ keyword: seed, location_code: locationCode, language_code: languageCode, limit, include_seed_keyword: true }]
+    [{ keyword: seed, location_code: labsLocationCode(locationCode), language_code: languageCode, limit, include_seed_keyword: true }]
   );
   return (result?.[0]?.items ?? [])
     .map((i) => ({
