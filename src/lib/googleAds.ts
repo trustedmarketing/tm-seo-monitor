@@ -85,14 +85,21 @@ export async function mintAccessToken(oauth: GoogleAdsOAuth): Promise<string> {
 export interface GoogleAdsRawRow {
   segments?: { date?: string };
   campaign?: { id?: string | number; name?: string };
+  // Both casings, because the REST transport answers in camelCase while GAQL —
+  // and every fixture recorded by hand — is written in snake_case. See field()
+  // below for why this is not cosmetic.
   ad_group?: { id?: string | number };
+  adGroup?: { id?: string | number };
   ad_group_ad?: { ad?: { id?: string | number } };
+  adGroupAd?: { ad?: { id?: string | number } };
   metrics?: {
     impressions?: string | number;
     clicks?: string | number;
     cost_micros?: string | number;
+    costMicros?: string | number;
     conversions?: string | number;
     conversions_value?: string | number;
+    conversionsValue?: string | number;
   };
 }
 
@@ -117,6 +124,25 @@ export interface AdMetricRow {
   revenue: number;
 }
 
+// GAQL is written in snake_case (`metrics.cost_micros`) and the REST transport
+// answers in proto3 JSON, which is camelCase (`costMicros`). Reading back the
+// field you asked for therefore returns undefined — and toNumber(undefined) is
+// 0, so the row still writes, still counts, and reports no spend.
+//
+// The cruelty is that it is selective: every *single-word* field is identical
+// in both casings, so impressions, clicks, conversions, campaign.id, name and
+// status all arrive correctly while cost_micros, conversions_value,
+// ad_group_ad and campaign_budget silently zero. arX Display collected 49 rows
+// with real impressions and $0 spend, which read as "the account has not spent"
+// rather than as a bug.
+//
+// Every fixture here was hand-written in snake_case, so the tests agreed with
+// the code and neither matched the API.
+function field<T>(obj: Record<string, unknown> | undefined, snake: string, camel: string): T | undefined {
+  if (!obj) return undefined;
+  return (obj[snake] ?? obj[camel]) as T | undefined;
+}
+
 function toNumber(v: string | number | undefined): number {
   const n = Number(v ?? 0);
   return Number.isFinite(n) ? n : 0;
@@ -128,19 +154,23 @@ function toNumber(v: string | number | undefined): number {
 const MICROS_PER_UNIT = 1_000_000;
 
 function mapRow(raw: GoogleAdsRawRow): AdMetricRow {
-  const metrics = raw.metrics ?? {};
+  const metrics = (raw.metrics ?? {}) as Record<string, unknown>;
+  const adGroup = field<{ id?: string | number }>(raw as Record<string, unknown>, "ad_group", "adGroup");
+  const adGroupAd = field<{ ad?: { id?: string | number } }>(raw as Record<string, unknown>, "ad_group_ad", "adGroupAd");
+  const adGroupId = adGroup?.id;
+  const adId = adGroupAd?.ad?.id;
   return {
     date: raw.segments?.date ?? "",
     campaign_id: raw.campaign?.id != null ? String(raw.campaign.id) : null,
     campaign_name: raw.campaign?.name ?? null,
-    adset_id: raw.ad_group?.id != null ? String(raw.ad_group.id) : null,
-    ad_id: raw.ad_group_ad?.ad?.id != null ? String(raw.ad_group_ad.ad.id) : null,
+    adset_id: adGroupId != null ? String(adGroupId) : null,
+    ad_id: adId != null ? String(adId) : null,
     creative_id: null, // not exposed by the ad_group_ad.ad fields selected below
-    impressions: toNumber(metrics.impressions),
-    clicks: toNumber(metrics.clicks),
-    spend: toNumber(metrics.cost_micros) / MICROS_PER_UNIT,
-    conversions: toNumber(metrics.conversions),
-    revenue: toNumber(metrics.conversions_value),
+    impressions: toNumber(metrics.impressions as string | number | undefined),
+    clicks: toNumber(metrics.clicks as string | number | undefined),
+    spend: toNumber(field<string | number>(metrics, "cost_micros", "costMicros")) / MICROS_PER_UNIT,
+    conversions: toNumber(metrics.conversions as string | number | undefined),
+    revenue: toNumber(field<string | number>(metrics, "conversions_value", "conversionsValue")),
   };
 }
 
@@ -150,8 +180,12 @@ function iso(d: Date): string {
 
 // Raw shape of one GAQL result row for the campaign-list query below.
 export interface GoogleCampaignRawRow {
-  campaign?: { id?: string | number; name?: string; status?: string; advertising_channel_type?: string };
-  campaign_budget?: { amount_micros?: string | number };
+  campaign?: {
+    id?: string | number; name?: string; status?: string;
+    advertising_channel_type?: string; advertisingChannelType?: string;
+  };
+  campaign_budget?: { amount_micros?: string | number; amountMicros?: string | number };
+  campaignBudget?: { amount_micros?: string | number; amountMicros?: string | number };
 }
 
 // Mapped, DB-ready shape — one row per campaign, for the `campaigns` registry
@@ -173,15 +207,14 @@ function mapCampaignStatus(raw: string | undefined): "active" | "paused" | "remo
 
 function mapCampaignRow(raw: GoogleCampaignRawRow): CampaignRow {
   const campaign = raw.campaign ?? {};
+  const budget = field<Record<string, unknown>>(raw as Record<string, unknown>, "campaign_budget", "campaignBudget");
+  const budgetMicros = field<string | number>(budget, "amount_micros", "amountMicros");
   return {
     campaign_id: campaign.id != null ? String(campaign.id) : "",
     campaign_name: campaign.name ?? null,
     status: mapCampaignStatus(campaign.status),
-    objective: campaign.advertising_channel_type ?? null,
-    daily_budget:
-      raw.campaign_budget?.amount_micros != null
-        ? toNumber(raw.campaign_budget.amount_micros) / MICROS_PER_UNIT
-        : null,
+    objective: field<string>(campaign as Record<string, unknown>, "advertising_channel_type", "advertisingChannelType") ?? null,
+    daily_budget: budgetMicros != null ? toNumber(budgetMicros) / MICROS_PER_UNIT : null,
   };
 }
 

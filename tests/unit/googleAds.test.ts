@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { API_VERSION, fetchAdMetrics, mintAccessToken, type GoogleAdsAuth, type GoogleAdsOAuth } from "@/lib/googleAds";
+import { readFileSync } from "node:fs";
 
 const OAUTH: GoogleAdsOAuth = {
   client_id: "cid.apps.googleusercontent.com",
@@ -170,5 +171,58 @@ describe("googleAds.mintAccessToken", () => {
     vi.stubEnv("MOCK_APIS", "0");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({}) }));
     await expect(mintAccessToken(OAUTH)).rejects.toThrow(/no access_token/);
+  });
+});
+
+describe("field casing — the REST transport answers camelCase, GAQL is snake_case", () => {
+  // Recorded from the live v25 shape. Every *single-word* field is identical in
+  // both casings, which is what made this survive: impressions, clicks,
+  // conversions and campaign.name all arrived correctly while cost_micros
+  // silently became 0. arX Display wrote 49 rows with real impressions and $0
+  // spend, and $0 spend reads as "the account has not spent yet".
+  const camel = JSON.parse(
+    readFileSync(new URL("../fixtures/google/ad_metrics_camel.json", import.meta.url), "utf8")
+  );
+
+  async function collectOne(raw: unknown) {
+    const auth: GoogleAdsAuth = { accessToken: "t", developerToken: "d", loginCustomerId: "1" };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([{ results: raw }]), { status: 200 })));
+    return (await fetchAdMetrics(auth, "7598077939", 28))[0];
+  }
+
+  it("reads costMicros — the field that was silently zeroing spend", async () => {
+    const row = await collectOne(camel);
+    expect(row.spend).toBeCloseTo(2.67, 5);
+  });
+
+  it("reads adGroupAd.ad.id, so ad_id is not null", async () => {
+    // ad_id is part of the upsert key (client_id, platform, date, ad_id). A null
+    // there does not just lose a column, it breaks row identity.
+    const row = await collectOne(camel);
+    expect(row.ad_id).toBe("770100000111");
+    expect(row.adset_id).toBe("180500000011");
+  });
+
+  it("still reads the snake_case shape every recorded fixture uses", async () => {
+    const snake = [
+      {
+        segments: { date: "2026-08-14" },
+        campaign: { id: "1", name: "x" },
+        ad_group: { id: "2" },
+        ad_group_ad: { ad: { id: "3" } },
+        metrics: { impressions: "10", clicks: "2", cost_micros: "5000000", conversions: 1, conversions_value: 40 },
+      },
+    ];
+    const row = await collectOne(snake);
+    expect(row.spend).toBeCloseTo(5, 5);
+    expect(row.ad_id).toBe("3");
+    expect(row.revenue).toBeCloseTo(40, 5);
+  });
+
+  it("single-word fields survive either way — which is exactly why this hid", async () => {
+    const row = await collectOne(camel);
+    expect(row.impressions).toBe(412);
+    expect(row.clicks).toBe(19);
+    expect(row.campaign_name).toBe("Search Branded | arX 2026 | TM");
   });
 });

@@ -3,6 +3,47 @@
 _Last updated: 2026-08-18_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
 
+### Google Ads collected 49 rows of $0 — camelCase vs snake_case (2026-08-18) — 🔧 FIX IN PR, STALE ROWS NEED CLEARING
+
+arX Display's first successful Google collection wrote **49 rows with real
+impressions and $0 spend**. The Paid tab read that as `not connected`, because
+`connected` is literally `spend > 0` (`paid/page.tsx:142`) — so a fully working
+connection and an absent one render identically.
+
+**GAQL is written snake_case; the REST transport answers proto3 JSON, which is
+camelCase.** Reading back the field you asked for returns `undefined`, and
+`toNumber(undefined)` is `0`. The row still writes, still counts, and reports
+no spend.
+
+**It is selective, which is why it survived.** Every *single-word* field is
+identical in both casings:
+
+| Field | Result |
+|---|---|
+| `impressions`, `clicks`, `conversions`, `campaign.id`, `campaign.name`, `campaign.status` | ✅ correct |
+| `cost_micros` → `costMicros` | ❌ **spend 0** |
+| `conversions_value` → `conversionsValue` | ❌ revenue 0, ROAS `–` |
+| `ad_group_ad.ad.id` → `adGroupAd` | ❌ `ad_id` null — **part of the upsert key** |
+| `campaign_budget.amount_micros` → `campaignBudget` | ❌ no daily budget |
+
+So campaign names and statuses rendered perfectly next to $0 spend, which reads
+as "this account has not spent yet" rather than as a bug.
+
+**Every fixture was hand-written in snake_case**, so the tests agreed with the
+code and neither matched the API. Same shape as the `v18` test that asserted its
+own literal. `tests/fixtures/google/ad_metrics_camel.json` is the real shape;
+both are now asserted, and the new tests were verified to fail against the old
+mapper.
+
+⚠️ **The 49 existing rows must be deleted, not left to be overwritten.** The
+upsert key is `(client_id, platform, date, ad_id)` and the stale rows have
+`ad_id = null`, so the corrected rows will not match them — they will insert
+alongside. Delete arX's `google_ads` rows, then re-collect.
+
+**This was the third instance of this exact bug in one day** — `readCustomerRow`
+in `google-ads-check` hit it this morning and was written to accept both
+casings; nobody checked the collector, which had the same defect in five fields.
+
 ### Google Ads: four blockers, not one — three credentials and a sunset API (2026-08-18) — 🔧 CREDENTIALS DONE, ROW PENDING
 
 Finishing arX Display's Google Ads connection found a **portfolio-level**
