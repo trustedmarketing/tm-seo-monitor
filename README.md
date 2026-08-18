@@ -421,17 +421,36 @@ tests/fixtures/google/ad_metrics.json  recorded GAQL-shaped rows fixture
   pattern) into `ad_metrics_daily` on `(client_id, platform, date, ad_id)`
   with `platform = 'google_ads'`.
 - **No migration** — reuses `supabase/009_meta_ads.sql`'s tables as-is.
-- **The Google Ads developer token is still in application** (calendar-gated,
-  not an agent-doable task — see the escalation list in
-  `CLAUDE.md`). Goes live once: the dev token is approved,
-  an OAuth refresh token is exchanged for an access token (out of scope for
-  this collector — it consumes an already-minted `accessToken`), a row is
-  seeded in `ad_platform_accounts` per client (platform `'google_ads'`, their
-  customer id), the creds bundle
-  (`{accessToken, developerToken, loginCustomerId}`, JSON-stringified) is
-  stored via `storeSecret(db, { clientId, platform: 'google_ads', value, expiresAt })`
-  (stream 2), and the CTO wires `collectGoogleAds` into
-  `src/app/api/cron/collect/route.ts`.
+- **`collectGoogleAds` is wired into `src/app/api/cron/collect/route.ts`** and
+  `resolveAuth()` mints an access token per run, so the per-client creds bundle
+  above is now the *override* path, not the main one. The production path is
+  portfolio-level and has three parts, **all three required**:
+
+  | | Where it lives | Set via |
+  |---|---|---|
+  | `google_ads_oauth` | Supabase Vault | `/dashboard/secrets` ← `node scripts/google-oauth.mjs` |
+  | `google_ads_developer_token` | Supabase Vault | `/dashboard/secrets` ← MCC → Tools → API Center |
+  | `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | Vercel env | the MCC id, digits only. **Needs a redeploy** |
+
+  Miss any one and every client skips. The per-client part is only the customer
+  id in `ad_platform_accounts.external_id`, and the account must be linked under
+  the MCC first.
+
+- **`GET /api/ops/google-ads-check?domain=…`** (owner-only) walks those gates in
+  the collector's own order and stops at the first unmet one, so `failed_at`
+  names a single next step. On a live failure, Google's own message comes back
+  in `google_says` — a developer token not approved for production, a customer
+  not linked under this MCC, and a nonexistent customer id are three different
+  fixes that are indistinguishable without it. Refuses to answer under
+  `MOCK_APIS=1` rather than returning a green that is really a fixture, reports
+  `is_test_account` (synthetic metrics forever), and inlines the SOP's
+  `collector_runs` query as `last_run`. Credentials report presence and length
+  only. Its two pure pieces are `src/lib/googleAdsCheck.ts`
+  (`tests/unit/googleAdsCheck.test.ts`).
+
+- **The Explorer→Basic developer token upgrade** is still unapplied-for. It
+  governs daily *volume*, not first data — it was carried as the blocker for
+  four weeks while the three gates above were the actual cause.
 
 ### Shopify revenue collector
 
