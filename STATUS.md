@@ -1,7 +1,31 @@
 # Growth OS — STATUS
 
-_Last updated: 2026-08-10_
+_Last updated: 2026-08-18_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
+
+### arX Display onboarding — runbook ready, execution pending (2026-08-18)
+
+`docs/onboarding-arx-display.md`. Ad accounts verified live and **not yet
+connected**: Meta `act_1761764321488072`, Google Ads `7598077939` (already under
+MCC 711-022-5227). Client row not yet created.
+
+Three code gaps this surfaced, none fixed yet — all small, none blocking the
+onboarding itself:
+
+1. **No `national_lead_gen` client type.** `CLIENT_TYPES` has no slot for
+   national B2B lead-gen; `hybrid` is the least-wrong workaround and carries two
+   irrelevant tabs. Fix is `clientProfile.ts` + `workspaceTabs.ts`, no migration
+   (`clients.client_type` is plain text).
+2. **A `skipped` collector run is invisible.** `failingModules` selects
+   `status = 'error'` only, so an unconnected ad account produces an empty Paid
+   tab, a healthy portfolio row, and no alert. Widest-reaching of the three —
+   it applies to every collector, not just paid.
+3. **No `meta-check` / `google-ads-check` ops endpoint**, while GA4, Shopify,
+   WordPress and PostFlow all have one.
+
+⚠️ **Call tracking (plan §10 decision 0) — fifth appearance.** arX is the first
+client for which MER is *permanently* uncomputable: B2B lead-gen, no online
+revenue, sales cycle in months. No eCommerce fallback exists here.
 
 ### Crawls fixed after a month dead (2026-08-10) — ✅ MERGED, ⏳ NEEDS LIVE CONFIRMATION
 

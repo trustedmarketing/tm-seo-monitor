@@ -22,6 +22,7 @@
 | Work orders | `docs/wo-00N-*.md` | Scheduled units of work, numbered in sequence |
 | Design source | `docs/design/README.md` | Map of the UI export — start there, not the HTML |
 | Client onboarding | `docs/sop-client-onboarding.md` | SOP for adding a client, in dependency order |
+| Onboarding instance | `docs/onboarding-arx-display.md` | arX Display — the filled-in runbook; first paid-led, non-eCommerce client |
 
 `STATUS.md` and `WORKLOG.md` are at the **repo root, not in `docs/`**. Nothing
 should reference them at any other path.
