@@ -78,7 +78,22 @@ export async function GET(req: Request) {
   const failures: CollectorFailure[] = [];
   const revenueMismatches: RevenueMismatch[] = [];
 
-  for (const c of clients ?? []) {
+  // Clients run concurrently, not one after another. Sequentially this pass
+  // exceeded Vercel's 300s ceiling and was killed mid-run — twice on 2026-08-18,
+  // after the DataForSEO credential and GSC fixes landed.
+  //
+  // Fixing the errors is what made it slow, which is worth stating plainly: a
+  // collector failing on a 401 returns in milliseconds, and one that succeeds
+  // goes and does the work. The portfolio had been finishing inside the limit
+  // because most of it was failing fast.
+  //
+  // A truncated pass is invisible in the data — nothing records "I was killed",
+  // so the clients at the tail simply keep yesterday's rows and look untouched.
+  // That is why this is a ceiling worth staying well under rather than close to.
+  //
+  // 4, not more: each client already fans out internally (8 for SERP, 6 for AEO),
+  // so this multiplies against those against a shared DataForSEO rate limit.
+  await mapLimit(clients ?? [], 4, async (c) => {
     const done: string[] = [];
     const snapshot: Record<string, unknown> = { client_id: c.id };
     let hasData = false;
@@ -435,7 +450,7 @@ export async function GET(req: Request) {
     done.push(`clickup (${synced} synced)`);
 
     report[c.domain] = done;
-  }
+  });
 
   // ── Client approvals: did anyone decline a scheduled post? ──
   // PostFlow has no webhooks, so this is the poll. Wrapped, because a decline
