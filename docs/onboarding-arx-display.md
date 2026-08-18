@@ -244,20 +244,137 @@ Follow the general SOP from here. The arX-specific notes:
 
 ---
 
-## 8. Order of operations
+## 8. Gather these before starting
 
-Owner-only steps marked ⚑.
+Ten values. Stopping halfway to find one is how a client ends up
+half-configured and quietly collecting nothing.
 
-1. Confirm tier and the measurement agreement in §6 ⚑
-2. Create the client in `/admin` — `hybrid`, `2840`, no store platform
-3. Grant the service account GA4 Viewer + GSC **Full user**, then paste both IDs into Settings
-4. `/api/ops/ga4-check?client=<id>` — confirm the property ID digits before trusting any error
-5. ⚑ Insert both `ad_platform_accounts` rows (§4)
-6. ⚑ Connect WordPress — TMAI Editor account + mu-plugin, verify with `wordpress-check`
-7. ⚑ Set spend guardrails (§5)
-8. GSC backfill → suggest keywords → add keywords → add prompts
-9. Trigger a collection, then run **both** SQL checks in §4 — this is the step that catches a silent paid failure
-10. Read the first daily brief, then add the Slack webhook ⚑
+| # | Value | Where it comes from | Needed for |
+|---|---|---|---|
+| 1 | **Tier** | Your call — Consistency / Momentum / Dominate / Project | Playbook targets |
+| 2 | **GA4 property ID** | GA4 → Admin → Property Settings. Digits only | Conversions, lead attribution |
+| 3 | **GSC property string** | Search Console → property picker. `sc-domain:arxdisplay.com` **or** `https://arxdisplay.com/` with the slash | Organic, keyword suggestions |
+| 4 | **WordPress Editor username** | A **new** `TMAI` account on arxdisplay.com, role **Editor** | Page + SEO updates |
+| 5 | **WordPress application password** | That account → Profile → Application Passwords | Page + SEO updates |
+| 6 | **PostFlow group ID** | PostFlow, the arX group | Social posting + analytics |
+| 7 | **Social posts / month** | Their contract | Content planner cadence |
+| 8 | **Competitor domains** | Your call — display/fixture rivals | ⚠️ **Empty means no protection.** Generated content will happily link to a competitor |
+| 9 | **Bloom brand ID** | Bloom → arX brand. Public assets only — no DPA | Social artwork |
+| 10 | **Slack webhook URL** | Slack → Incoming Webhooks → arX's channel | Daily brief. **Add last** |
 
-Steps 5 and 9 are the ones this runbook exists for. Everything else the general
-SOP already covered.
+Optional: ClickUp list ID.
+
+---
+
+## 9. Order of operations
+
+Owner-only steps marked ⚑. Phases A–C can be done in one sitting; D onward
+depends on a collection having run.
+
+### A · Create and connect — the spine
+
+1. ⚑ **Create the client** — `/admin` → Add client.
+   `arX Display` · `arxdisplay.com` · tier · **Hybrid** · location `2840` · store platform blank.
+2. ⚑ **Grant Google access.** Get the service account address from
+   `/api/ops/ga4-check` (`service_account_email`), then:
+   GA4 property → Admin → Property Access Management → **Viewer**;
+   Search Console → Settings → Users and permissions → **Full user** (not Restricted).
+3. **Paste the IDs** — `/dashboard/<id>/settings`, GA4 property ID + Search Console property.
+4. **Verify before going further** — `/api/ops/ga4-check?client=<id>`. Check the
+   digits against GA4 → Admin → Property Settings. A wrong ID produces the exact
+   same error as a permissions problem, and that ambiguity cost six days on
+   Salty Dog.
+
+### B · ⚑ Ad accounts — the step with no UI
+
+5. Run both inserts from §4. This is SQL in the Supabase console; there is no
+   settings field for it.
+6. Confirm the Meta system-user token actually reaches `act_1761764321488072`
+   (§4). It is a different Business Manager question, not a "does Meta work" question.
+7. **Set spend guardrails** — `/dashboard/<id>/paid/guardrails` (§5). Before any
+   campaign work, not after.
+
+### C · ⚑ WordPress — unlocks page and SEO edits
+
+8. On arxdisplay.com, create a dedicated **`TMAI` Editor** account. Not an
+   administrator: the first Alpha Zeta connection used an owner admin account
+   carrying `edit_plugins`, `edit_themes` and `edit_users` for an integration
+   that only edits page content.
+9. Install `wordpress-mu-plugins/tm-growth-os-seo-rest.php` on the site.
+   Without it Rank Math's SEO fields are invisible to REST — WordPress does not
+   expose arbitrary post meta, and Rank Math never registers its own. Every TM
+   non-eCommerce build needs this, so treat it as a standard artifact.
+10. `/dashboard/<id>/settings` → **WordPress** card: Site URL `https://arxdisplay.com`,
+    username, application password. Then **Test connection ↗** and confirm
+    `can_write: true` **and** `seo_fields_writable: true`. Two separate questions —
+    a plugin can be installed and still unexposed.
+
+### D · Content inputs — `/admin` with arX selected
+
+Order matters here.
+
+11. **GSC backfill first** — up to 16 months of daily clicks/impressions/position,
+    so arX starts with history instead of flat.
+12. **Suggest keywords** second. It merges GSC top queries with DataForSEO's
+    ranked keywords; run it before step 2 landed and you get the weaker
+    DataForSEO half only. Add the ones worth tracking.
+13. **Prompts** — B2B buyer language, not consumer: *"who makes custom retail
+    displays for national rollouts"*, not *"what is a retail display"*. Each
+    prompt is a billed AI check per provider per run.
+14. **Back in Settings**: competitor domains, social posts/month, PostFlow group
+    ID, Bloom brand ID, standing hashtags.
+15. ⚑ **AI answer checks** — ChatGPT is the always-on baseline; Gemini and Claude
+    are opt-in and roughly triple this client's AEO spend. Weekly cadence.
+    Leave the extras off until arX is proven worth it.
+
+### E · Collect, then verify — do not skip
+
+16. Trigger a run rather than waiting for 10:00 UTC:
+    ```
+    curl -H "Authorization: Bearer $CRON_SECRET" https://seo.trustedmarketing.com/api/cron/collect
+    ```
+17. **Run both SQL checks in §4.** This is the step this runbook exists for — a
+    `skipped` ad collector is invisible on every screen in the product.
+18. Portfolio page shows arX with a freshness stamp, not "collecting". Attention
+    rail clean, or fix what it names.
+19. Sense-check Meta spend against Ads Manager. The account is 13 days old and
+    the collector pulls 28, so the figures should agree almost exactly right now —
+    a clean check that stops being available once the account passes 28 days.
+
+### F · Turn on the loop
+
+20. **Recommendations** refresh automatically inside the collect cron — after
+    step 16 they are on `/dashboard/<id>` and `/organic`.
+21. **Stage approval cards** — `/api/ops/propose?client=<id>`, owner-only. This
+    is the deliberate manual trigger while the engine earns trust; it runs the
+    site engine and the social engine together and writes nothing to arX's
+    site. Cards land in `/dashboard/approvals`.
+22. **Review and approve.** Approving is what touches the live site — publish,
+    undo inside 60 minutes, revert after that.
+23. **Build a social month** — `/dashboard/<id>/social` → build plan, then decide
+    each slot. Posts land in PostFlow as unscheduled drafts.
+    ⚠️ Video slots produce an **opening frame, not video** — Higgsfield is
+    connected but not wired.
+24. **Review ads** — `/dashboard/<id>/paid` for campaign ROAS-equivalents,
+    `/paid/creative` for creative and copy generation, `/paid/personas` for
+    copy context. Pause/resume/budget actions stay **dry-run only** until
+    write-scope OAuth tokens exist (Tom-only).
+25. **Read the first daily brief** (10:30 UTC) in your consolidated email. Only
+    then ⚑ paste arX's Slack webhook — after that the content goes to them
+    unreviewed.
+
+---
+
+## 10. What each capability actually needs
+
+If something is empty, this is the row to check.
+
+| You want to… | Requires | Blocked by |
+|---|---|---|
+| See recommendations | Client row + keywords + GSC/GA4 + one collection | Nothing — works after step 16 |
+| Update pages / SEO | WordPress connection + mu-plugin + `seo_fields_writable` | Steps 8–10 |
+| Review ad performance | `ad_platform_accounts` rows + a collection | Step 5 |
+| **Change** ads (pause/budget) | Write-scope OAuth tokens for Meta/Google | ⛔ Tom-only, not yet obtained — dry-run only |
+| Post social | PostFlow group ID + posts/month + Bloom brand | Steps 14, 23 |
+| Report on leads | GA4 key events for form submits ❓ | Calls invisible — plan §10 decision 0 |
+| Report MER / ROAS | Online revenue | ⛔ Never, for this client. See §6 |
