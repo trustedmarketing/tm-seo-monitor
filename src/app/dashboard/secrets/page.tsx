@@ -16,12 +16,24 @@ const SECRETS = [
   { name: "bloom", label: "Bloom", hint: "Developer API key from Bloom account settings, sent as x-api-key. Not the MCP connection." },
   { name: "clickup", label: "ClickUp", hint: "Personal API token for task sync." },
   { name: "screenshotone", label: "ScreenshotOne", hint: "Access key for rendering client pages." },
+  {
+    name: "google_ads_oauth",
+    label: "Google Ads — OAuth bundle",
+    hint: "The JSON from `node scripts/google-oauth.mjs` (.google-oauth.local.json). Paste the whole thing, formatting and all — it is parsed and stored minified. One MCC covers every client.",
+  },
+  {
+    name: "google_ads_developer_token",
+    label: "Google Ads — developer token",
+    hint: "From the MCC: Tools → API Center. Portfolio-wide. Also needs GOOGLE_ADS_LOGIN_CUSTOMER_ID set in Vercel, or the collector skips every client.",
+  },
 ];
 
 const MSG: Record<string, string> = {
   empty: "Nothing was entered.",
   "has-whitespace": "That value contains a space or line break. Paste it as one unbroken line.",
   "unknown-name": "That is not a credential this app reads.",
+  "bad-json": "That credential is a JSON bundle and this is not valid JSON. Paste the file's whole contents.",
+  "missing-fields": "That JSON is missing a field the collector needs — client_id, client_secret and refresh_token must all be present.",
   failed: "Could not store the credential.",
 };
 
