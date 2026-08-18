@@ -48,6 +48,41 @@ client sees an honest blank or a revenue hero with no store behind it. Use
 which already render holding states. A fourth type `national_lead_gen` is the
 real fix and is code, not onboarding.
 
+### Then the client list showed twelve broken GSC properties
+
+Verifying arX's GA4 ID meant dumping `clients`, and the dump answered a question
+nobody had asked: **twelve of nineteen `gsc_property` values are malformed** —
+`sc-domain:https://example.com/`, both forms at once. It matches no property,
+returns 403, and 403 reads as "permissions", which is why it survived. Salty Dog
+is one of the twelve.
+
+The two correct rows were the two Domain properties. Everything else is a
+URL-prefix property that got `sc-domain:` prefixed anyway, so the original value
+is recoverable — confirmed against the property picker for alphazetaent.com,
+cwnow.com and getsaltydog.com.
+
+**Root cause is a missing validator, not a bad SQL insert.** Every other field on
+the client row normalises through `lib/clientProfile.ts` — GA4 even rejects
+`G-`, `GTM-` and `UA-` by name. `gsc_property` was trimmed and stored raw in
+*both* write paths, so `/admin` would have accepted these too.
+
+Shipped: `normaliseGscProperty()` — accepts the two real forms, rejects the
+blend with **both** corrected strings in the message, refuses to guess at a bare
+`example.com` (genuinely ambiguous), and fixes what is unambiguous rather than
+refusing it (missing trailing slash, case, whitespace). Eight tests. Wired into
+`buildClientRow` and `/api/clients/settings`, with a `bad-gsc` message on the
+Settings page. Repair migration `047`, written to be non-regressive: every row it
+touches already 403s, so a wrong guess leaves it exactly as broken as it is now.
+
+### One unrelated red test, fixed
+
+`dailyBrief.test.ts` "computes per-platform paid trend" was failing on `main`
+before any of this. A **time-bomb**: the fixture pinned `anchor = "2026-08-09"`,
+but `buildClientBrief` filters `date >= eightDaysAgo` from `Date.now()`. It
+passed until 2026-08-17 and started failing 2026-08-18. Anchor now derives from
+today, so it tests the trend logic rather than the freshness of its own fixture.
+Suite green: 589 passed, 11 skipped.
+
 ### Two things for Tom
 
 - **Call tracking (plan §10 decision 0) — fifth appearance, and the sharpest.**

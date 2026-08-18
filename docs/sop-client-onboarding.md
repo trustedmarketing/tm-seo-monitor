@@ -149,7 +149,7 @@ Everything that used to need hand-written SQL.
 | Field | Notes |
 |---|---|
 | GA4 property ID | Digits only. **A wrong ID looks exactly like a permissions error** — verify against GA4 → Admin → Property Settings before assuming access is the problem. This cost six days once. |
-| Search Console property | Exact form matters: `sc-domain:example.com` for a Domain property, `https://example.com/` **with trailing slash** for URL-prefix. |
+| Search Console property | Two forms, and they do not mix. Domain property → `sc-domain:example.com` (no scheme, no slash). URL-prefix → `https://example.com/` (scheme **and** trailing slash). ⚠️ `sc-domain:https://example.com/` is the blend that put twelve clients on a permanent 403 — validated against since. **Search Console's property picker tells you which type it is**: a bare hostname is a Domain property, a full URL is URL-prefix. |
 | PostFlow group ID | Required for social analytics. |
 | Slack webhook URL | The client's **own** channel — see §5. |
 | Competitor domains | Stored normalised to bare lowercase hostnames. |
@@ -312,7 +312,7 @@ straight to them with no further review.
 | Symptom | Almost always |
 |---|---|
 | GA4 "permission" error | Wrong property ID, not access. Check the digits first. |
-| GSC 403 | `gsc_property` string form (`sc-domain:` vs `https://…/`), or the service account isn't a Full user on that property. |
+| GSC 403 / `organic_queries` failing daily | The `gsc_property` string form — check it before checking access. `sc-domain:https://example.com/` matches nothing and reads as a permissions error. Otherwise the service account isn't a **Full** user (Restricted is not enough). |
 | Revenue doesn't match Shopify | Compare **order counts** first — if those differ, it's a window or filter problem, not a valuation one. |
 | Client shows "collecting" forever | No keywords or prompts added, or `serp_frequency` is `paused`. |
 | No AI answers | Client has no tracked prompts, or `ai_frequency` is `paused`. |

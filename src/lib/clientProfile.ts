@@ -65,6 +65,71 @@ export function normaliseGa4PropertyId(input: string | null | undefined): Normal
 }
 
 /**
+ * A Search Console `siteUrl`, in one of the exactly two forms Google accepts.
+ *
+ * `clients.gsc_property` is passed verbatim into the API path (`lib/gsc.ts`),
+ * so a near-miss does not degrade — it matches no property and returns **403**,
+ * which reads as a permissions problem. That ambiguity is expensive: on GA4 the
+ * same class of mistake cost six days and three unnecessary access grants.
+ *
+ * This validator exists because it was the only field on the client row with no
+ * normaliser, and twelve of nineteen production clients were found holding
+ * `sc-domain:https://example.com/` — a blend of both forms that can never match.
+ * The two rows that were correct were exactly the two Domain properties, which
+ * is the tell: someone took a URL-prefix property and prefixed it anyway.
+ *
+ *   Domain property      → `sc-domain:example.com`      (no scheme, no slash)
+ *   URL-prefix property  → `https://example.com/`       (scheme AND trailing slash)
+ *
+ * A bare `example.com` is rejected rather than guessed at: it is a valid Domain
+ * property missing its prefix *and* a valid URL-prefix property missing its
+ * scheme, and picking one silently is how the wrong property gets tracked for a
+ * month. Search Console's own property picker shows which type it is — bare
+ * hostname or full URL — so the answer is always one glance away.
+ */
+export function normaliseGscProperty(input: string | null | undefined): Normalised<string | null> {
+  const raw = (input ?? "").trim();
+  if (!raw) return { value: null };
+
+  if (/^sc-domain:/i.test(raw)) {
+    // Strip the prefix and whatever was wrongly attached to it.
+    const rest = raw.replace(/^sc-domain:/i, "").trim();
+
+    if (/^https?:\/\//i.test(rest)) {
+      const host = rest.replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+      return {
+        error: `"${raw}" mixes both property forms. Use "sc-domain:${host.toLowerCase()}" for a Domain property, or "${rest.toLowerCase().replace(/\/?$/, "/")}" for a URL-prefix one — never both.`,
+      };
+    }
+
+    // A trailing slash on the domain form is unambiguous, so fix rather than refuse.
+    const host = rest.replace(/\/+$/, "").toLowerCase();
+    if (!host) return { error: `"${raw}" has no domain after "sc-domain:".` };
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(host)) {
+      return { error: `"${host}" is not a domain. A Domain property is "sc-domain:example.com".` };
+    }
+    return { value: `sc-domain:${host}` };
+  }
+
+  if (/^https?:\/\//i.test(raw)) {
+    let url: URL;
+    try {
+      url = new URL(raw);
+    } catch {
+      return { error: `"${raw}" is not a URL.` };
+    }
+    // Google's URL-prefix siteUrl always ends in a slash — appending one is the
+    // only possible reading, so it is corrected rather than rejected.
+    const path = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;
+    return { value: `${url.protocol.toLowerCase()}//${url.host.toLowerCase()}${path}${url.search}` };
+  }
+
+  return {
+    error: `"${raw}" is missing its form. Search Console shows the property type in its picker: a bare hostname is a Domain property — enter "sc-domain:${raw.toLowerCase()}"; a full URL is a URL-prefix property — enter "https://${raw.toLowerCase()}/".`,
+  };
+}
+
+/**
  * The bare host. Everything joins to `clients.domain`, and it is unique, so
  * `https://Example.com/path` and `example.com` must not become two clients.
  *
@@ -217,8 +282,8 @@ export function buildClientRow(
   }
 
   if (mode === "insert" || has("gsc_property")) {
-    const v = String(body.gsc_property ?? "").trim();
-    row.gsc_property = v || null;
+    const e = put("gsc_property", normaliseGscProperty(body.gsc_property as string));
+    if (e) return { error: e };
   }
 
   for (const f of ["core_frequency", "serp_frequency", "crawl_frequency"] as const) {
