@@ -3,7 +3,55 @@
 _Last updated: 2026-08-18_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
 
-### DataForSEO Labs rejected every metro location code (2026-08-18) — 🔧 FIXED, ON PR #52
+### Portfolio collection healthy — 40 errors → 2 (2026-08-18) — ✅ VERIFIED IN PRODUCTION
+
+All four of today's fixes watched working against the real portfolio, not just
+green in CI. PR #53 merged.
+
+**The only remaining failures are Emporium Threads ×2** — GA4 `322405136` and
+`sc-domain:emporiumthreads.com`, both client-side grants. Nothing agency-side is
+outstanding. Every other client collects clean.
+
+Fixed along the way: **DAPS.FIT** held the GA4 *account* id (`355421923`) in the
+property field — the real property is `489457892`. **Living Well** and **Group
+One** were `www` mismatches on URL-prefix properties.
+
+**The 401 was masking everything.** Every collector was failing on DataForSEO
+`HTTP 401` — a key rotated the previous day whose Vercel env var never followed.
+The $2 balance was real but not the cause. Lifting it took the count *up* (40 →
+42) as one blanket error per client became two or three specific ones.
+
+**Two new failure modes, neither catchable by a validator:**
+
+1. **`www` belongs to a URL-prefix property.** Group One's row omitted it while
+   the real property has it, and the service account had Full access the entire
+   time. Granting access takes you to the *real* property, so the grant is right
+   and the query still fails. 047 could not have caught it — the original value
+   held two errors and the migration repaired the one it was written for.
+2. **A GA4 account id is indistinguishable from a property id.** Both bare
+   digits. `ga4-check?property=` settles it without a database write; Data
+   Streams is the only check that catches a property that is real but someone
+   else's.
+
+**Root cause behind most of today:** these clients were bulk-inserted with SQL,
+bypassing every validator in `clientProfile.ts`. Twelve malformed GSC strings, an
+account id in a property field, and a domain stored as `DAPS.Fit` all arrived the
+same way.
+
+⏳ **Next, and the first step that produces rather than clears:** re-run
+`Suggest keywords` for every local-service client. It has never succeeded for
+them — see the Labs entry below.
+
+⚠️ **Collection is at its 300s ceiling.** A full pass takes ~3.5 minutes across
+19 clients and was truncated mid-run at least once today, leaving modules showing
+the previous day's error. Nothing records "ran out of time", so a truncated pass
+is indistinguishable from a clean one. Every client added makes it worse.
+
+⚠️ **`CRON_SECRET` is a Vercel *Sensitive* variable** — unreadable in the
+dashboard and absent from `vercel env pull`. The only manual collection trigger
+is Vercel's Cron Jobs Run button; there is no working curl.
+
+### DataForSEO Labs rejected every metro location code (2026-08-18) — ✅ FIXED, MERGED IN #53
 
 Surfaced once the DataForSEO 401 lifted: `core: /dataforseo_labs/google/
 domain_rank_overview/live → 40501 Invalid Field: 'location_code'` on Papa T's

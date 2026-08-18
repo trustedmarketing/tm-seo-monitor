@@ -5,6 +5,88 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-18 · Session 6b · All four fixes verified in production — 40 errors → 2
+
+Same day, after #53 merged. Everything below was watched working against the
+real portfolio rather than inferred from a green test run.
+
+**40 → 2.** Both that remain are Emporium Threads, and both are the
+client's grants to make. Nothing agency-side is outstanding.
+
+### The DataForSEO outage that was masking everything
+
+Before any of the fixes could be judged, every collector in the portfolio was
+failing on `HTTP 401` from DataForSEO — 40 identical errors, three endpoints,
+19 clients. The balance was at $2 and got topped up, which was needed but was
+**not** the cause: the API key had been rotated the previous day and the Vercel
+env var never followed. `authHeader()` throws a distinct
+`"DataForSEO credentials missing"` when the vars are absent, so a 401 proved the
+vars were set and being refused — that distinction is what pointed at rotation
+rather than configuration.
+
+Worth keeping: **a 401 here means rejected, not missing, and DataForSEO rejects
+at auth rather than returning a payment error**, so a dead account and a stale
+key look identical from outside.
+
+### What the 401 was hiding
+
+Lifting it did not reduce the error count, it raised it — 40 became 42, because
+one blanket failure per client became two or three specific ones. Every fix from
+#53 then confirmed itself in Google's and DataForSEO's own words:
+
+| Fix | Confirmed by |
+|---|---|
+| Migration 047 | `'sc-domain:https://…/' is not a valid Search Console site URL` stopped appearing; all 19 rows verified well-formed |
+| `labsLocationCode()` | `40501 Invalid Field: 'location_code'` gone from every client |
+| DataForSEO credentials | no `HTTP 401` anywhere |
+| GSC validator | no new malformed values could be written |
+
+The GSC errors changing class — from "not a valid site URL" to "does not have
+sufficient permission" on a correctly-formed string — was the clearest signal of
+the day. The typo stopped hiding the real problem underneath it.
+
+### Two new failure modes, both invisible to any validator
+
+**`www` is part of a URL-prefix property.** Group One's row said
+`https://grouponesafetyandsecurity.com/` while the real property is
+`https://www.grouponesafetyandsecurity.com/`. The service account had **Full**
+on it the whole time. The trap is that granting access takes you to the real
+property, so the grant is correct and the query still fails — and 047 could not
+have caught it: the original value carried *two* errors and the migration
+faithfully repaired only the one it was written for.
+
+**An account ID looks exactly like a property ID.** DAPS.FIT's row held
+`355421923`, the GA4 *account*; the property is `489457892`. Both are bare
+digits, so `normaliseGa4PropertyId` cannot distinguish them — it rejects `G-`,
+`GTM-` and `UA-` by name and has no way to reject this. `ga4-check?property=`
+settles it in one request without touching the database, and Admin → Data
+Streams is the only check that catches a property that is real but somebody
+else's.
+
+### Root cause behind most of it
+
+These clients were bulk-inserted with SQL, which **bypassed every validator in
+`clientProfile.ts`**. That is how twelve malformed GSC strings, an account ID in
+a property field, and a domain stored as `DAPS.Fit` with capitals all landed
+together — `normaliseDomain` lowercases, so that row never went through it.
+The lesson is not "validate harder", it is that a bulk path around the product's
+own front door inherits none of its guarantees.
+
+### Still open
+
+- **Emporium Threads ×2** — GA4 `322405136` and `sc-domain:emporiumthreads.com`.
+  Client-side grants, nothing to chase. The only failures left in the portfolio.
+- **`Suggest keywords` has never been re-run** since the Labs fix. 16 of 19
+  clients have zero prompts, and the leading theory is now that they could not
+  be onboarded rather than that nobody finished them. This is the first step
+  that produces something rather than clearing a path.
+- **Collection is at its 300s ceiling.** A full pass took ~3.5 minutes across 19
+  clients and the tail was truncated mid-run at least once, leaving modules
+  showing yesterday's error. Nothing records "ran out of time", so a truncated
+  pass is indistinguishable from a clean one. Every new client makes it worse.
+- **`CRON_SECRET` is a Vercel *Sensitive* variable** and cannot be read back, so
+  the only manual trigger is Vercel's Cron Jobs Run button. Both docs corrected.
+
 ## 2026-08-18 · Session 6 · Onboarding arX Display, and the SOP hole it found
 
 Tom asked to bring arX Display (`arxdisplay.com`) into the platform and build
