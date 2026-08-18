@@ -5,6 +5,81 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-18 · Session 7b · The credentials went in, and the API version was dead
+
+Continued straight on from 7. Tom vaulted both Google secrets; the check then
+found the thing four weeks of records had been hiding.
+
+### The credentials, verified rather than assumed
+
+`google-oauth.mjs` ran clean against a Desktop OAuth client in the
+`tm-seo-monitor` GCP project — refresh token captured, all three fields present,
+file written 0600. Both secrets vaulted through `/dashboard/secrets` and
+confirmed by **length**, which is what that page is for: **264 chars** for the
+OAuth bundle, matching byte-for-byte the minified length computed locally before
+the paste, and **22** for the developer token. A truncated paste could not have
+produced 264. The local `.google-oauth.local.json` was deleted once the vault
+was confirmed, not before — re-running the script is one browser click, so
+holding a credential on disk to save that click is a bad trade.
+
+### Then: HTTP 404, and an HTML page
+
+The first live call — `?customer=7598077939`, which deliberately bypasses the
+database so the credentials are tested in isolation — returned **404 with a
+Google HTML error page**. Everything above it passed: MCC present, both secrets
+present and complete, and `oauth_refresh` did **not** fail, which proves the
+refresh token minted an access token successfully.
+
+**Google Ads answers auth and permission problems in structured JSON.** An HTML
+404 means the versioned path does not route. `API_VERSION = "v18"` was sunset.
+
+Confirmed without credentials, which is the part worth keeping: **probe
+unauthenticated.** A live version answers JSON `UNAUTHENTICATED`; a dead one
+answers HTML 404. `vFOO` answers HTML too, which is what proves the probe
+discriminates rather than just tracking a number.
+
+    v14–v21  404 HTML  gone
+    v22–v26  401 JSON  live
+    v27+     404 HTML  not yet
+
+### It was three files, and both the read and the write path
+
+`v18` was hardcoded in `lib/googleAds.ts`, `lib/googleAdsAdapter.ts` — the
+**execution adapter**, campaign pause and budget mutate — and the ops check
+added hours earlier. Every Google Ads call in the product was 404ing, writes
+included. Now one exported `API_VERSION` in `lib/googleAds.ts` at `v26`.
+
+So Google Ads had **two independent reasons** to have never collected for
+anyone. Fixing the credentials alone would have produced the same silence.
+
+### The tests were complicit
+
+`googleAds.test.ts` asserted the URL contained the literal `"v18"`. It passed
+before the sunset and passed after — faithfully confirming the client still
+built the URL it had always built, while every live call failed. **A test that
+restates the code cannot notice the world changing.** It now asserts against the
+exported constant.
+
+Added a structural guard that fails if a fourth copy of the version appears
+anywhere in `src/`, and **verified it fails** by reintroducing one — it named
+`src/lib/googleAdsAdapter.ts`. A guard that has never been seen to fail is a
+guess.
+
+### And the check now diagnoses this by name
+
+`classifyApiFailure` separates a sunset version from a real API rejection:
+`failed_at: "api_version_sunset"`, a hint naming the probe and the constant to
+bump, and the HTML *summarised* rather than pasted — 600 characters of a Google
+error page buries the verdict. `api_version` is now reported on every answer,
+pass or fail, because a sunset is invisible unless the version is on screen next
+to the error. Suite green: 617 passed, 11 skipped.
+
+### One step left
+
+Insert arX's `ad_platform_accounts` row (`7598077939`), then
+`/api/ops/google-ads-check?domain=arxdisplay.com`. Everything above it is now
+verified rather than recorded.
+
 ## 2026-08-18 · Session 7 · Finishing arX's Google Ads connection found a portfolio-wide one
 
 Tom asked to finish arX Display's Google Ads connection. The client-specific part

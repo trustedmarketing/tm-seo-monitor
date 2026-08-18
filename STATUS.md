@@ -3,44 +3,58 @@
 _Last updated: 2026-08-18_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
 
-### Google Ads was never connected for anyone — three gates, all now answerable (2026-08-18) — 🔧 ENV SET, ENDPOINT IN PR
+### Google Ads: four blockers, not one — three credentials and a sunset API (2026-08-18) — 🔧 CREDENTIALS DONE, ROW PENDING
 
-Finishing arX Display's Google Ads connection turned up a **portfolio-level**
-problem wearing a client-level costume. Three things must be true before the
-collector calls Google, and **none of them were**:
+Finishing arX Display's Google Ads connection found a **portfolio-level**
+problem wearing a client-level costume, then a second one underneath it.
 
 | Gate | State found | Now |
 |---|---|---|
-| `google_ads_developer_token` in vault | absent — recorded as vaulted since 2026-07-22 | ⏳ Tom, at `/dashboard/secrets` (PR #56 opened that route) |
-| `google_ads_oauth` in vault | absent — same false record | ⏳ Tom, via `scripts/google-oauth.mjs` |
-| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` in Vercel | **absent entirely** | ✅ set to `7110225227`, Production + Preview |
+| `google_ads_developer_token` in vault | absent — recorded as vaulted since 2026-07-22 | ✅ vaulted, 22 chars |
+| `google_ads_oauth` in vault | absent — same false record | ✅ vaulted, 264 chars |
+| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` in Vercel | **absent entirely** | ✅ `7110225227`, deployed |
+| `API_VERSION = "v18"` | **sunset by Google** | ✅ `v26`, one exported constant |
+| arX's `ad_platform_accounts` row | absent | ⏳ the only step left |
 
-All three are portfolio-level, so arX was never the variable: **the Google Ads
-collector has never had credentials for any client.** That is the simplest
-explanation for it never having collected for one, and it means the
-Explorer→Basic upgrade — carried as the blocker for four weeks — was never what
-was blocking. Basic governs daily *volume*, not first data.
+**The first three are portfolio-level**, so arX was never the variable: the
+Google Ads collector has never had credentials for any client. The
+Explorer→Basic upgrade — carried as *the* blocker for four weeks — was never
+what was blocking. Basic governs daily *volume*, not first data.
 
-⚠️ **The env var needs a redeploy.** Vercel bakes env into the build, so
-production keeps running without it until the next deploy.
+**Then the check found the real one.** With all three credentials in place, the
+first live call returned **HTTP 404 carrying a Google HTML error page** rather
+than a JSON API error. Google Ads answers auth and permission problems in
+structured JSON; an HTML 404 means the *path does not exist*. `v18` had been
+sunset. Google retires versions on a rolling schedule and a dead one does not
+warn or degrade — it stops routing.
 
-**`/api/ops/google-ads-check` closes the loop that let this last four weeks.**
-Owner-only, walks the five gates in the collector's own order and stops at the
-first unmet one, so the answer is one next step rather than a list. `ok: true`
-returns the account's own name and currency — the only way to confirm a customer
-ID points at who you think it does — and flags a test account, whose metrics are
-synthetic forever. The SOP's `collector_runs` query is inlined as `last_run`, so
-Google Ads verification no longer needs the Supabase console.
+**`v18` was hardcoded in three files**: the API client, the execution adapter
+(campaign pause, budget mutate — the write path) and the new ops check. So
+every Google Ads call in the product, read and write, was 404ing. Now one
+exported `API_VERSION` in `lib/googleAds.ts`, with a test that fails if a
+fourth copy appears — verified to fail by reintroducing one.
 
-**What this cost, and why.** Every claim in the "Pending Tom" entry was *written
-down* rather than checked; the vault was never read back. The same shape as the
-crawl bug and the `skipped`-reported-as-`success` bug — a success path that
-asserted rather than verified. A verifier is worth more than a corrected record,
-because the record goes stale the moment someone rotates a key.
+⚠️ **This will happen again, on a calendar.** Versions sunset roughly yearly.
+The check now diagnoses it by name (`failed_at: "api_version_sunset"`) instead
+of surfacing HTML, and reports `api_version` on every answer. **Live versions
+are found by probing unauthenticated — no credentials needed:** a live version
+answers JSON `UNAUTHENTICATED`, a dead one answers HTML 404. On 2026-08-18,
+v22–v26 were live and v14–v21 were gone.
 
-⏳ **Still Tom's, ~5 minutes each, in order:** vault the developer token, vault
-the OAuth bundle, insert arX's `ad_platform_accounts` row (`7598077939`, already
-linked under the MCC). Check after each with
+**Two tests were complicit.** `googleAds.test.ts` asserted the URL contained
+the literal `"v18"`, so it kept passing after the sunset — confirming the client
+still built the URL it had always built while every live call failed. It now
+asserts against the exported constant. A test that restates the code cannot
+notice the world changing.
+
+**What this cost, and why.** Every claim in the "Pending Tom" entry was written
+down rather than checked, and the vault was never read back. Same shape as the
+crawl bug and `skipped`-reported-as-`success`: a success path that asserted
+rather than verified. The verifier found in one request what four weeks of
+records had wrong.
+
+⏳ **One step left:** insert arX's `ad_platform_accounts` row
+(`7598077939`, already linked under the MCC), then
 `/api/ops/google-ads-check?domain=arxdisplay.com`.
 
 ### Portfolio collection healthy — 40 errors → 2 (2026-08-18) — ✅ VERIFIED IN PRODUCTION
@@ -477,10 +491,14 @@ WORKLOG 2026-07-27 lists exactly which streams each one gates.
    was blocking: it governs daily volume, not first data. Three ~5-minute steps, all Tom, none
    of them applications, in this order:
 
-   1. Vault `google_ads_developer_token` at `/dashboard/secrets` (MCC → Tools → API Center)
-   2. `node scripts/google-oauth.mjs`, paste the JSON as `google_ads_oauth`
-   3. Insert the `ad_platform_accounts` row — **arX Display is the fastest first client**
+   1. ✅ **Done 2026-08-18** — `google_ads_developer_token` vaulted (22 chars)
+   2. ✅ **Done 2026-08-18** — `google_ads_oauth` vaulted (264 chars); the OAuth grant is
+      confirmed working, since the check minted an access token from it successfully
+   3. ⏳ Insert the `ad_platform_accounts` row — **arX Display is the fastest first client**
       (`7598077939`, already linked under the MCC); Salty Dog still needs its account linked first
+
+   A fourth blocker sat underneath all three: **the API version was sunset** (v18 → v26).
+   See the entry at the top of this file.
 
    Check each step with `/api/ops/google-ads-check?domain=…` rather than waiting for a
    collection — it names the one unmet gate. **Verify, don't record:** every claim this entry

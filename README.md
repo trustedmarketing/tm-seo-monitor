@@ -450,7 +450,26 @@ tests/fixtures/google/ad_metrics.json  recorded GAQL-shaped rows fixture
 
 - **The Explorer→Basic developer token upgrade** is still unapplied-for. It
   governs daily *volume*, not first data — it was carried as the blocker for
-  four weeks while the three gates above were the actual cause.
+  four weeks while the gates above were the actual cause.
+
+- ⚠️ **`API_VERSION` sunsets on a calendar.** Google retires Ads API versions on
+  a rolling schedule (~yearly support). A sunset version does not warn or
+  degrade: the path stops routing and `googleapis.com` answers an **HTML 404**,
+  which every caller wraps as `404 Not Found` and reads like a bad customer id.
+  `v18` died that way and took the collector, the execution adapter *and* the
+  ops check with it. It now lives as one exported constant in
+  `src/lib/googleAds.ts`, with a test that fails if a second copy appears.
+
+  **Find the live versions by probing unauthenticated — no credentials needed.**
+  A live version answers JSON `UNAUTHENTICATED`; a dead one answers HTML 404:
+
+  ```
+  curl -s -X POST "https://googleads.googleapis.com/vNN/customers/1234567890/googleAds:searchStream" \
+       -H "Content-Type: application/json" -d '{"query":"SELECT customer.id FROM customer"}' | head -c 40
+  ```
+
+  Bump `API_VERSION`, run the suite, deploy. `google-ads-check` reports
+  `api_version` on every answer and names this failure `api_version_sunset`.
 
 ### Shopify revenue collector
 

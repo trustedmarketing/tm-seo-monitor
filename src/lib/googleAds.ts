@@ -1,11 +1,26 @@
-// lib/googleAds.ts — Google Ads API client (v18, GAQL searchStream). Ad-level
+// lib/googleAds.ts — Google Ads API client (GAQL searchStream). Ad-level
 // metrics for the last `days` days. Read-only. Never logs a credential — the
 // access token / developer token / login-customer-id are only ever used as
 // outgoing request headers, matching the "secrets never surface" rule
 // (docs/CLAUDE-monitor-draft.md, autonomy #5).
 import { mockApis, readFixture } from "@/lib/apiMock";
 
-const API_VERSION = "v18";
+// The Google Ads API sunsets versions on a rolling schedule — roughly one a
+// quarter, each supported about a year. A sunset version does not degrade or
+// warn: the path stops existing and googleapis.com answers an HTML 404, which
+// every caller here wraps as "request failed: 404 Not Found" and reads like a
+// bad customer id. v18 died that way and took the collector, the execution
+// adapter and the ops check with it, silently, for months.
+//
+// Verified live 2026-08-18 by probing unauthenticated: a live version answers
+// JSON UNAUTHENTICATED, a dead one answers an HTML 404. v22–v26 were live;
+// v14–v21 were gone. Re-run that probe when this needs bumping — it needs no
+// credentials.
+//
+// Exported because it was previously copied into three files, so bumping it
+// meant finding all three. api/ops/google-ads-check names this failure mode
+// explicitly rather than surfacing the HTML.
+export const API_VERSION = "v26";
 const API_BASE = "https://googleads.googleapis.com";
 
 // Auth bundle fetchAdMetrics needs: a minted OAuth accessToken plus the
@@ -168,7 +183,7 @@ function buildCampaignQuery(): string {
   `.trim();
 }
 
-// POST /v18/customers/{customerId}/googleAds:searchStream, campaign-level
+// POST /{API_VERSION}/customers/{customerId}/googleAds:searchStream, campaign-level
 // status/budget/objective for the `campaigns` registry (not insights).
 // Under MOCK_APIS=1, reads from a fixture.
 export async function fetchCampaigns(auth: GoogleAdsAuth, customerId: string): Promise<CampaignRow[]> {
@@ -221,7 +236,7 @@ function buildQuery(startDate: string, endDate: string): string {
   `.trim();
 }
 
-// POST /v18/customers/{customerId}/googleAds:searchStream, GAQL selecting
+// POST /{API_VERSION}/customers/{customerId}/googleAds:searchStream, GAQL selecting
 // segments.date, campaign.id/name, ad_group.id, ad_group_ad.ad.id, and the
 // core metrics over the last `days` days. Under MOCK_APIS=1, reads raw GAQL
 // rows from the fixture and runs them through the same mapping — so the

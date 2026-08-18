@@ -5,9 +5,8 @@
 // lib/googleAdsCollector.ts already resolves (vaulted OAuth + developer
 // token, or a per-account override).
 import { mockApis } from "@/lib/apiMock";
-import type { GoogleAdsAuth } from "@/lib/googleAds";
+import { API_VERSION, type GoogleAdsAuth } from "@/lib/googleAds";
 
-const API_VERSION = "v18";
 const API_BASE = "https://googleads.googleapis.com";
 
 export type CampaignStatus = "active" | "paused" | "removed";
