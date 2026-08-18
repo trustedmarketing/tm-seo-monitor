@@ -5,6 +5,53 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-18 · Session 7c · The version sweep, and a probe that measured the wrong thing
+
+### v25, measured
+
+With credentials in place and v26 configured, the authenticated call returned
+JSON `{"code":404,"message":"Method not found."}`. The sweep added in #60 asked
+every candidate the same authenticated question:
+
+    v26      404 "Method not found."   routed, but not serving searchStream
+    v22–v25  200 OK
+    v19–v21  404 HTML                  gone
+
+**A version can exist in the route table before it serves.** The newest number
+is not automatically the right one. `API_VERSION = "v25"`.
+
+### The probe in 7b measured the wrong thing
+
+7b concluded "v22–v26 live, v14–v21 gone" from an *unauthenticated* probe, on
+the reasoning that a live version answers JSON 401 and a dead one HTML 404.
+Retesting showed what that actually measures: `googleAds:bogusMethod` on v26
+answers HTML 404 while `googleAds:searchStream` answers JSON 401. **The front
+door checks the method name globally and dispatches the version only after
+auth.** So the probe was answering "is searchStream a real method" — a question
+nobody asked.
+
+It got the lower bound right by luck and the upper bound wrong. Only a
+credentialed call settles this, which is why the sweep lives in the endpoint:
+the credentials are in the vault, reachable from the app and nowhere else.
+
+Worth keeping as a general shape: **a cheap test that agrees with you is worth
+re-reading.** The unauthenticated probe was fast, reproducible, and confidently
+wrong, and it produced a table that looked like evidence.
+
+### The Explorer token is not the blocker — confirmed, not argued
+
+A 200 from the sweep is a real API call against a live production account with
+the vaulted Explorer-tier token. So Explorer serves live data today. #58 argued
+from first principles that the Basic upgrade governs *volume* rather than first
+data; this measures it. Four weeks of "blocked on the application" were wrong on
+every count — the application was not the blocker, and the three things that
+were had nothing to do with Google's review queue.
+
+### Where arX stands
+
+All five gates closed. `last_run` was still `error` from the 20:18 collection
+against v26; the next collection is the one that should write rows.
+
 ## 2026-08-18 · Session 7b · The credentials went in, and the API version was dead
 
 Continued straight on from 7. Tom vaulted both Google secrets; the check then

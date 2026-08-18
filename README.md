@@ -460,13 +460,24 @@ tests/fixtures/google/ad_metrics.json  recorded GAQL-shaped rows fixture
   ops check with it. It now lives as one exported constant in
   `src/lib/googleAds.ts`, with a test that fails if a second copy appears.
 
-  **Find the live versions by probing unauthenticated — no credentials needed.**
-  A live version answers JSON `UNAUTHENTICATED`; a dead one answers HTML 404:
+  ⚠️ **Do not probe unauthenticated to find the live version.** googleapis.com
+  checks the *method name* globally and dispatches the *version* only after
+  auth, so an unauthenticated 401 tells you `searchStream` is a real method —
+  not that this version serves. We got v26 wrong exactly that way: it answered
+  401 unauthenticated and `404 "Method not found."` authenticated.
+
+  **Use the sweep instead**, which makes the same *authenticated* call against
+  every candidate and reports what each said:
 
   ```
-  curl -s -X POST "https://googleads.googleapis.com/vNN/customers/1234567890/googleAds:searchStream" \
-       -H "Content-Type: application/json" -d '{"query":"SELECT customer.id FROM customer"}' | head -c 40
+  GET /api/ops/google-ads-check?domain=<client>          # sweeps on a 404
+  GET /api/ops/google-ads-check?domain=<client>&version=v24   # pin one by hand
   ```
+
+  It lives in the endpoint because it needs the vaulted credentials. Measured
+  2026-08-18: v26 routed but did not serve, **v22–v25 answered 200**, v19–v21
+  were gone. A version can exist in the route table before it serves, so the
+  newest number is not automatically the right one.
 
   Bump `API_VERSION`, run the suite, deploy. `google-ads-check` reports
   `api_version` on every answer and names this failure `api_version_sunset`.
