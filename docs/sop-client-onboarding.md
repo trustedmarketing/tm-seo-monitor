@@ -248,8 +248,16 @@ from clients where domain = 'example.com';
 with `.maybeSingle()`, which errors when a client has two rows for one platform.
 A second ad account on the same platform cannot be added this way.
 
-Verify after the next collection — `status = 'skipped'` means not connected,
-however healthy the dashboard looks:
+**Verify Google Ads before the next collection**, not after —
+`/api/ops/google-ads-check?domain=example.com`, owner-only. It walks the five
+gates in the order the collector does (account row → MCC id → developer token →
+OAuth bundle → the account itself) and stops at the first unmet one, so the
+answer names a single next step. `ok: true` returns the account's own name and
+currency, which is the only way to confirm the customer ID points at who you
+think it does. There is still no `meta-check`.
+
+Then confirm after the next collection — `status = 'skipped'` means not
+connected, however healthy the dashboard looks:
 
 ```sql
 select module, status, detail, error, started_at
@@ -258,6 +266,9 @@ where client_id = (select id from clients where domain = 'example.com')
   and module in ('meta_ads','google_ads','microsoft_ads')
 order by started_at desc limit 10;
 ```
+
+For Google Ads that query is inlined as `last_run` in the check above, so the
+whole verification is reachable without the Supabase console.
 
 ---
 

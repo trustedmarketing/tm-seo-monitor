@@ -5,6 +5,87 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-18 · Session 7 · Finishing arX's Google Ads connection found a portfolio-wide one
+
+Tom asked to finish arX Display's Google Ads connection. The client-specific part
+turned out to be the smallest part of it.
+
+### Three gates, none of them met, none of them about arX
+
+`resolveAuth()` (`lib/googleAdsCollector.ts`) needs a vaulted OAuth bundle, a
+vaulted developer token, and `GOOGLE_ADS_LOGIN_CUSTOMER_ID`, or it returns null
+and the run skips. PR #56 had already established the first two were missing
+despite STATUS recording them as vaulted since 2026-07-22. Reading the live
+Vercel env list added the third: **`GOOGLE_ADS_LOGIN_CUSTOMER_ID` was not set at
+all** — 20 variables, and not among them.
+
+All three are portfolio-level. So there was never an arX-specific problem: **the
+Google Ads collector has never had credentials for any client.** Set the env var
+to `7110225227` on Production and Preview. It needs a redeploy — Vercel bakes env
+in at build, so production runs without it until the next one.
+
+**The four-week-old blocker was the wrong blocker.** "Pending Tom" item 1 has
+said since 2026-07-22 that the Explorer→Basic upgrade gated Google data. Basic
+governs daily *volume*; it is not what stops the first row from landing. The
+three actual gates are ~5 minutes each and none is an application. STATUS
+corrected.
+
+### `/api/ops/google-ads-check`
+
+GA4, Shopify, WordPress and PostFlow all had a verifier. The two connections
+whose failure mode is *silent* had none — which is how a false record survived a
+month of "it's blocked on the application."
+
+Walks the gates in the order the collector resolves them and **stops at the
+first unmet one**, so the answer is a single next step rather than a checklist.
+`failed_at` names it and `hint` says what to do; on a live failure Google's own
+words come back in `google_says`, because a developer token not approved for
+production, a customer not linked under this MCC, and a nonexistent customer ID
+are three different fixes that look identical from here.
+
+Details worth keeping:
+
+- **It refuses to answer under `MOCK_APIS=1`** rather than returning a green that
+  is really a fixture. Same trap as the crawl bug's lying success path.
+- **`ok: true` returns the account's name, currency and time zone.** A customer
+  ID that resolves is not the same as the right customer ID, and an MCC is full
+  of neighbouring accounts. This is the only way to tell.
+- **It reports `is_test_account`.** A test account answers every query happily
+  and its metrics are synthetic forever — a green check that means nothing.
+- **`last_run` inlines the SOP's `collector_runs` query**, so Google Ads
+  verification no longer needs the Supabase console.
+- **Credentials report presence and length only** (autonomy #5). The OAuth bundle
+  reports *which fields* are present — a bundle can be vaulted and still be
+  missing the one field that matters.
+
+Two pure pieces are split into `lib/googleAdsCheck.ts` and tested (12 tests), on
+the codebase's usual line — test the lib, not the route:
+
+- **`normaliseCustomerId`** — rejects `act_1761764321488072` by name, because
+  `ad_platform_accounts` holds both platforms and Google answers a Meta ID with
+  an opaque 404. Flags an odd digit count without *refusing* it: ten is the only
+  length in the wild, but breaking a working account to satisfy a regex is worse
+  than a note.
+- **`readCustomerRow`** — GAQL is written `customer.descriptive_name` and the
+  REST transport answers `descriptiveName`, so reading back the field you asked
+  for is `undefined`, which renders as "the account has no name". Accepts both.
+
+Suite green: 609 passed, 11 skipped. Build clean, route registered.
+
+### Still Tom's, in order
+
+1. Vault `google_ads_developer_token` — `/dashboard/secrets`, from MCC → Tools → API Center
+2. `node scripts/google-oauth.mjs` → paste the JSON as `google_ads_oauth`
+3. Insert arX's `ad_platform_accounts` row (`7598077939`, already linked under the MCC)
+
+Check after each with `/api/ops/google-ads-check?domain=arxdisplay.com`. arX is
+the fastest first client for this — Salty Dog still needs its account linked
+under the MCC before its row is worth inserting.
+
+**`meta-check` still does not exist**, and Meta is the worse of the two: a null
+`auth_ref` falls back to a system-user token scoped to whichever Business Manager
+issued it, so Salty Dog collecting proves nothing about arX's 13-day-old account.
+
 ## 2026-08-18 · Session 6b · All four fixes verified in production — 40 errors → 2
 
 Same day, after #53 merged. Everything below was watched working against the

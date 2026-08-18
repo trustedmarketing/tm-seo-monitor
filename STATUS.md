@@ -3,6 +3,46 @@
 _Last updated: 2026-08-18_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
 
+### Google Ads was never connected for anyone — three gates, all now answerable (2026-08-18) — 🔧 ENV SET, ENDPOINT IN PR
+
+Finishing arX Display's Google Ads connection turned up a **portfolio-level**
+problem wearing a client-level costume. Three things must be true before the
+collector calls Google, and **none of them were**:
+
+| Gate | State found | Now |
+|---|---|---|
+| `google_ads_developer_token` in vault | absent — recorded as vaulted since 2026-07-22 | ⏳ Tom, at `/dashboard/secrets` (PR #56 opened that route) |
+| `google_ads_oauth` in vault | absent — same false record | ⏳ Tom, via `scripts/google-oauth.mjs` |
+| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` in Vercel | **absent entirely** | ✅ set to `7110225227`, Production + Preview |
+
+All three are portfolio-level, so arX was never the variable: **the Google Ads
+collector has never had credentials for any client.** That is the simplest
+explanation for it never having collected for one, and it means the
+Explorer→Basic upgrade — carried as the blocker for four weeks — was never what
+was blocking. Basic governs daily *volume*, not first data.
+
+⚠️ **The env var needs a redeploy.** Vercel bakes env into the build, so
+production keeps running without it until the next deploy.
+
+**`/api/ops/google-ads-check` closes the loop that let this last four weeks.**
+Owner-only, walks the five gates in the collector's own order and stops at the
+first unmet one, so the answer is one next step rather than a list. `ok: true`
+returns the account's own name and currency — the only way to confirm a customer
+ID points at who you think it does — and flags a test account, whose metrics are
+synthetic forever. The SOP's `collector_runs` query is inlined as `last_run`, so
+Google Ads verification no longer needs the Supabase console.
+
+**What this cost, and why.** Every claim in the "Pending Tom" entry was *written
+down* rather than checked; the vault was never read back. The same shape as the
+crawl bug and the `skipped`-reported-as-`success` bug — a success path that
+asserted rather than verified. A verifier is worth more than a corrected record,
+because the record goes stale the moment someone rotates a key.
+
+⏳ **Still Tom's, ~5 minutes each, in order:** vault the developer token, vault
+the OAuth bundle, insert arX's `ad_platform_accounts` row (`7598077939`, already
+linked under the MCC). Check after each with
+`/api/ops/google-ads-check?domain=arxdisplay.com`.
+
 ### Portfolio collection healthy — 40 errors → 2 (2026-08-18) — ✅ VERIFIED IN PRODUCTION
 
 All four of today's fixes watched working against the real portfolio, not just
@@ -126,8 +166,11 @@ onboarding itself:
    `status = 'error'` only, so an unconnected ad account produces an empty Paid
    tab, a healthy portfolio row, and no alert. Widest-reaching of the three —
    it applies to every collector, not just paid.
-3. **No `meta-check` / `google-ads-check` ops endpoint**, while GA4, Shopify,
-   WordPress and PostFlow all have one.
+3. ~~**No `meta-check` / `google-ads-check` ops endpoint**~~ — `google-ads-check`
+   shipped 2026-08-18. **`meta-check` still does not exist**, and Meta is the
+   worse of the two: `auth_ref: null` falls back to a system-user token scoped to
+   whichever Business Manager issued it, so "Salty Dog collects fine" proves
+   nothing about arX's 13-day-old account.
 
 ⚠️ **Call tracking (plan §10 decision 0) — fifth appearance.** arX is the first
 client for which MER is *permanently* uncomputable: B2B lead-gen, no online
@@ -421,13 +464,27 @@ Completes WO-003 Stream M.
 **All calendar time, all currently blocking design surfaces, and three have never been started.**
 WORKLOG 2026-07-27 lists exactly which streams each one gates.
 
-1. ⛔ **Google Ads — upgrade the developer token from Explorer to Basic access** (MCC 711-022-5227).
-   An **Explorer-tier token already exists and is vaulted** (`google_ads_developer_token`, 2026-07-22),
-   along with the full OAuth bundle; the collector is built, wired into cron, and mints access tokens
-   per run. What's missing is the **Basic-access upgrade application — not submitted** — which is what
-   full-portfolio daily volume needs. Two further ~2-minute steps, also Tom, are *not* applications:
-   **link Salty Dog's Google Ads account under MCC 711-022-5227** and **seed its customer ID into
-   `ad_platform_accounts`**. Those two are the fastest path to first real Google data.
+1. ⛔ **Google Ads — nothing is connected, and the blocker was never the application.**
+   (MCC 711-022-5227.) This entry read "an Explorer-tier token already exists and is vaulted,
+   along with the full OAuth bundle" from 2026-07-22 until 2026-08-18. **It was wrong.**
+   `vault.secrets` held neither name; `/api/ops/org-secret` gated on an allowlist that omitted
+   both, so the only way in was SQL nobody ran (PR #56 opened that route). Then
+   `GOOGLE_ADS_LOGIN_CUSTOMER_ID` turned out to be absent from Vercel altogether — set on
+   Production and Preview 2026-08-18, which needs a redeploy to take effect.
+
+   So the collector has **never had credentials for any client**, which is exactly consistent
+   with it having never collected for one. The Basic-access upgrade is real but is *not* what
+   was blocking: it governs daily volume, not first data. Three ~5-minute steps, all Tom, none
+   of them applications, in this order:
+
+   1. Vault `google_ads_developer_token` at `/dashboard/secrets` (MCC → Tools → API Center)
+   2. `node scripts/google-oauth.mjs`, paste the JSON as `google_ads_oauth`
+   3. Insert the `ad_platform_accounts` row — **arX Display is the fastest first client**
+      (`7598077939`, already linked under the MCC); Salty Dog still needs its account linked first
+
+   Check each step with `/api/ops/google-ads-check?domain=…` rather than waiting for a
+   collection — it names the one unmet gate. **Verify, don't record:** every claim this entry
+   made for four weeks was written down rather than checked, and that is what cost the time.
 2. ✅ **GBP Business Profile API access request — SUBMITTED 2026-07-27.** Awaiting Google review;
    stated window 14 days, so expect a response **around 2026-08-10**, possibly later. Filed as
    "Application For Basic API Access" against the **`tm-seo-monitor` GCP project** (approval is

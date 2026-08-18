@@ -128,6 +128,16 @@ Two things about `auth_ref`:
   bundle (`google_ads_oauth`) and developer token (`google_ads_developer_token`)
   are vaulted once and the MCC comes from `GOOGLE_ADS_LOGIN_CUSTOMER_ID`. The
   per-client part is only the customer ID in `external_id`.
+
+  ⚠️ **None of the three were in place, despite STATUS recording two of them as
+  done since 2026-07-22.** PR #56 found the vault empty of both Google names —
+  `/api/ops/org-secret` gated on an allowlist that did not include them, so the
+  only route in was SQL nobody ran. `GOOGLE_ADS_LOGIN_CUSTOMER_ID` was then
+  found missing from Vercel entirely (set 2026-08-18). All three are
+  portfolio-level, so this was never an arX problem: **the Google Ads collector
+  has never had credentials for any client**, which is consistent with it having
+  never collected for one. `google-ads-check` exists so this class of gap is
+  answerable rather than recorded.
 - **Meta: `null` falls back to the `META_ACCESS_TOKEN` system-user token.**
   ⚠️ **Verify rather than assume.** A system-user token is scoped to the Business
   Manager that issued it. Salty Dog collecting fine proves that token works for
@@ -139,12 +149,27 @@ Two things about `auth_ref`:
 with `.maybeSingle()`, which errors when a client has two rows for one platform.
 A second Meta account for arX cannot be added by inserting another row.
 
-### Verify — there is no ops endpoint for this
+### Verify
 
-`ga4-check`, `shopify-check`, `wordpress-check` and `postflow-check` all exist.
-**There is no `meta-check` or `google-ads-check`** — the two connections whose
-failure mode is silent are the two with no verifier. Until one exists, verify in
-SQL after the next collection:
+**Google Ads: `/api/ops/google-ads-check?domain=arxdisplay.com`** (owner-only).
+Added 2026-08-18 — it walks the five gates in the order the collector resolves
+them and stops at the first unmet one, so the answer names one thing to fix:
+
+| `failed_at` | What to do |
+|---|---|
+| `no_ad_platform_accounts_row` | Run the insert above |
+| `no_login_customer_id` | `GOOGLE_ADS_LOGIN_CUSTOMER_ID` missing from this environment — set it to the MCC, digits only, and **redeploy** |
+| `no_developer_token` | Vault it at `/dashboard/secrets` from MCC → Tools → API Center |
+| `no_oauth_bundle` | `node scripts/google-oauth.mjs`, paste the JSON at `/dashboard/secrets` |
+| `oauth_refresh` | The vaulted refresh token was rejected — re-run the script and re-vault |
+| `google_ads_call` | Google's own words are in `google_says`: developer token not approved for production, customer not linked under this MCC, and a nonexistent customer ID all land here and read differently |
+
+`ok: true` returns the account's name, currency and time zone — the only way to
+confirm `7598077939` is arX and not a neighbouring account in the MCC — plus
+`is_test_account`, because a test account returns synthetic metrics forever.
+
+**Meta still has no verifier.** For that one, and to confirm rows landed after
+the next collection:
 
 ```sql
 select module, status, detail, error, started_at
