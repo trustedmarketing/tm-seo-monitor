@@ -1,0 +1,15 @@
+[
+  {
+    "segments": { "date": "2026-08-14" },
+    "campaign": { "id": "23100000001", "name": "Search Branded | arX 2026 | TM" },
+    "adGroup": { "id": "180500000011" },
+    "adGroupAd": { "ad": { "id": "770100000111" } },
+    "metrics": {
+      "impressions": "412",
+      "clicks": "19",
+      "costMicros": "2670000",
+      "conversions": 1,
+      "conversionsValue": 0
+    }
+  }
+]

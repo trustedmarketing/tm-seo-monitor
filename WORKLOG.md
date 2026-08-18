@@ -5,6 +5,49 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-18 · Session 7d · 49 rows, $0 spend, and the same casing bug for the third time
+
+Google Ads collected successfully for arX — `success`, `rows_written: 49`,
+3 campaigns synced — and the Paid tab still said **not connected**.
+
+`connected` is literally `spend > 0` (`paid/page.tsx:142`), so a fully working
+connection with zero spend and no connection at all render identically. Both
+symptoms were one cause.
+
+### GAQL asks in snake_case; REST answers in camelCase
+
+`toNumber(undefined)` is `0`, so the row writes, counts toward the day's total,
+and reports no spend. **Selective, which is why it survived**: every single-word
+field is identical in both casings, so `impressions`, `clicks`, `conversions`,
+`campaign.name` and `campaign.status` all arrived correctly — the campaign table
+rendered three Google campaigns with correct names and "Running" status next to
+`$0`. That reads as "the account has not spent yet", not as a bug.
+
+Broken: `cost_micros`→`costMicros` (spend), `conversions_value`→`conversionsValue`
+(revenue, hence ROAS `–`), `ad_group_ad`→`adGroupAd` (`ad_id`),
+`ad_group`→`adGroup` (`adset_id`), `campaign_budget`→`campaignBudget` (budget).
+
+**`ad_id` is part of the upsert key** `(client_id, platform, date, ad_id)`, so a
+null there does not merely lose a column — it breaks row identity. The 49 stale
+rows must be **deleted**, not overwritten: corrected rows carry a real `ad_id`
+and will not match `null`, so they insert alongside.
+
+### The fixtures were the alibi
+
+Every Google fixture was hand-written in snake_case, so the tests agreed with
+the code and neither agreed with Google. Identical to the `v18` test that
+asserted its own literal, found hours earlier in the same file.
+`ad_metrics_camel.json` records the real shape; both casings are now asserted,
+and **the new tests were verified to fail against the old mapper** — two of
+them, naming the right fields.
+
+### Third instance in one day
+
+`readCustomerRow` hit this exact trap in `google-ads-check` this morning and was
+written to take both casings. That fix was applied where it was noticed and
+nowhere else, while the collector carried the same defect across five fields. A
+bug understood in one file is not a bug fixed.
+
 ## 2026-08-18 · Session 7c · The version sweep, and a probe that measured the wrong thing
 
 ### v25, measured
