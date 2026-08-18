@@ -3,6 +3,32 @@
 _Last updated: 2026-08-18_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
 
+### DataForSEO Labs rejected every metro location code (2026-08-18) — 🔧 FIXED, ON PR #52
+
+Surfaced once the DataForSEO 401 lifted: `core: /dataforseo_labs/google/
+domain_rank_overview/live → 40501 Invalid Field: 'location_code'` on Papa T's
+and C&W. **Labs and SERP do not share a locations list** — Labs publishes its
+own, smaller set and rejects city/metro codes.
+
+Four Labs endpoints passed `clients.location_code` straight through, so
+**following the onboarding SOP correctly is what broke them**: the SOP tells you
+to set a metro code for local-service clients so their rankings are not measured
+nationally, and that same code then went to Labs.
+
+⚠️ **`domain_rank_overview` is the visible symptom; `ranked_keywords` is the
+damage.** It powers `Suggest keywords`, so every metro-coded local client failed
+keyword suggestion during onboarding and was left with none. That is a strong
+candidate for why **16 of 19 clients have zero prompts and several have no
+keywords** — worth re-running `Suggest keywords` for each rather than assuming
+it was never attempted.
+
+`labsLocationCode()` sends country level to all four Labs endpoints — correct on
+the merits, since those metrics are domain-wide — and `serpPosition` keeps the
+client's metro code, with a test asserting that split so it cannot silently
+invert. **Known limit:** the fallback is US and `clients` has no country column,
+so a non-US client with a metro code would be asked at US level. It is a
+parameter, not a constant, so the fix is to pass a country when one exists.
+
 ### GSC property strings malformed portfolio-wide (2026-08-18) — 🔧 FIX WRITTEN, NOT YET APPLIED
 
 Found while onboarding arX. **Twelve of nineteen clients** held

@@ -122,6 +122,14 @@ local business competing in one metro that is wrong, and the rankings still look
 plausible — which is what makes it dangerous. Look up the city/metro code via
 DataForSEO's `serp_locations` endpoint for any local-service client.
 
+Setting a metro code is safe as of 2026-08-18. It was not before: DataForSEO
+Labs keeps a **different, smaller locations list** than SERP and rejects metro
+codes with `40501 Invalid Field: 'location_code'`, so a correctly-coded local
+client failed `Suggest keywords` at onboarding and was quietly left with none.
+`labsLocationCode()` now asks the four Labs endpoints at country level — right
+on the merits, since those metrics are domain-wide — while rank tracking keeps
+the client's own metro code.
+
 ---
 
 ## 2. Keywords and prompts — `/admin`, with the client selected
