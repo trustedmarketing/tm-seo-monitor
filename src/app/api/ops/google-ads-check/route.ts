@@ -19,7 +19,7 @@
 import { getProfile } from "@/lib/supabaseServer";
 import { dbClient } from "@/lib/db";
 import { readSecret } from "@/lib/vault";
-import { API_VERSION, mintAccessToken, type GoogleAdsOAuth } from "@/lib/googleAds";
+import { API_VERSION, CANDIDATE_API_VERSIONS, mintAccessToken, type GoogleAdsOAuth } from "@/lib/googleAds";
 import { classifyApiFailure, normaliseCustomerId, readCustomerRow } from "@/lib/googleAdsCheck";
 import { mockApis } from "@/lib/apiMock";
 
@@ -202,6 +202,11 @@ export async function GET(req: Request) {
     });
   }
 
+  // Narrowed here rather than relied on inside callVersion(): the guard above
+  // proves it, but a closure could in principle run later, so TypeScript will
+  // not carry the narrowing across the function boundary.
+  const developerToken: string = devToken;
+
   let oauth: GoogleAdsOAuth | null = null;
   try {
     const parsed = JSON.parse(oauthRaw ?? "") as Partial<GoogleAdsOAuth>;
@@ -248,27 +253,73 @@ export async function GET(req: Request) {
     "SELECT customer.id, customer.descriptive_name, customer.currency_code, " +
     "customer.time_zone, customer.manager, customer.test_account FROM customer LIMIT 1";
 
-  try {
+  // One authenticated call, factored so the sweep below can repeat it verbatim
+  // against another version. Returns the raw status and body — no throwing, so
+  // a version that fails is data rather than an exception.
+  async function callVersion(version: string): Promise<{ status: number; body: string }> {
     const res = await fetch(
-      `https://googleads.googleapis.com/${API_VERSION}/customers/${customerId}/googleAds:searchStream`,
+      `https://googleads.googleapis.com/${version}/customers/${customerId}/googleAds:searchStream`,
       {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          "developer-token": devToken,
+          "developer-token": developerToken,
           "login-customer-id": loginCustomerId,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ query }),
       }
     );
+    return { status: res.status, body: await res.text() };
+  }
 
-    const body = await res.text();
-    if (!res.ok) {
+  try {
+    const requested = url.searchParams.get("version");
+    if (requested) out.api_version = requested; // explicit override, reported as used
+    const { status, body } = await callVersion(requested ?? API_VERSION);
+
+    // A 404 here means the version/method pair does not dispatch — which is not
+    // something an unauthenticated probe can determine (see CANDIDATE_API_VERSIONS).
+    // So when the configured version 404s and no version was pinned by hand, ask
+    // every candidate and report what each one said. One request, definitive.
+    if (status === 404 && !requested) {
+      const sweep: Record<string, string> = {};
+      let working: string | null = null;
+      for (const v of CANDIDATE_API_VERSIONS) {
+        const r = v === API_VERSION ? { status, body } : await callVersion(v);
+        const isHtml = /^\s*(<!doctype html|<html)/i.test(r.body);
+        sweep[v] = r.status === 200
+          ? "200 OK — this version works"
+          : isHtml
+            ? `${r.status} HTML — no such version`
+            : `${r.status} ${(/"message":\s*"([^"]{0,90})/.exec(r.body)?.[1] ?? "").trim() || "JSON error"}`;
+        if (r.status === 200 && !working) working = v;
+      }
+      out.version_sweep = sweep;
+
+      if (working) {
+        return Response.json({
+          ok: false,
+          failed_at: "wrong_api_version",
+          hint: `The configured API_VERSION (${API_VERSION}) does not serve, but ${working} does — every credential and the account itself are fine. Set API_VERSION = "${working}" in src/lib/googleAds.ts and redeploy. The sweep below is what each version answered to the identical authenticated call.`,
+          status,
+          ...out,
+        });
+      }
+      return Response.json({
+        ok: false,
+        failed_at: "no_working_api_version",
+        hint: "No candidate version served this call, so the problem is not the version. Read the sweep: if every version returns the same non-404 message, that message is the real error and it is the same one on all of them.",
+        status,
+        ...out,
+      });
+    }
+
+    if (status !== 200) {
       // classifyApiFailure separates a sunset API version — which answers HTML
       // from the generic googleapis front door and looks exactly like a bad
       // customer id — from a genuine API rejection.
-      return Response.json({ ok: false, status: res.status, ...classifyApiFailure(res.status, body), ...out });
+      return Response.json({ ok: false, status, ...classifyApiFailure(status, body), ...out });
     }
 
     const account_summary = readCustomerRow(JSON.parse(body));
