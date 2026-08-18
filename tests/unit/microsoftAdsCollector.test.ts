@@ -88,8 +88,10 @@ describe("collectMicrosoftAds", () => {
     expect(written).toBe(0);
     expect(db._rows("ad_metrics_daily")).toHaveLength(0);
     const run = db._rows("collector_runs")[0];
-    expect(run.status).toBe("success");
-    expect(run.rows_written).toBe(0);
+    expect(run.status).toBe("skipped");
+    // Was asserting rows_written: 0 — accurate but it reads as "collected, found
+    // nothing", which is a different claim from "did not run".
+    expect(run.rows_written ?? null).toBeNull();
     expect(run.detail).toContain("no microsoft ad_platform_accounts row");
   });
 
@@ -118,7 +120,7 @@ describe("collectMicrosoftAds", () => {
 
     expect(written).toBe(0);
     const run = db._rows("collector_runs")[0];
-    expect(run.status).toBe("success");
+    expect(run.status).toBe("skipped");
     expect(run.detail).toContain("no Microsoft Ads credentials");
     // credentials never appear in the recorded detail/error
     expect(run.detail).not.toContain("MICROSOFT_ADS_CREDS=");

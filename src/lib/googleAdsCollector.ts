@@ -127,7 +127,7 @@ export async function collectGoogleAds(
       .maybeSingle();
 
     if (!account) {
-      return { value: 0, rows: 0, detail: `no google_ads ad_platform_accounts row for ${client.domain}` };
+      return { value: 0, rows: 0, skipped: true, detail: `no google_ads ad_platform_accounts row for ${client.domain}` };
     }
 
     const row = account as AdPlatformAccountRow;
@@ -138,6 +138,7 @@ export async function collectGoogleAds(
       return {
         value: 0,
         rows: 0,
+        skipped: true,
         detail: `no Google Ads creds bundle available for ${client.domain} (no auth_ref/GOOGLE_ADS_CREDS override and no vaulted OAuth + developer token + GOOGLE_ADS_LOGIN_CUSTOMER_ID)`,
       };
     }

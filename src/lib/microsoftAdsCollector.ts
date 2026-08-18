@@ -79,7 +79,7 @@ export async function collectMicrosoftAds(
       .maybeSingle();
 
     if (!account) {
-      return { value: 0, rows: 0, detail: `no microsoft ad_platform_accounts row for ${client.domain}` };
+      return { value: 0, rows: 0, skipped: true, detail: `no microsoft ad_platform_accounts row for ${client.domain}` };
     }
 
     const row = account as AdPlatformAccountRow;
@@ -96,6 +96,7 @@ export async function collectMicrosoftAds(
       return {
         value: 0,
         rows: 0,
+        skipped: true,
         detail: `no Microsoft Ads credentials available for ${client.domain} (no auth_ref/vault secret and MICROSOFT_ADS_CREDS unset)`,
       };
     }
