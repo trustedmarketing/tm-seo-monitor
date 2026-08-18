@@ -12,15 +12,18 @@ import { mockApis, readFixture } from "@/lib/apiMock";
 // bad customer id. v18 died that way and took the collector, the execution
 // adapter and the ops check with it, silently, for months.
 //
-// Verified live 2026-08-18 by probing unauthenticated: a live version answers
-// JSON UNAUTHENTICATED, a dead one answers an HTML 404. v22–v26 were live;
-// v14–v21 were gone. Re-run that probe when this needs bumping — it needs no
-// credentials.
+// Measured 2026-08-18 by api/ops/google-ads-check's sweep — the same
+// *authenticated* call against each candidate, which is the only thing that
+// settles this:
 //
-// Exported because it was previously copied into three files, so bumping it
-// meant finding all three. api/ops/google-ads-check names this failure mode
-// explicitly rather than surfacing the HTML.
-export const API_VERSION = "v26";
+//   v26  404 "Method not found."   routed, but not serving searchStream
+//   v22–v25  200 OK
+//   v19–v21  404 HTML              gone
+//
+// So a version can exist in the route table before it serves, and the newest
+// number is not automatically the right one. v25 is the newest that answers.
+// Do not bump this by reading a changelog — run the sweep.
+export const API_VERSION = "v25";
 
 // Candidate versions for api/ops/google-ads-check's sweep, newest first.
 //

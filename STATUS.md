@@ -13,7 +13,7 @@ problem wearing a client-level costume, then a second one underneath it.
 | `google_ads_developer_token` in vault | absent — recorded as vaulted since 2026-07-22 | ✅ vaulted, 22 chars |
 | `google_ads_oauth` in vault | absent — same false record | ✅ vaulted, 264 chars |
 | `GOOGLE_ADS_LOGIN_CUSTOMER_ID` in Vercel | **absent entirely** | ✅ `7110225227`, deployed |
-| `API_VERSION = "v18"` | **sunset by Google** | ✅ `v26`, one exported constant |
+| `API_VERSION = "v18"` | **sunset by Google** | ✅ `v25`, measured not guessed |
 | arX's `ad_platform_accounts` row | absent | ⏳ the only step left |
 
 **The first three are portfolio-level**, so arX was never the variable: the
@@ -35,11 +35,29 @@ exported `API_VERSION` in `lib/googleAds.ts`, with a test that fails if a
 fourth copy appears — verified to fail by reintroducing one.
 
 ⚠️ **This will happen again, on a calendar.** Versions sunset roughly yearly.
-The check now diagnoses it by name (`failed_at: "api_version_sunset"`) instead
-of surfacing HTML, and reports `api_version` on every answer. **Live versions
-are found by probing unauthenticated — no credentials needed:** a live version
-answers JSON `UNAUTHENTICATED`, a dead one answers HTML 404. On 2026-08-18,
-v22–v26 were live and v14–v21 were gone.
+The check diagnoses it by name and reports `api_version` on every answer.
+
+⚠️ **Do not determine the version by probing unauthenticated — it does not
+work, and we got it wrong doing exactly that.** googleapis.com checks the
+*method name* globally and dispatches the *version* only after auth, so an
+unauthenticated 401 says "searchStream is a real method", not "this version
+serves". By that method v26 read as live; authenticated it answers **"Method
+not found."** `google-ads-check` now sweeps every candidate with the same
+**authenticated** call and reports what each said. Measured 2026-08-18:
+
+| Version | Answer |
+|---|---|
+| v26 | `404 Method not found` — routed, not serving |
+| **v22–v25** | **200 OK** |
+| v19–v21 | `404 HTML` — gone |
+
+**A version can exist in the route table before it serves, so the newest number
+is not automatically the right one.** v25 is the newest that answers.
+
+✅ **The Explorer-tier developer token is not the blocker.** A 200 here is a
+real API call against a live production account, so Explorer serves live data
+today. The Basic upgrade governs daily *volume*, which is what #58 argued and
+what this file claimed otherwise for four weeks.
 
 **Two tests were complicit.** `googleAds.test.ts` asserted the URL contained
 the literal `"v18"`, so it kept passing after the sunset — confirming the client
