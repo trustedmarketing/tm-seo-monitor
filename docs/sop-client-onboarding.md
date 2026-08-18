@@ -273,11 +273,17 @@ that stops it, the limit is decoration.
 Per the accuracy gate in `CLAUDE.md`, **no module is client-visible until it has
 run two full collection cycles parallel-checked against the platform's own UI.**
 
-Trigger a collection rather than waiting a day:
+Trigger a collection rather than waiting a day: **Vercel → project
+`trusted-marketing-seo` → Settings → Cron Jobs → the `/api/cron/collect` entry
+(`0 10 * * *`) → Run.**
 
-```
-curl -H "Authorization: Bearer $CRON_SECRET" https://seo.trustedmarketing.com/api/cron/collect
-```
+> ⚠️ **`CRON_SECRET` is a Vercel *Sensitive* variable, so its value cannot be
+> read back** — not in the dashboard, not via `vercel env pull`. The route
+> requires `Authorization: Bearer $CRON_SECRET` exactly, with no fallback
+> (`api/cron/collect/route.ts:66`), so **there is no working curl trigger**.
+> Vercel's Run button injects the header itself, which is why it works.
+> Rotating the variable to a non-sensitive value is the only way to get a
+> curl-able trigger back, and costs a redeploy.
 
 Then check:
 
