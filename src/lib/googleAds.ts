@@ -21,6 +21,17 @@ import { mockApis, readFixture } from "@/lib/apiMock";
 // meant finding all three. api/ops/google-ads-check names this failure mode
 // explicitly rather than surfacing the HTML.
 export const API_VERSION = "v26";
+
+// Candidate versions for api/ops/google-ads-check's sweep, newest first.
+//
+// Why a sweep and not a probe: an *unauthenticated* request cannot tell you
+// which versions actually serve. googleapis.com answers a known method name
+// with 401 before dispatching, and an unknown one with an HTML 404 — so the
+// method name is checked globally while the version is not. v18 read as "dead"
+// and v26 as "live" from outside; authenticated, v26 answered "Method not
+// found." Only a credentialed call settles it, so the check makes one per
+// candidate and reports what each said.
+export const CANDIDATE_API_VERSIONS = ["v26", "v25", "v24", "v23", "v22", "v21", "v20", "v19"] as const;
 const API_BASE = "https://googleads.googleapis.com";
 
 // Auth bundle fetchAdMetrics needs: a minted OAuth accessToken plus the
