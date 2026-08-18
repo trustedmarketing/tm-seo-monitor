@@ -3,7 +3,66 @@
 _Last updated: 2026-08-19_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
 
-### Daily collection was still being killed at 300s — now split into 4 shards (2026-08-19) — 🔧 IN PR, NOT YET VERIFIED IN PRODUCTION
+> ## ⏭️ PICK UP HERE — 2026-08-19, end of day
+>
+> **Collection sharding is merged and deployed** (#64, `dpl_2do2AgNVGiWxL1EwsRwUoHZSmwgT`),
+> and the four crons are registered with their query strings intact — checked with
+> `vercel crons ls`, not assumed. **The next thing to happen is 2026-08-20 at
+> 10:00–10:18 UTC**, and it needs nobody: four 200s, four `collect_pass` rows, and
+> silence in Slack means the day completed. An alert names the shard that died.
+>
+> **Manual steps still open, in this order:**
+>
+> **1. Delete arX's stale zero-spend rows** (Supabase SQL Editor). Written before
+> #62, they carry `ad_id = null`, and the upsert key is
+> `(client_id, platform, date, ad_id)` — so corrected rows **insert alongside**
+> them rather than replace them. Narrowed to the stale rows only, because
+> 2026-08-19's truncated pass may have written good ones:
+>
+> ```sql
+> delete from ad_metrics_daily
+> where client_id = '09108277-59a8-4a28-a93d-572452a623eb'
+>   and platform = 'google_ads'
+>   and ad_id is null;
+> ```
+>
+> **2. Re-collect arX alone** — `/api/cron/collect?client=09108277-59a8-4a28-a93d-572452a623eb&force=1`
+> via Vercel → Cron Jobs → Run. No curl: `CRON_SECRET` is a Vercel *Sensitive*
+> variable. `?client=` exists so this no longer needs a whole portfolio pass.
+>
+> **Then verify:** `/api/ops/google-ads-check?domain=arxdisplay.com` shows
+> `last_run.status = "success"` with a non-null `rows_written`, and
+> `/dashboard/09108277-59a8-4a28-a93d-572452a623eb/paid` shows a dollar figure on
+> the GOOGLE tile instead of "not connected" (`connected` is literally
+> `spend > 0`). A 28-day pull on a ~2-week-old account covers its whole life, so
+> the total should reconcile closely against Ads Manager — a one-time check that
+> expires once the account passes 28 days.
+>
+> **3. Audit the per-client Slack fan-out.** The daily brief posts per client to
+> `clients.slack_webhook_url` where set, and that column does not record whether a
+> destination is internal or one a client can see. Growth OS is internal-only by
+> decision (2026-08-19), so this is the one path that could contradict it:
+>
+> ```sql
+> select name, slack_webhook_url is not null as posts_to_slack
+> from clients where slack_webhook_url is not null;
+> ```
+>
+> **4. Remove `MOCK_APIS` from Production scope** in Vercel. It is almost certainly
+> `0` — a mocked pass reads local JSON and cannot be what took 300 seconds — but
+> set to `1` by accident, every collector writes fixture data that inserts cleanly
+> and reports success. Same failure class as 49 rows of $0 spend. Preview is where
+> it belongs.
+>
+> **5. Chase GBP API access.** Submitted 27 July, response expected around
+> 10 August. Nine days overdue; pure calendar latency, same class as the Google
+> Ads token that cost four weeks.
+>
+> **Still open, not blocking:** no `meta-check` endpoint exists; call tracking
+> (plan §10 decision 0) is unresolved and MER is permanently uncomputable for arX;
+> Klaviyo/Brevo is unscoped (collector vs execution adapter — undecided).
+
+### Daily collection was still being killed at 300s — now split into 4 shards (2026-08-19) — ✅ MERGED (#64) + DEPLOYED, ⏳ FIRST SHARDED MORNING IS 2026-08-20
 
 **#57 did not clear the ceiling.** It shipped client concurrency 4 at 17:57 on
 2026-08-18; the cron runs once a day, so **2026-08-19 at 10:00 UTC was the first
@@ -23,8 +82,27 @@ partway. The portfolio-wide tail — token expiry, change measurement, staleness
 SLA, heartbeat — runs on the **last shard only**; a heartbeat ping from shard 1
 of 4 would spend the silence that is supposed to mean trouble.
 
-⚠️ **Not yet verified in production.** Green in CI is where #57 also was. The
-proof is four 200s and a completed pass on the first sharded morning, watched.
+✅ **The four crons are registered, verified rather than assumed.** A cron path
+carrying a query string is not something the docs promise — they parameterize
+crons with *path segments* — and if Vercel had stripped it, all four would have
+become the same unsharded call: four full passes a day, each dying at 300s, at
+four times the DataForSEO cost. `vercel crons ls` says otherwise:
+
+    /api/cron/collect?shard=0&of=4     0 10 * * *
+    /api/cron/collect?shard=1&of=4     6 10 * * *
+    /api/cron/collect?shard=2&of=4    12 10 * * *
+    /api/cron/collect?shard=3&of=4    18 10 * * *
+    /api/cron/daily-brief             30 10 * * *
+
+⚠️ **Still not verified in production.** Green CI is where #57 also was, and
+registered crons only prove they will fire. The proof is four 200s and four
+`collect_pass` rows on 2026-08-20.
+
+**A completed pass now records itself, because a killed one records nothing.**
+Each shard writes a `collect_pass` row on reaching the end; the last shard counts
+them and Slacks which numbers are missing. Absence is the signal — that is the
+whole reason two days of truncation went unseen. A `?client=` repair records
+under `collect_repair` so it cannot make an incomplete day look whole.
 
 ⚠️ **Staggering is load-bearing, not cosmetic.** Each client fans out to 8
 concurrent SERP and 6 AEO calls against a shared DataForSEO rate limit, and
@@ -47,7 +125,7 @@ Then `/api/cron/collect?client=09108277-59a8-4a28-a93d-572452a623eb&force=1`.
 `ad_id` is never null under the corrected mapper, so that `where` clause selects
 exactly the pre-#62 rows and cannot take a good one with it.
 
-### Google Ads collected 49 rows of $0 — camelCase vs snake_case (2026-08-18) — 🔧 FIX IN PR, STALE ROWS NEED CLEARING
+### Google Ads collected 49 rows of $0 — camelCase vs snake_case (2026-08-18) — ✅ MERGED (#62), ⏳ STALE ROWS NOT YET CLEARED
 
 arX Display's first successful Google collection wrote **49 rows with real
 impressions and $0 spend**. The Paid tab read that as `not connected`, because
@@ -88,7 +166,7 @@ alongside. Delete arX's `google_ads` rows, then re-collect.
 in `google-ads-check` hit it this morning and was written to accept both
 casings; nobody checked the collector, which had the same defect in five fields.
 
-### Google Ads: four blockers, not one — three credentials and a sunset API (2026-08-18) — 🔧 CREDENTIALS DONE, ROW PENDING
+### Google Ads: five blockers, not one (2026-08-18) — ✅ ALL CLOSED, CONNECTION VERIFIED
 
 Finishing arX Display's Google Ads connection found a **portfolio-level**
 problem wearing a client-level costume, then a second one underneath it.
