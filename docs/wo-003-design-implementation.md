@@ -301,7 +301,19 @@ Depends on: C.
 
 ## Wave 4 — Client portal v1, one pilot client
 
-⛔ **Blocked until Stream A merges.** Limited to modules with verified data —
+🛑 **DEFERRED by decision, 2026-08-19.** No client logins yet. Growth OS stays
+internal-only until Tom says otherwise, so Streams J/K/L are off the near-term
+plan — not cancelled, and not blocked by anything technical either. Stream A
+(the old hard gate) merged as migration `012_auth_tenancy_rls`; the auth, RLS,
+`client_users` linkage and middleware routing are all in place and tested. The
+portal is a product decision away, not a build away.
+
+Until then `/app/portal/page.tsx` stays the honest holding page it is: it exists
+so that a client account, if one were ever created, lands somewhere truthful
+instead of a 404. Creating a client account is what opens this door — nothing
+else does.
+
+~~⛔ Blocked until Stream A merges.~~ Limited to modules with verified data —
 Home, Playbook, Organic, Results. No GBP, no LinkedIn, no Google rows.
 
 ### Stream J · `module/portal-shell` — auth'd shell, Home, Playbook
@@ -372,10 +384,14 @@ flow and token refresh, which is a day or two the current estimate doesn't carry
    is not gated by the call-tracking decision. Wave 4 Stream J builds its headline
    as Revenue · Spend · MER · Orders, not the design's Calls / Cost-per-job row —
    **that row is the local-service variant and is deferred, not cancelled.**
-2. **Punch list #10** — signed expiring link, or cut "Share this page" from v1?
+2. ⏸️ **Punch list #10** — signed expiring link, or cut "Share this page" from v1?
+   *Moot while Wave 4 is deferred (2026-08-19). Re-open with the wave.*
 3. ✅ **Screenshot service → vendor** (Browserless or ScreenshotOne) for v1, CTO call
    2026-07-27. Self-hosting Playwright means owning browser infrastructure for a
    few dollars a month of saving. Revisit only if per-shot cost becomes material.
-4. **Portal entitlement** — Dominate + Momentum only? (ties to the open pricing decision)
-5. **Individual client logins vs one shared per account** — individual is better
+4. ⏸️ **Portal entitlement** — Dominate + Momentum only? (ties to the open pricing decision)
+   *Moot while Wave 4 is deferred (2026-08-19). Re-open with the wave.*
+5. ✅ **Individual client logins vs one shared per account** — **neither, for now.**
+   No client logins at all (decided 2026-08-19). The question returns unchanged
+   when the portal does.
    audit, more support burden.
