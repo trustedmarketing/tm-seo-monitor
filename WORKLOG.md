@@ -5,6 +5,65 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-19 · Session 8b · Two decisions, and an audit doc that was half wrong
+
+A handoff audit (`growth-os-handoff.md`, prepared outside the repo) landed with a
+six-step build plan. Checked its claims against `main` before acting on any of
+them. Roughly half of its "confirmed gaps" section describes work that shipped.
+
+### What it got wrong, verified
+
+| Claim | Reality |
+|---|---|
+| Paid controls "stubbed, marked SOON", check unmerged `module/paid-dashboard` | Built and merged. That branch and `module/paid-controls` are both **0 ahead of main, 65 behind**. |
+| QC panel "stubbed, marked SOON" | Built — `dashboard/[id]/qc/page.tsx`, 243 lines. |
+| "marked SOON in nav" | The string `SOON` appears **nowhere** in `src/`. |
+| "No live-edit execution path" for WordPress/Shopify | Both adapters exist with staging models and capability detection. Its "build last, highest risk" step is done. |
+| "`jobs` — the execution backbone" | Dormant. `lib/jobs.ts` is imported by nothing. The cron route is the backbone. |
+| "Daily brief delivery not confirmed" | Confirmed: `10:31:26 GET /api/cron/daily-brief 200` today. |
+
+**Why it went wrong is the reusable part:** there are **26 fully-merged branches
+still on the remote**. An audit reading branch names concluded work was pending
+that had shipped. Deleting merged branches is cheap and stops the next reader
+making the same inference.
+
+Its two genuine gaps hold up: **Klaviyo/Brevo** (zero references in `src` or
+`supabase`) and **GBP execution** (holding page only — and its own note says
+access was submitted 27 July with a response expected around 10 August, so that
+is **nine days overdue** and worth chasing).
+
+### Two decisions from Tom
+
+1. **No client logins. Growth OS stays internal-only.** Wave 4 (portal Streams
+   J/K/L) is deferred by decision, not blocked by anything technical — Stream A
+   landed as migration `012_auth_tenancy_rls` and the auth/RLS/`client_users`
+   plumbing is in place and tested. Recorded in `wo-003-design-implementation.md`;
+   its open questions 2 and 4 are moot for now, 5 is answered.
+2. **Daily brief: one recipient, Tom's address.** No per-client AM routing.
+
+**Neither needed a code change.** `BRIEF_EMAIL_TO` is unset in Vercel (confirmed
+via `vercel env ls production`), so the code default `thomas@trustedmarketing.com`
+already applies, and `/portal` is already a holding page that only becomes
+reachable if a client account is created. Documented rather than built, because
+the risk with a deliberate default is a future session "fixing" it.
+
+### One thing that could contradict "internal only"
+
+The brief also posts **per client** to `clients.slack_webhook_url` where set
+(`046_client_slack_webhook.sql`). The column does not record whether a
+destination is an internal pod channel or one a client can see, and that
+difference is the whole decision. Not checkable from the repo — needs one query,
+which is in the README's new brief section. **Escalated, not assumed.**
+
+### Also found: `MOCK_APIS` is scoped to Production
+
+`vercel env ls production` lists `MOCK_APIS` under **Production, Preview**. It is
+almost certainly `0` — `mockApis()` tests `=== "1"`, and a mocked pass reads
+local JSON, which cannot be the thing that took 300 seconds this morning. But it
+is a loaded gun in the wrong room: set it to `1` by accident and every collector
+writes fixture data that inserts cleanly, reports success, and looks plausible.
+Same failure class as 49 rows of $0 spend. Recommend removing it from Production
+scope entirely; Preview is where it belongs.
 ## 2026-08-19 · Session 8 · The concurrency fix did not clear the ceiling
 
 Picked the thread back up at the two manual steps in #63 and checked the one

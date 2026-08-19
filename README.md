@@ -297,6 +297,32 @@ across several portfolio sizes — the property that every active client is
 collected exactly once per day is not observable from a function that dies
 partway, so it is checked where it can be.
 
+### Daily brief — who it goes to (`src/app/api/cron/daily-brief/route.ts`)
+
+Runs at 10:30 UTC, after collection. Builds each client's wins / losses /
+opportunities purely by reading already-collected rows, and deliberately never
+recalculates anything, so it cannot disagree with the dashboard.
+
+**One consolidated email, one recipient, internal.** `BRIEF_EMAIL_TO` is
+**deliberately unset** in Vercel so the code default applies:
+`thomas@trustedmarketing.com`. Decided 2026-08-19 — no per-client account-manager
+routing, no client recipients. Growth OS is internal-only, and the brief carries
+every client's revenue and spend figures in one message, so a second recipient is
+a disclosure decision rather than a config change. Setting `BRIEF_EMAIL_TO` in
+Vercel silently overrides the default; leave it unset.
+
+⚠️ **The per-client Slack fan-out is the exception, and it is opt-in per row.**
+Any client with `clients.slack_webhook_url` set also gets that client's brief
+posted to that webhook (`046_client_slack_webhook.sql`). The column does not say
+whether the destination is an internal pod channel or a channel a client can see,
+and the difference is the whole internal-only decision. Audit it before assuming
+the brief is internal:
+
+```sql
+select name, slack_webhook_url is not null as posts_to_slack
+from clients where slack_webhook_url is not null;
+```
+
 ### Alerting channels (`src/lib/notify.ts`)
 
 Accuracy alerts (revenue mismatch, stale data) go through `notify()`, which
