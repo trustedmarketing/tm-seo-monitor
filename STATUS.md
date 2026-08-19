@@ -1,7 +1,51 @@
 # Growth OS — STATUS
 
-_Last updated: 2026-08-18_
+_Last updated: 2026-08-19_
 _Location note: this file and `WORKLOG.md` live at the **repo root**, not in `docs/`. See `CLAUDE.md`._
+
+### Daily collection was still being killed at 300s — now split into 4 shards (2026-08-19) — 🔧 IN PR, NOT YET VERIFIED IN PRODUCTION
+
+**#57 did not clear the ceiling.** It shipped client concurrency 4 at 17:57 on
+2026-08-18; the cron runs once a day, so **2026-08-19 at 10:00 UTC was the first
+scheduled pass to exercise it**, on `dpl_D71iXU8...` (production `main`, carrying
+everything through #62). It returned **504, killed at 300 seconds.**
+
+⚠️ **arX's Google Ads rows are therefore in an unknown state** — the pass was
+truncated and nothing records "I was killed", so whether it reached arX before
+dying is not knowable from the data.
+
+**The pass is now four staggered cron invocations** (10:00 / 10:06 / 10:12 /
+10:18 UTC) via `?shard=N&of=M`, plus `?client=<uuid>` to re-collect a single
+client after a fix. Partition logic is a pure module (`lib/collectScope.ts`) with
+tests **verified to fail against a broken split**, because "every active client
+collected exactly once a day" cannot be observed from a function that dies
+partway. The portfolio-wide tail — token expiry, change measurement, staleness,
+SLA, heartbeat — runs on the **last shard only**; a heartbeat ping from shard 1
+of 4 would spend the silence that is supposed to mean trouble.
+
+⚠️ **Not yet verified in production.** Green in CI is where #57 also was. The
+proof is four 200s and a completed pass on the first sharded morning, watched.
+
+⚠️ **Staggering is load-bearing, not cosmetic.** Each client fans out to 8
+concurrent SERP and 6 AEO calls against a shared DataForSEO rate limit, and
+in-shard concurrency multiplies against that. If shard durations grow past the
+6-minute gap, widen the gap before widening the shard count — the daily brief at
+10:30 is the wall.
+
+**arX's two manual steps, revised.** `?client=` means the repair no longer needs
+a portfolio pass, and the delete should now be narrowed because today's truncated
+pass may have written good rows:
+
+```sql
+delete from ad_metrics_daily
+where client_id = '09108277-59a8-4a28-a93d-572452a623eb'
+  and platform = 'google_ads'
+  and ad_id is null;
+```
+
+Then `/api/cron/collect?client=09108277-59a8-4a28-a93d-572452a623eb&force=1`.
+`ad_id` is never null under the corrected mapper, so that `where` clause selects
+exactly the pre-#62 rows and cannot take a good one with it.
 
 ### Google Ads collected 49 rows of $0 — camelCase vs snake_case (2026-08-18) — 🔧 FIX IN PR, STALE ROWS NEED CLEARING
 

@@ -5,6 +5,104 @@ Lives at the **repo root** alongside `STATUS.md` (see `CLAUDE.md`).
 
 ---
 
+## 2026-08-19 · Session 8 · The concurrency fix did not clear the ceiling
+
+Picked the thread back up at the two manual steps in #63 and checked the one
+thing the handoff assumed rather than measured: that a re-collect would run.
+
+### Today's scheduled pass was killed at 300 seconds
+
+    10:00:37 GET /api/cron/collect 504 [error/serverless]
+    dep=dpl_D71iXU8stRmi4bJXfBvXtJ286BRj branch=main
+    Vercel Runtime Timeout Error: Task timed out after 300 seconds
+
+`dpl_D71iXU8...` is the production deployment carrying #57 (client concurrency
+4) and everything through #62. **#57 merged at 17:57 on 2026-08-18 and the cron
+runs once a day, so today at 10:00 UTC was the first scheduled pass to actually
+exercise it.** It still overran. The fix was reasoned about and shipped; it was
+never watched doing the thing it was for — same shape as the `v18` test that
+asserted its own literal and the vault entry that recorded rather than read.
+
+Two consequences worth naming:
+
+- **arX's Google Ads rows are in an unknown state.** The pass was truncated, so
+  whether it reached arX before it died is not knowable from the data. Nothing
+  records "I was killed".
+- **"Re-run collection" was not a reliable recovery step**, which is what #63's
+  step 2 asked for.
+
+### The split
+
+`?shard=N&of=M` on the collect route, four staggered crons (10:00 / 10:06 /
+10:12 / 10:18 UTC), and `?client=<uuid>` for re-collecting one client after a
+fix. The partition logic is a pure module (`lib/collectScope.ts`) rather than
+inline in the route, because the property that matters — every active client
+collected exactly once a day — cannot be observed from a function that dies
+partway, so it is asserted in tests instead. **The partition tests were verified
+to fail against a broken split** (three of them, naming the right sizes).
+
+The portfolio-wide tail runs on the **last shard only**: token expiry, change
+measurement, staleness, SLA, heartbeat. The heartbeat matters most — it is a
+dead-man's switch meaning "the pass got all the way here", so a ping from shard
+1 of 4 would spend the silence that is supposed to mean trouble. A single-client
+re-collect never runs the tail: it is a repair, not a pass, and must not fire
+staleness alerts about eighteen clients it never looked at.
+
+Staggered rather than simultaneous because each client already fans out to 8
+concurrent SERP calls and 6 AEO calls against a shared DataForSEO rate limit,
+and in-shard client concurrency multiplies against that. Four shards at once
+would quadruple the load that #57 was already trying to bound.
+
+**Green:** 644 unit tests, `tsc --noEmit` clean, `next build` clean.
+
+### Then: a killed shard still left no trace
+
+Sharding shrinks the blast radius but does not fix the thing that made this cost
+two days — **a pass killed at the ceiling writes nothing.** No error row, no
+partial marker. The clients it owned keep yesterday's rows and look untouched,
+and both the dashboard and the daily brief report a normal morning over a
+portfolio that was only partly collected.
+
+So completion is now recorded positively and **absence is the signal**: each
+shard writes a `collect_pass` row on reaching the end, and the last shard counts
+them and Slacks which numbers are missing. A `?client=` repair records under
+`collect_repair` so it can never make an incomplete day look whole, and rows
+carrying a different shard count are ignored — otherwise yesterday's schedule
+could mark today complete, which is the same "a record is not a check" mistake
+in a new costume. That last rule is the one the tests were verified to catch.
+
+This also makes tomorrow's watched morning self-reporting: silence in Slack plus
+four `collect_pass` rows is the proof, rather than reading Vercel logs by hand.
+
+### Still Tom's, and now in a better order
+
+`?client=` means arX can be repaired without a portfolio pass. Revised order:
+
+1. Delete the stale rows — **only the stale ones**, since today's truncated pass
+   may have written good ones:
+
+       delete from ad_metrics_daily
+       where client_id = '09108277-59a8-4a28-a93d-572452a623eb'
+         and platform = 'google_ads'
+         and ad_id is null;
+
+   `ad_id` is never null under the corrected mapper, so that selects exactly the
+   pre-#62 rows and cannot take a good one with it.
+2. `/api/cron/collect?client=09108277-59a8-4a28-a93d-572452a623eb&force=1`
+   (Vercel → Cron Jobs → Run; `CRON_SECRET` is Sensitive so there is no curl).
+3. Verify: `/api/ops/google-ads-check?domain=arxdisplay.com` shows `last_run`
+   success with a non-null `rows_written`, and the Paid tab's GOOGLE tile shows
+   a dollar figure instead of "not connected" (`connected` is literally
+   `spend > 0`).
+
+### Note on #63
+
+It is still open and doc-only. It rewrites the top of STATUS.md, and so does
+this session, so whichever lands second needs a one-line conflict resolution
+(keep both blocks). Merge #63 first.
+
+---
+
 ## 2026-08-18 · Session 7d · 49 rows, $0 spend, and the same casing bug for the third time
 
 Google Ads collected successfully for arX — `success`, `rows_written: 49`,
