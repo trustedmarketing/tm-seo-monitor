@@ -1,8 +1,20 @@
 {
   "crons": [
     {
-      "path": "/api/cron/collect",
+      "path": "/api/cron/collect?shard=0&of=4",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/collect?shard=1&of=4",
+      "schedule": "6 10 * * *"
+    },
+    {
+      "path": "/api/cron/collect?shard=2&of=4",
+      "schedule": "12 10 * * *"
+    },
+    {
+      "path": "/api/cron/collect?shard=3&of=4",
+      "schedule": "18 10 * * *"
     },
     {
       "path": "/api/cron/daily-brief",

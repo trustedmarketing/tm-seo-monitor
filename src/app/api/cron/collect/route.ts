@@ -2,6 +2,10 @@
 // Runs daily via Vercel cron. Collects only what's due, per client.
 // Every module records a collector_runs row (Phase A.5 observability); failures
 // are recorded (not thrown) and pushed to Slack at the end.
+//
+// The portfolio is SPLIT ACROSS SEVERAL INVOCATIONS (?shard=N&of=M) rather than
+// collected by one function. See lib/collectScope.ts for why and vercel.json for
+// the schedule. ?client=<uuid> collects one client, for re-collection after a fix.
 
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -33,6 +37,7 @@ import { syncApprovedRecs } from "@/lib/clickupSync";
 import { checkTokenExpiry } from "@/lib/tokenExpiry";
 import { findBreaches, reportBreaches } from "@/lib/slaEscalation";
 import { collectOrganicQueries } from "@/lib/organicCollector";
+import { CollectScopeError, describeScope, parseScope, planCollection } from "@/lib/collectScope";
 
 export const maxDuration = 300;
 
@@ -67,12 +72,26 @@ export async function GET(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  const params = new URL(req.url).searchParams;
   // ?force=1 on a manual trigger ignores frequency schedules and collects everything now.
-  const force = new URL(req.url).searchParams.get("force") === "1";
+  const force = params.get("force") === "1";
 
   const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
   const { data: clients, error } = await db.from("clients").select("*").eq("active", true);
   if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  // Which clients does this invocation own, and does it run the portfolio-wide
+  // tail? A bad ?shard is a 400 rather than a silent full pass — four full
+  // passes a day is what a typo here would otherwise buy.
+  let plan;
+  try {
+    plan = planCollection(clients ?? [], parseScope(params));
+  } catch (e) {
+    if (e instanceof CollectScopeError) return Response.json({ error: e.message }, { status: 400 });
+    throw e;
+  }
+  const scope = describeScope(plan.scope);
+  console.log(`[collect] ${scope} — ${plan.selected.length} of ${(clients ?? []).length} active client(s)`);
 
   const report: Record<string, string[]> = {};
   const failures: CollectorFailure[] = [];
@@ -93,7 +112,7 @@ export async function GET(req: Request) {
   //
   // 4, not more: each client already fans out internally (8 for SERP, 6 for AEO),
   // so this multiplies against those against a shared DataForSEO rate limit.
-  await mapLimit(clients ?? [], 4, async (c) => {
+  await mapLimit(plan.selected, 4, async (c) => {
     const done: string[] = [];
     const snapshot: Record<string, unknown> = { client_id: c.id };
     let hasData = false;
@@ -458,7 +477,7 @@ export async function GET(req: Request) {
   try {
     const { checkApprovals } = await import("@/lib/postflowApproval");
     const { notify } = await import("@/lib/notify");
-    for (const c of (clients ?? []) as { id: string; name: string; postflow_group_id: string | null }[]) {
+    for (const c of plan.selected as { id: string; name: string; postflow_group_id: string | null }[]) {
       const r = await checkApprovals(db, c);
       if (r.newlyDeclined.length) {
         await notify({
@@ -473,14 +492,21 @@ export async function GET(req: Request) {
     failures.push({ client: "portfolio", module: "approvals", error: (e as Error).message });
   }
 
-  // ── Portfolio-wide: proactive token-expiry sweep (self-records) ──
-  await checkTokenExpiry(db);
-
-  // measure any changes whose 28-day post window has completed
-  let measured = 0;
-  try { measured = await measureChanges(db); } catch { /* non-fatal */ }
-
+  // ── Portfolio-wide tail ───────────────────────────────────────
+  // Runs on the LAST shard only (or an unsharded pass), never on a
+  // single-client re-collect. These read the whole portfolio, so running them
+  // in every shard would be four duplicate sweeps a day — and the heartbeat at
+  // the bottom would report health from shard 0 while shard 3 was being killed.
   const ranAt = new Date().toISOString();
+  let measured = 0;
+
+  if (plan.isFinalPass) {
+    // proactive token-expiry sweep (self-records)
+    await checkTokenExpiry(db);
+
+    // measure any changes whose 28-day post window has completed
+    try { measured = await measureChanges(db); } catch { /* non-fatal */ }
+  }
   // surface any module failures to the ops Slack channel (no-op if none)
   await alertOnFailures(ranAt, failures);
   // surface any Shopify revenue disagreements (no-op if none)
@@ -488,24 +514,31 @@ export async function GET(req: Request) {
 
   // The quieter failure: collection ran, reported no errors, and still nothing
   // new landed. Never fatal — a freshness check must not sink the run it rides on.
+  // Deliberately over ALL active clients, not this shard's — a client that
+  // stopped producing data is a portfolio fact, and the shard that happens to
+  // own it is not.
   let staleSources = 0;
-  try {
-    const stale = await findStaleData(db, (clients ?? []) as { id: string; domain: string }[]);
-    staleSources = stale.length;
-    await alertOnStaleData(ranAt, stale);
-  } catch (e) {
-    console.error("[freshness] check failed:", (e as Error).message);
+  if (plan.isFinalPass) {
+    try {
+      const stale = await findStaleData(db, (clients ?? []) as { id: string; domain: string }[]);
+      staleSources = stale.length;
+      await alertOnStaleData(ranAt, stale);
+    } catch (e) {
+      console.error("[freshness] check failed:", (e as Error).message);
+    }
   }
 
   // Punch list #9: the SLA gets a consequence rather than a colour. Never fatal —
   // a queue-health check must not be able to fail the collection it rides on.
   let slaBreaches = 0;
-  try {
-    const breaches = await findBreaches();
-    slaBreaches = breaches.length;
-    await reportBreaches(breaches);
-  } catch (e) {
-    console.error("[sla] check failed:", (e as Error).message);
+  if (plan.isFinalPass) {
+    try {
+      const breaches = await findBreaches();
+      slaBreaches = breaches.length;
+      await reportBreaches(breaches);
+    } catch (e) {
+      console.error("[sla] check failed:", (e as Error).message);
+    }
   }
 
   // Dead-man's switch. Deliberately the LAST thing the run does: it means "the
@@ -513,16 +546,27 @@ export async function GET(req: Request) {
   // Everything above alerts from inside the cron and is therefore blind to the
   // cron not running at all — an external service watching for this ping is the
   // only thing that can see that.
-  const heartbeat = await pingHeartbeat();
+  //
+  // Only the last shard pings. The whole point of the switch is that silence
+  // means trouble, and a ping from a shard that is not the end of the day would
+  // spend that silence on a pass that had not finished.
+  const heartbeat = plan.isFinalPass ? await pingHeartbeat() : null;
 
   return Response.json({
     ran_at: ranAt,
+    scope,
+    clients_collected: plan.selected.length,
+    final_pass: plan.isFinalPass,
     measured_changes: measured,
     failures: failures.length,
     sla_breaches: slaBreaches,
     revenue_mismatches: revenueMismatches.length,
     stale_sources: staleSources,
-    heartbeat: heartbeat.configured ? (heartbeat.ok ? "ok" : `failed: ${heartbeat.error}`) : "not configured",
+    heartbeat: !heartbeat
+      ? "skipped (not the final pass)"
+      : heartbeat.configured
+        ? (heartbeat.ok ? "ok" : `failed: ${heartbeat.error}`)
+        : "not configured",
     report,
   });
 }

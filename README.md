@@ -12,7 +12,7 @@ src/lib/dataforseo.ts                  → API client + visibility calc
 src/app/api/cron/collect/route.ts      → daily cron, respects per-client frequency
 src/app/dashboard/page.tsx             → TM-branded dashboard (server component)
 src/styles/tm-tokens.css               → tokens trimmed from the design system
-vercel.json                            → cron schedule (10:00 UTC daily = 6am ET)
+vercel.json                            → cron schedule (4 collect shards from 10:00 UTC = 6am ET)
 preview/dashboard-preview.html         → static preview with mock data
 ```
 
@@ -230,6 +230,62 @@ It is a single global webhook and every alert in the system is internal ops
 (collector failures, critical QC issues, token expiry, SLA breaches, revenue
 mismatches). A client-channel webhook would deliver every other client's
 revenue and spend figures into that client's channel.
+
+### Sharded collection (`src/lib/collectScope.ts`)
+
+The daily pass is **split across four cron invocations**, not one. One function
+over the whole portfolio was killed at Vercel's 300s ceiling twice on
+2026-08-18, and again on 2026-08-19 at 10:00 UTC — after the concurrency fix
+(#57) was live, which is what settled that concurrency alone does not clear it.
+
+Fixing collectors is what made the pass slow, and that is worth stating plainly:
+a collector failing on a 401 returns in milliseconds; one that succeeds goes and
+does the work. The portfolio had been finishing inside the limit because most of
+it was failing fast.
+
+**A truncated pass is invisible in the data.** Nothing records "I was killed",
+so the clients at the tail keep yesterday's rows and look untouched — no error,
+no gap, no alert. That is the failure mode this removes.
+
+| Query | What it collects |
+|---|---|
+| *(none)* | every active client — the old behaviour, still the default |
+| `?shard=N&of=M` | clients where position % M === N |
+| `?client=<uuid>` | one client, for re-collection after a fix |
+| `?force=1` | ignore per-client frequency schedules (combines with the above) |
+
+Shards partition by **position** in the active-client list, not by a hash of the
+id: position is stable across the shards of one day's run, and unlike a hash it
+cannot deal one shard nine clients and another two. Which shard owns which
+client changes when a client is onboarded; nothing depends on that being stable
+across days.
+
+**The portfolio-wide tail runs on the last shard only** — token-expiry sweep,
+change measurement, staleness check, SLA breaches, heartbeat. The heartbeat
+especially: it is a dead-man's switch meaning "the pass got all the way here",
+so a ping from shard 1 of 4 would spend the silence that is supposed to mean
+trouble. A single-client re-collect never runs the tail — it is a repair, not a
+pass, and must not fire staleness alerts about the clients it never looked at.
+
+**The schedule is staggered, not simultaneous** (10:00, 10:06, 10:12, 10:18
+UTC). Each client already fans out internally — 8 concurrent for SERP, 6 for
+AEO — against a shared DataForSEO rate limit, and the in-shard client
+concurrency of 4 multiplies against that. Four shards firing at once would
+quadruple it. If shard durations ever grow past the 6-minute gap, widen the
+gap before widening the shard count; the daily brief at 10:30 is the wall.
+
+**Re-collecting one client** (the reason `?client=` exists) — after fixing a
+collector, this rewrites that client's rows in seconds instead of waiting for,
+or triggering, a whole portfolio pass:
+
+```
+/api/cron/collect?client=09108277-59a8-4a28-a93d-572452a623eb&force=1
+```
+
+`tests/unit/collectScope.test.ts` asserts the partition is complete and disjoint
+across several portfolio sizes — the property that every active client is
+collected exactly once per day is not observable from a function that dies
+partway, so it is checked where it can be.
 
 ### Alerting channels (`src/lib/notify.ts`)
 
