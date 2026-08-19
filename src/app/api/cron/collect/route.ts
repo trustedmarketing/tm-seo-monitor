@@ -38,6 +38,7 @@ import { checkTokenExpiry } from "@/lib/tokenExpiry";
 import { findBreaches, reportBreaches } from "@/lib/slaEscalation";
 import { collectOrganicQueries } from "@/lib/organicCollector";
 import { CollectScopeError, describeScope, parseScope, planCollection } from "@/lib/collectScope";
+import { missingShards } from "@/lib/collectorHealth";
 
 export const maxDuration = 300;
 
@@ -93,6 +94,7 @@ export async function GET(req: Request) {
   const scope = describeScope(plan.scope);
   console.log(`[collect] ${scope} — ${plan.selected.length} of ${(clients ?? []).length} active client(s)`);
 
+  const passStarted = Date.now();
   const report: Record<string, string[]> = {};
   const failures: CollectorFailure[] = [];
   const revenueMismatches: RevenueMismatch[] = [];
@@ -541,6 +543,44 @@ export async function GET(req: Request) {
     }
   }
 
+  // ── Record that this pass COMPLETED ───────────────────────────
+  // A shard killed at the 300s ceiling writes nothing at all: no error row, no
+  // partial marker, just clients that keep yesterday's rows and look untouched.
+  // That is how two days of truncated passes stayed invisible while the
+  // dashboard and the brief both reported a normal morning. So completion is
+  // recorded positively, and absence is the signal.
+  //
+  // A single-client re-collect records under a different module name — it is a
+  // repair, and counting it as a shard would make an incomplete day look whole.
+  await recordRun(db, plan.scope.kind === "client" ? "collect_repair" : "collect_pass", null, {
+    status: "success",
+    // Machine-readable head, human-readable tail. missingShards() parses the
+    // head; anyone reading collector_runs reads the whole line.
+    detail: `${scope} — ${plan.selected.length} client(s), ${failures.length} failure(s)`,
+    rows_written: plan.selected.length,
+    duration_ms: Date.now() - passStarted,
+  });
+
+  // The last shard audits the day. It runs after its own row is written, so it
+  // counts itself.
+  let incomplete: number[] = [];
+  if (plan.isFinalPass && plan.scope.kind === "shard") {
+    const of = plan.scope.of;
+    const { data: passes } = await db
+      .from("collector_runs")
+      .select("detail")
+      .eq("module", "collect_pass")
+      .gte("started_at", new Date(Date.now() - 12 * 3_600_000).toISOString());
+    incomplete = missingShards((passes ?? []).map((r: { detail: string | null }) => r.detail), of);
+    if (incomplete.length) {
+      await slackAlert(
+        `:rotating_light: *Growth OS collection incomplete* — shard(s) ${incomplete.join(", ")} of ${of} ` +
+        `never finished. The clients they own kept yesterday's data. ` +
+        `Check Vercel cron logs for a 504 at the 300s ceiling.`
+      );
+    }
+  }
+
   // Dead-man's switch. Deliberately the LAST thing the run does: it means "the
   // cron got all the way here", so a run that dies partway never reports health.
   // Everything above alerts from inside the cron and is therefore blind to the
@@ -557,6 +597,7 @@ export async function GET(req: Request) {
     scope,
     clients_collected: plan.selected.length,
     final_pass: plan.isFinalPass,
+    incomplete_shards: incomplete.length ? incomplete : undefined,
     measured_changes: measured,
     failures: failures.length,
     sla_breaches: slaBreaches,

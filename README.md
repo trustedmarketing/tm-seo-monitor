@@ -274,6 +274,16 @@ concurrency of 4 multiplies against that. Four shards firing at once would
 quadruple it. If shard durations ever grow past the 6-minute gap, widen the
 gap before widening the shard count; the daily brief at 10:30 is the wall.
 
+**A completed pass is recorded; a killed one is not.** Each shard writes a
+`collect_pass` row to `collector_runs` when it reaches the end, and the last
+shard counts them and Slacks which numbers are missing. This exists because a
+shard killed at the ceiling writes *nothing* — no error row, no partial marker,
+just clients that keep yesterday's rows and look untouched. Two days of
+truncated passes stayed invisible that way while the dashboard and the daily
+brief both reported a normal morning. Absence is the signal, so it is checked
+rather than waited for. A `?client=` repair records under `collect_repair`
+instead, so it can never make an incomplete day look whole.
+
 **Re-collecting one client** (the reason `?client=` exists) — after fixing a
 collector, this rewrites that client's rows in seconds instead of waiting for,
 or triggering, a whole portfolio pass:

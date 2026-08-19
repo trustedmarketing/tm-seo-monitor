@@ -55,6 +55,25 @@ would quadruple the load that #57 was already trying to bound.
 
 **Green:** 644 unit tests, `tsc --noEmit` clean, `next build` clean.
 
+### Then: a killed shard still left no trace
+
+Sharding shrinks the blast radius but does not fix the thing that made this cost
+two days — **a pass killed at the ceiling writes nothing.** No error row, no
+partial marker. The clients it owned keep yesterday's rows and look untouched,
+and both the dashboard and the daily brief report a normal morning over a
+portfolio that was only partly collected.
+
+So completion is now recorded positively and **absence is the signal**: each
+shard writes a `collect_pass` row on reaching the end, and the last shard counts
+them and Slacks which numbers are missing. A `?client=` repair records under
+`collect_repair` so it can never make an incomplete day look whole, and rows
+carrying a different shard count are ignored — otherwise yesterday's schedule
+could mark today complete, which is the same "a record is not a check" mistake
+in a new costume. That last rule is the one the tests were verified to catch.
+
+This also makes tomorrow's watched morning self-reporting: silence in Slack plus
+four `collect_pass` rows is the proof, rather than reading Vercel logs by hand.
+
 ### Still Tom's, and now in a better order
 
 `?client=` means arX can be repaired without a portfolio pass. Revised order:

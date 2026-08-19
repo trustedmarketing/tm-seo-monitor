@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { failingModules, latestRunPerModule, shortError, type CollectorRunRow } from "@/lib/collectorHealth";
+import { failingModules, latestRunPerModule, shortError, type CollectorRunRow, missingShards } from "@/lib/collectorHealth";
 
 function run(o: Partial<CollectorRunRow> = {}): CollectorRunRow {
   return {
@@ -92,5 +92,41 @@ describe("shortError", () => {
     const out = shortError(long, 50);
     expect(out).toHaveLength(50);
     expect(out.endsWith("…")).toBe(true);
+  });
+});
+
+// A shard killed at the 300s ceiling writes nothing — no error row, no partial
+// marker. Completion is therefore recorded positively and absence is the
+// signal, so these assert that absence is read correctly.
+describe("missingShards", () => {
+  const row = (n: number, of: number) => `shard ${n}/${of} — 5 client(s), 0 failure(s)`;
+
+  it("reports nothing missing when every shard finished", () => {
+    expect(missingShards([row(1, 4), row(2, 4), row(3, 4), row(4, 4)], 4)).toEqual([]);
+  });
+
+  it("names the shard that died", () => {
+    expect(missingShards([row(1, 4), row(2, 4), row(4, 4)], 4)).toEqual([3]);
+  });
+
+  it("names several", () => {
+    expect(missingShards([row(1, 4)], 4)).toEqual([2, 3, 4]);
+  });
+
+  it("reports every shard missing when nothing recorded at all", () => {
+    expect(missingShards([], 4)).toEqual([1, 2, 3, 4]);
+  });
+
+  // Rows from a different shard count belong to a different day's schedule.
+  // Counting them would let yesterday's 2-shard run mark today's 4-shard day
+  // complete — the exact "a record is not a check" mistake this file is about.
+  it("ignores rows written under a different shard count", () => {
+    expect(missingShards([row(1, 2), row(2, 2)], 4)).toEqual([1, 2, 3, 4]);
+  });
+
+  // collect_repair rows and anything else in the table must not count.
+  it("ignores details that are not shard passes", () => {
+    expect(missingShards(["client abc — 1 client(s), 0 failure(s)", null, "full portfolio — 19 client(s)"], 4))
+      .toEqual([1, 2, 3, 4]);
   });
 });
